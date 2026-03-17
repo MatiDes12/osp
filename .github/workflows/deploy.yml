@@ -1,0 +1,79 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'services/gateway/**'
+      - 'apps/web/**'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+  PNPM_VERSION: "10"
+
+jobs:
+  # ─── Build & Deploy Gateway ────────────────────────
+  deploy-gateway:
+    name: Deploy Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build gateway
+        run: pnpm --filter @osp/gateway build
+
+      # TODO: Replace with real Docker build command
+      # Example: docker build -t osp-gateway:${{ github.sha }} -f services/gateway/Dockerfile .
+      - name: Build Docker image (placeholder)
+        run: echo "Building Docker image for gateway — replace with real docker build command"
+
+      # TODO: Replace with real deployment command
+      # Example: docker push <registry>/osp-gateway:${{ github.sha }}
+      # Example: kubectl set image deployment/gateway gateway=<registry>/osp-gateway:${{ github.sha }}
+      - name: Deploy gateway (placeholder)
+        run: echo "Deploying gateway — replace with real deployment command (e.g., docker push, kubectl apply, fly deploy)"
+
+  # ─── Deploy Web App ────────────────────────────────
+  deploy-web:
+    name: Deploy Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build web app
+        run: pnpm --filter @osp/web build
+
+      # TODO: Replace with real deployment command
+      # Example: vercel deploy --prod
+      # Example: aws s3 sync apps/web/.next s3://osp-web-bucket/
+      - name: Deploy web app (placeholder)
+        run: echo "Deploying web app — replace with real deployment command (e.g., vercel deploy, aws s3 sync)"

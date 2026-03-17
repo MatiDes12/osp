@@ -1,0 +1,7 @@
+# Default owners
+* @MatiDes12
+
+# Critical paths require 2 reviewers
+/packages/shared/ @MatiDes12
+/services/gateway/ @MatiDes12
+/infra/supabase/ @MatiDes12

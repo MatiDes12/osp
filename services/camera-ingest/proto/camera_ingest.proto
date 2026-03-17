@@ -1,0 +1,133 @@
+syntax = "proto3";
+package osp.cameraingest.v1;
+option go_package = "github.com/MatiDes12/osp/services/camera-ingest/pkg/proto";
+
+service CameraIngestService {
+  rpc AddCamera(AddCameraRequest) returns (AddCameraResponse);
+  rpc RemoveCamera(RemoveCameraRequest) returns (RemoveCameraResponse);
+  rpc GetCameraStatus(GetCameraStatusRequest) returns (CameraStatusResponse);
+  rpc ListCameraStatuses(ListCameraStatusesRequest) returns (ListCameraStatusesResponse);
+  rpc DiscoverCameras(DiscoverCamerasRequest) returns (DiscoverCamerasResponse);
+  rpc PTZCommand(PTZCommandRequest) returns (PTZCommandResponse);
+  rpc ReconnectCamera(ReconnectCameraRequest) returns (ReconnectCameraResponse);
+}
+
+// ---------- AddCamera ----------
+
+message AddCameraRequest {
+  string camera_id = 1;
+  string rtsp_url = 2;
+  string name = 3;
+  string onvif_url = 4;       // optional, for PTZ / discovery enrichment
+  string username = 5;        // optional, ONVIF / RTSP auth
+  string password = 6;        // optional, ONVIF / RTSP auth
+}
+
+message AddCameraResponse {
+  bool success = 1;
+  string message = 2;
+  CameraStatus status = 3;
+}
+
+// ---------- RemoveCamera ----------
+
+message RemoveCameraRequest {
+  string camera_id = 1;
+}
+
+message RemoveCameraResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ---------- GetCameraStatus ----------
+
+message GetCameraStatusRequest {
+  string camera_id = 1;
+}
+
+message CameraStatusResponse {
+  CameraStatus status = 1;
+}
+
+// ---------- ListCameraStatuses ----------
+
+message ListCameraStatusesRequest {}
+
+message ListCameraStatusesResponse {
+  repeated CameraStatus statuses = 1;
+}
+
+// ---------- DiscoverCameras ----------
+
+message DiscoverCamerasRequest {
+  int32 timeout_seconds = 1; // 0 = default (10s)
+}
+
+message DiscoverCamerasResponse {
+  repeated DiscoveredCamera cameras = 1;
+}
+
+message DiscoveredCamera {
+  string ip = 1;
+  int32 port = 2;
+  string manufacturer = 3;
+  string model = 4;
+  string xaddr = 5;           // ONVIF device service URL
+}
+
+// ---------- PTZCommand ----------
+
+message PTZCommandRequest {
+  string camera_id = 1;
+  PTZAction action = 2;
+  float pan = 3;              // -1.0 to 1.0
+  float tilt = 4;             // -1.0 to 1.0
+  float zoom = 5;             // -1.0 to 1.0
+  float speed = 6;            // 0.0 to 1.0
+  string preset_id = 7;       // used with GOTO_PRESET
+}
+
+enum PTZAction {
+  PTZ_ACTION_UNSPECIFIED = 0;
+  PTZ_ACTION_MOVE = 1;
+  PTZ_ACTION_STOP = 2;
+  PTZ_ACTION_GOTO_PRESET = 3;
+}
+
+message PTZCommandResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ---------- ReconnectCamera ----------
+
+message ReconnectCameraRequest {
+  string camera_id = 1;
+}
+
+message ReconnectCameraResponse {
+  bool success = 1;
+  string message = 2;
+  CameraStatus status = 3;
+}
+
+// ---------- Shared ----------
+
+message CameraStatus {
+  string camera_id = 1;
+  string name = 2;
+  string rtsp_url = 3;
+  CameraState state = 4;
+  string last_seen = 5;       // RFC 3339
+  int32 consecutive_failures = 6;
+  string error_message = 7;
+}
+
+enum CameraState {
+  CAMERA_STATE_UNSPECIFIED = 0;
+  CAMERA_STATE_ONLINE = 1;
+  CAMERA_STATE_OFFLINE = 2;
+  CAMERA_STATE_CONNECTING = 3;
+  CAMERA_STATE_DEGRADED = 4;
+}
