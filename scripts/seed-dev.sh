@@ -62,7 +62,7 @@ REGISTER_RESPONSE=$(post_json "/api/v1/auth/register" '{
   "email": "demo@osp.dev",
   "password": "demo1234",
   "displayName": "Demo Admin",
-  "organizationName": "Demo Organization"
+  "tenantName": "Demo Organization"
 }')
 
 HTTP_CODE=$(echo "$REGISTER_RESPONSE" | tail -1)
