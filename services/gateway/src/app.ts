@@ -15,7 +15,7 @@ import { ruleRoutes } from "./routes/rule.routes.js";
 import { tenantRoutes } from "./routes/tenant.routes.js";
 import { extensionRoutes } from "./routes/extension.routes.js";
 import { locationRoutes } from "./routes/location.routes.js";
-import { tagRoutes } from "./routes/tag.routes.js";
+import { tagRoutes, cameraTagRoutes } from "./routes/tag.routes.js";
 import { devRoutes } from "./routes/dev.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
@@ -89,7 +89,7 @@ app.route("/api/v1/rules", ruleRoutes);
 app.route("/api/v1/tenants", tenantRoutes);
 app.route("/api/v1/locations", locationRoutes);
 app.route("/api/v1/tags", tagRoutes);
-app.route("/api/v1/cameras", tagRoutes);
+app.route("/api/v1/cameras", cameraTagRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
 app.route("/api/v1/dev", devRoutes);
 

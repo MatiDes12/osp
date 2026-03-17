@@ -8,6 +8,8 @@ import { createSuccessResponse } from "@osp/shared";
 
 const logger = createLogger("tag-routes");
 
+// ── Tag management routes (mounted at /api/v1/tags) ──
+
 export const tagRoutes = new Hono<Env>();
 
 // List tenant's tags
@@ -93,8 +95,12 @@ tagRoutes.delete("/:id", requireAuth("admin"), async (c) => {
   return c.json(createSuccessResponse({ deleted: true }));
 });
 
+// ── Camera-tag assignment routes (mounted at /api/v1/cameras) ──
+
+export const cameraTagRoutes = new Hono<Env>();
+
 // List tag assignments for a camera
-tagRoutes.get("/cameras/:id/tags", requireAuth("viewer"), async (c) => {
+cameraTagRoutes.get("/:id/tags", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
   const cameraId = c.req.param("id");
   const supabase = getSupabase();
@@ -125,7 +131,7 @@ tagRoutes.get("/cameras/:id/tags", requireAuth("viewer"), async (c) => {
 });
 
 // Assign tags to a camera
-tagRoutes.post("/cameras/:id/tags", requireAuth("operator"), async (c) => {
+cameraTagRoutes.post("/:id/tags", requireAuth("operator"), async (c) => {
   const tenantId = c.get("tenantId");
   const cameraId = c.req.param("id");
   const body = await c.req.json();
@@ -178,7 +184,7 @@ tagRoutes.post("/cameras/:id/tags", requireAuth("operator"), async (c) => {
 });
 
 // Remove tag from a camera
-tagRoutes.delete("/cameras/:id/tags/:tagId", requireAuth("operator"), async (c) => {
+cameraTagRoutes.delete("/:id/tags/:tagId", requireAuth("operator"), async (c) => {
   const tenantId = c.get("tenantId");
   const cameraId = c.req.param("id");
   const tagId = c.req.param("tagId");
