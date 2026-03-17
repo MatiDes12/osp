@@ -407,13 +407,20 @@ export default function LocationsPage() {
                 )}
               </div>
 
-              <div className="mt-3 pt-3 border-t border-zinc-800">
+              <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center gap-4">
                 <Link
                   href={`/cameras?locationId=${loc.id}`}
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                 >
                   <Camera className="h-3 w-3" />
                   View Cameras
+                </Link>
+                <Link
+                  href={`/locations/${loc.id}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  <MapPin className="h-3 w-3" />
+                  Floor Plan
                 </Link>
               </div>
             </div>
