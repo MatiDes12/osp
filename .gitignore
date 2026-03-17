@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+.expo/
+out/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+*.lcov
+
+# Go
+services/*/bin/
+services/*/tmp/
+
+# Tauri
+apps/desktop/src-tauri/target/
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+
+# Supabase
+infra/supabase/.temp/

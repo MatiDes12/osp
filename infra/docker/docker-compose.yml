@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  # ─── Redis ───
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── go2rtc ───
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    ports:
+      - "1984:1984"   # API
+      - "8554:8554"   # RTSP
+      - "8555:8555"   # WebRTC
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+    restart: unless-stopped
+
+  # ─── API Gateway ───
+  gateway:
+    build:
+      context: ../../
+      dockerfile: infra/docker/gateway.Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ../../.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:
