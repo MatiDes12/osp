@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { OSPEvent } from "@osp/shared";
+import { showNotification } from "@/lib/notifications";
 
 interface UseEventStreamOptions {
   readonly cameraIds?: string[];
@@ -177,6 +178,18 @@ export function useEventStream(
                   ? updated.slice(0, MAX_EVENTS)
                   : updated;
               });
+
+              // Show browser notification for high/critical severity events
+              if (event.severity === "high" || event.severity === "critical") {
+                const title = event.type === "motion" ? "Motion Detected" : `Event: ${event.type}`;
+                showNotification(title, {
+                  body: `Camera: ${event.cameraName || "Unknown"}`,
+                  tag: `event-${event.id}`,
+                  onClick: () => {
+                    window.location.href = `/cameras/${event.cameraId}`;
+                  },
+                });
+              }
             }
           }
           // pong, connected, subscribed, and error messages are handled

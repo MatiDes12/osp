@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { User, Camera, ApiResponse, UserRole } from "@osp/shared";
 import { transformCameras, transformUsers } from "@/lib/transforms";
+import { showToast } from "@/stores/toast";
 import {
   Camera as CameraIcon,
   Users,
@@ -191,30 +192,48 @@ function ExtensionCardSkeleton() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Toast notification                                                 */
+/*  Delete confirmation modal                                          */
 /* ------------------------------------------------------------------ */
-function Toast({
-  message,
-  onClose,
+function ConfirmDeleteModal({
+  cameraName,
+  onConfirm,
+  onCancel,
 }: {
-  readonly message: string;
-  readonly onClose: () => void;
+  readonly cameraName: string;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
 }) {
-  useEffect(() => {
-    const timer = setTimeout(onClose, 3000);
-    return () => clearTimeout(timer);
-  }, [onClose]);
-
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400 shadow-lg backdrop-blur-sm animate-in slide-in-from-bottom-4">
-      <Check className="h-4 w-4 shrink-0" />
-      {message}
-      <button
-        onClick={onClose}
-        className="ml-2 text-green-400/60 hover:text-green-400 transition-colors duration-150 cursor-pointer"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-zinc-50">Delete Camera</h3>
+            <p className="text-sm text-zinc-500">This action cannot be undone.</p>
+          </div>
+        </div>
+        <p className="text-sm text-zinc-400 mb-6">
+          Are you sure you want to delete <span className="font-medium text-zinc-200">{cameraName}</span>?
+          All associated recordings and events will be permanently removed.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors duration-150 cursor-pointer"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -224,7 +243,6 @@ function Toast({
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("tenant");
-  const [toast, setToast] = useState<string | null>(null);
 
   // Tenant / General state
   const [tenantName, setTenantName] = useState("");
@@ -253,6 +271,13 @@ export default function SettingsPage() {
   // Cameras state
   const [cameras, setCameras] = useState<readonly Camera[]>([]);
   const [camerasLoading, setCamerasLoading] = useState(false);
+
+  // Invite state
+  const [inviteSaving, setInviteSaving] = useState(false);
+
+  // Camera delete state
+  const [deletingCameraId, setDeletingCameraId] = useState<string | null>(null);
+  const cameraToDelete = cameras.find((c) => c.id === deletingCameraId);
 
   // Extensions state
   const [extTab, setExtTab] = useState<"installed" | "marketplace">("installed");
@@ -338,24 +363,71 @@ export default function SettingsPage() {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           name: tenantName,
-          settings: { timezone, defaultRecordingMode },
+          settings: { timezone, default_recording_mode: defaultRecordingMode },
         }),
       });
       const json = await response.json();
       if (json.success) {
         initialTenantRef.current = {
           name: tenantName,
-          timezone,
+          timezone: timezone,
           mode: defaultRecordingMode,
         };
-        setToast("Settings saved successfully");
+        showToast("Settings saved successfully", "success");
+      } else {
+        showToast(json.error?.message ?? "Failed to save settings", "error");
       }
-    } catch {
-      // Error handling
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Network error", "error");
     } finally {
       setGeneralSaving(false);
     }
   }, [tenantName, timezone, defaultRecordingMode]);
+
+  const handleInviteUser = useCallback(async () => {
+    if (!inviteEmail) return;
+    setInviteSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current/users/invite`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const json = await response.json();
+      if (json.success) {
+        showToast("Invitation sent successfully", "success");
+        setShowInviteModal(false);
+        setInviteEmail("");
+        fetchUsers();
+      } else {
+        showToast(json.error?.message ?? "Failed to send invite", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Network error", "error");
+    } finally {
+      setInviteSaving(false);
+    }
+  }, [inviteEmail, inviteRole, fetchUsers]);
+
+  const handleDeleteCamera = useCallback(async (cameraId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/cameras/${cameraId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json();
+      if (json.success) {
+        setCameras((prev) => prev.filter((c) => c.id !== cameraId));
+        showToast("Camera deleted successfully", "success");
+      } else {
+        showToast(json.error?.message ?? "Failed to delete camera", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Network error", "error");
+    } finally {
+      setDeletingCameraId(null);
+    }
+  }, []);
 
   // Unsaved changes warning
   useEffect(() => {
@@ -714,15 +786,11 @@ export default function SettingsPage() {
                         Cancel
                       </button>
                       <button
-                        onClick={() => {
-                          setShowInviteModal(false);
-                          setInviteEmail("");
-                          setToast("Invitation sent");
-                        }}
-                        disabled={!inviteEmail}
+                        onClick={handleInviteUser}
+                        disabled={!inviteEmail || inviteSaving}
                         className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors duration-150 disabled:opacity-40 cursor-pointer"
                       >
-                        Send Invite
+                        {inviteSaving ? "Sending..." : "Send Invite"}
                       </button>
                     </div>
                   </div>
@@ -835,7 +903,10 @@ export default function SettingsPage() {
                                 <button className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer">
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
-                                <button className="p-1 text-zinc-500 hover:text-red-400 transition-colors duration-150 cursor-pointer">
+                                <button
+                                  onClick={() => setDeletingCameraId(cam.id)}
+                                  className="p-1 text-zinc-500 hover:text-red-400 transition-colors duration-150 cursor-pointer"
+                                >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
@@ -1089,8 +1160,14 @@ export default function SettingsPage() {
         )}
       </div>
 
-      {/* Toast */}
-      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      {/* Delete camera confirmation */}
+      {deletingCameraId && cameraToDelete && (
+        <ConfirmDeleteModal
+          cameraName={cameraToDelete.name}
+          onConfirm={() => handleDeleteCamera(deletingCameraId)}
+          onCancel={() => setDeletingCameraId(null)}
+        />
+      )}
     </div>
   );
 }

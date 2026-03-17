@@ -36,10 +36,12 @@ export function createCamerasApi(client: ApiClient) {
       return client.delete<void>(`/api/v1/cameras/${id}`);
     },
 
-    discover() {
-      return client.post<{ cameras: DiscoveredCamera[]; scanDurationMs: number }>(
-        "/api/v1/cameras/discover",
-      );
+    discover(subnet?: string) {
+      return client.post<{
+        cameras: DiscoveredCamera[];
+        scanDurationMs: number;
+        subnetScanned: string;
+      }>("/api/v1/cameras/discover", subnet ? { subnet } : undefined);
     },
 
     getStream(id: string) {

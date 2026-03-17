@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { isTokenExpired } from "@/lib/jwt";
+import { requestNotificationPermission } from "@/lib/notifications";
 
 const ACCESS_TOKEN_KEY = "osp_access_token";
 const REFRESH_TOKEN_KEY = "osp_refresh_token";
@@ -14,6 +15,7 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
+  const notificationRequestedRef = useRef(false);
 
   useEffect(() => {
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -28,6 +30,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
     }
 
     setStatus("authenticated");
+
+    // Request notification permission once after authentication
+    if (!notificationRequestedRef.current) {
+      notificationRequestedRef.current = true;
+      requestNotificationPermission().catch(() => {
+        // Silently ignore if user denies or browser doesn't support
+      });
+    }
   }, [router]);
 
   if (status === "loading") {

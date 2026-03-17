@@ -67,12 +67,14 @@ export interface CameraZone {
 export interface DiscoveredCamera {
   ip: string;
   port: number;
-  manufacturer: string;
-  model: string;
-  name: string;
+  manufacturer?: string;
+  model?: string;
+  name?: string;
   rtspUrl: string;
-  onvifUrl: string;
+  onvifUrl?: string;
   alreadyAdded: boolean;
+  /** Common RTSP paths found on this host */
+  possiblePaths?: string[];
 }
 
 export interface StreamInfo {

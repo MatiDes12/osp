@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Filter,
   Bell,
@@ -8,9 +8,18 @@ import {
   Download,
   Eye,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
+  AlertTriangle,
+  Info,
+  ArrowDown,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
-import type { OSPEvent, EventType, EventSeverity, Camera, ApiResponse } from "@osp/shared";
+import type { OSPEvent, EventType, EventSeverity, Camera } from "@osp/shared";
 import { transformEvents, transformCameras } from "@/lib/transforms";
+import { useEventStream } from "@/hooks/use-event-stream";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -46,6 +55,20 @@ interface Filters {
   readonly dateTo: string;
 }
 
+interface PaginationMeta {
+  readonly total: number;
+  readonly page: number;
+  readonly limit: number;
+  readonly hasMore: boolean;
+}
+
+interface EventSummaryData {
+  readonly total: number;
+  readonly byType: Record<string, number>;
+  readonly bySeverity: Record<string, number>;
+  readonly byCamera: Record<string, number>;
+}
+
 const INITIAL_FILTERS: Filters = {
   cameraIds: new Set(),
   eventTypes: new Set(),
@@ -54,6 +77,8 @@ const INITIAL_FILTERS: Filters = {
   dateFrom: "",
   dateTo: "",
 };
+
+const PAGE_SIZE = 50;
 
 const EVENT_TYPE_CONFIG: readonly {
   type: EventType;
@@ -84,11 +109,6 @@ const SEVERITY_CONFIG: readonly {
   { level: "low", label: "Low", color: "text-zinc-400", borderColor: "border-l-zinc-500", badgeBg: "bg-zinc-500/10 text-zinc-400" },
 ];
 
-function getSeverityBorderClass(severity: EventSeverity): string {
-  const config = SEVERITY_CONFIG.find((s) => s.level === severity);
-  return config?.borderColor ?? "border-l-zinc-500";
-}
-
 function getSeverityBadgeClass(severity: EventSeverity): string {
   const config = SEVERITY_CONFIG.find((s) => s.level === severity);
   return config?.badgeBg ?? "bg-zinc-500/10 text-zinc-400";
@@ -98,7 +118,8 @@ function getEventBorderColor(event: OSPEvent): string {
   if (event.type === "person" || event.type === "vehicle" || event.type === "animal") {
     return "border-l-purple-500";
   }
-  return getSeverityBorderClass(event.severity);
+  const config = SEVERITY_CONFIG.find((s) => s.level === event.severity);
+  return config?.borderColor ?? "border-l-zinc-500";
 }
 
 function getDateRange(preset: DatePreset): { from: string; to: string } {
@@ -138,6 +159,34 @@ function hasActiveFilters(filters: Filters): boolean {
   );
 }
 
+function buildQueryParams(filters: Filters, page: number): URLSearchParams {
+  const params = new URLSearchParams();
+
+  if (filters.cameraIds.size === 1) {
+    params.set("cameraId", [...filters.cameraIds][0] ?? "");
+  }
+  if (filters.eventTypes.size === 1) {
+    params.set("type", [...filters.eventTypes][0] ?? "");
+  }
+  if (filters.severities.size === 1) {
+    params.set("severity", [...filters.severities][0] ?? "");
+  }
+
+  if (filters.datePreset !== "custom") {
+    const range = getDateRange(filters.datePreset);
+    if (range.from) params.set("from", range.from);
+    if (range.to) params.set("to", range.to);
+  } else {
+    if (filters.dateFrom) params.set("from", new Date(filters.dateFrom).toISOString());
+    if (filters.dateTo) params.set("to", new Date(filters.dateTo).toISOString());
+  }
+
+  params.set("page", String(page));
+  params.set("limit", String(PAGE_SIZE));
+
+  return params;
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<readonly OSPEvent[]>([]);
   const [cameras, setCameras] = useState<readonly Camera[]>([]);
@@ -146,10 +195,52 @@ export default function EventsPage() {
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<OSPEvent | null>(null);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationMeta | null>(null);
+  const [summary, setSummary] = useState<EventSummaryData | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [simulatingMotion, setSimulatingMotion] = useState(false);
+  const [newWsEventCount, setNewWsEventCount] = useState(0);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  const isScrolledRef = useRef(false);
+
+  // Real-time WebSocket events
+  const { events: wsEvents, connected: wsConnected } = useEventStream({
+    cameraIds: filters.cameraIds.size > 0 ? [...filters.cameraIds] : undefined,
+    eventTypes: filters.eventTypes.size > 0 ? [...filters.eventTypes] : undefined,
+  });
+
+  // Track new WS events when scrolled down
+  const prevWsLengthRef = useRef(0);
+  useEffect(() => {
+    if (wsEvents.length > prevWsLengthRef.current) {
+      const newCount = wsEvents.length - prevWsLengthRef.current;
+      if (isScrolledRef.current) {
+        setNewWsEventCount((prev) => prev + newCount);
+      }
+    }
+    prevWsLengthRef.current = wsEvents.length;
+  }, [wsEvents.length]);
+
+  // Track scroll position
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      isScrolledRef.current = el.scrollTop > 100;
+      if (el.scrollTop <= 100) {
+        setNewWsEventCount(0);
+      }
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const updateFilter = useCallback(
     <K extends keyof Filters>(key: K, value: Filters[K]) => {
       setFilters((prev) => ({ ...prev, [key]: value }));
+      setPage(1); // Reset to first page on filter change
     },
     [],
   );
@@ -169,24 +260,56 @@ export default function EventsPage() {
 
   const clearAllFilters = useCallback(() => {
     setFilters(INITIAL_FILTERS);
+    setPage(1);
   }, []);
 
-  const fetchData = useCallback(async () => {
+  // Fetch events
+  const fetchEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      const params = buildQueryParams(filters, page);
+
+      const response = await fetch(`${API_URL}/api/v1/events?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+
+      const json = await response.json();
+      if (json.success && json.data) {
+        setEvents(transformEvents(json.data as Record<string, unknown>[]));
+        if (json.meta) {
+          setPagination(json.meta as PaginationMeta);
+        }
+      } else {
+        setError(json.error?.message ?? "Failed to load events");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, page]);
+
+  // Fetch cameras (once)
+  const fetchCameras = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/cameras`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json();
+      if (json.success && json.data) {
+        setCameras(transformCameras(json.data as Record<string, unknown>[]));
+      }
+    } catch {
+      // Camera list is non-critical
+    }
+  }, []);
+
+  // Fetch event summary
+  const fetchSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
       const params = new URLSearchParams();
-
-      if (filters.cameraIds.size === 1) {
-        params.set("cameraId", [...filters.cameraIds][0] ?? "");
-      }
-      if (filters.eventTypes.size === 1) {
-        params.set("type", [...filters.eventTypes][0] ?? "");
-      }
-      if (filters.severities.size === 1) {
-        params.set("severity", [...filters.severities][0] ?? "");
-      }
-
       if (filters.datePreset !== "custom") {
         const range = getDateRange(filters.datePreset);
         if (range.from) params.set("from", range.from);
@@ -196,79 +319,75 @@ export default function EventsPage() {
         if (filters.dateTo) params.set("to", new Date(filters.dateTo).toISOString());
       }
 
-      params.set("limit", "50");
-
-      const [eventsRes, camerasRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/events?${params.toString()}`, {
-          headers: getAuthHeaders(),
-        }),
-        fetch(`${API_URL}/api/v1/cameras`, {
-          headers: getAuthHeaders(),
-        }),
-      ]);
-
-      const eventsJson = await eventsRes.json();
-      if (eventsJson.success && eventsJson.data) {
-        setEvents(transformEvents(eventsJson.data as Record<string, unknown>[]));
-      } else {
-        setError(eventsJson.error?.message ?? "Failed to load events");
+      const response = await fetch(`${API_URL}/api/v1/events/summary?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json();
+      if (json.success && json.data) {
+        setSummary(json.data as EventSummaryData);
       }
-
-      const camerasJson = await camerasRes.json();
-      if (camerasJson.success && camerasJson.data) {
-        setCameras(transformCameras(camerasJson.data as Record<string, unknown>[]));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+    } catch {
+      // Summary is non-critical
     } finally {
-      setLoading(false);
+      setSummaryLoading(false);
     }
-  }, [filters]);
+  }, [filters.datePreset, filters.dateFrom, filters.dateTo]);
 
+  // Load cameras once on mount
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchCameras();
+  }, [fetchCameras]);
+
+  // Refetch events when filters or page change
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  // Refetch summary when date filters change
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
 
   const handleAcknowledge = useCallback(async (eventId: string) => {
+    // Optimistic update
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === eventId
+          ? { ...e, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+          : e,
+      ),
+    );
     try {
       const response = await fetch(`${API_URL}/api/v1/events/${eventId}/acknowledge`, {
         method: "PATCH",
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<void> = await response.json();
-      if (json.success) {
+      const json = await response.json();
+      if (!json.success) {
+        // Revert optimistic update on failure
         setEvents((prev) =>
           prev.map((e) =>
             e.id === eventId
-              ? { ...e, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+              ? { ...e, acknowledged: false, acknowledgedAt: null }
               : e,
           ),
         );
       }
     } catch {
-      // User can retry
+      // Revert on network error
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? { ...e, acknowledged: false, acknowledgedAt: null }
+            : e,
+        ),
+      );
     }
   }, []);
 
   const handleBulkAcknowledge = useCallback(async () => {
     const ids = [...selectedIds];
-    try {
-      await fetch(`${API_URL}/api/v1/events/bulk-acknowledge`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ eventIds: ids }),
-      });
-    } catch {
-      // Fall back to individual requests
-      await Promise.allSettled(
-        ids.map((id) =>
-          fetch(`${API_URL}/api/v1/events/${id}/acknowledge`, {
-            method: "PATCH",
-            headers: getAuthHeaders(),
-          }),
-        ),
-      );
-    }
+    // Optimistic update
     setEvents((prev) =>
       prev.map((e) =>
         selectedIds.has(e.id)
@@ -277,6 +396,28 @@ export default function EventsPage() {
       ),
     );
     setSelectedIds(new Set());
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/events/bulk-acknowledge`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ eventIds: ids }),
+      });
+      const json = await response.json();
+      if (!json.success) {
+        // Fallback to individual requests
+        await Promise.allSettled(
+          ids.map((id) =>
+            fetch(`${API_URL}/api/v1/events/${id}/acknowledge`, {
+              method: "PATCH",
+              headers: getAuthHeaders(),
+            }),
+          ),
+        );
+      }
+    } catch {
+      // Already optimistically updated; events will be correct on next fetch
+    }
   }, [selectedIds]);
 
   const toggleSelectEvent = useCallback((eventId: string) => {
@@ -291,6 +432,30 @@ export default function EventsPage() {
     });
   }, []);
 
+  const handleSimulateMotion = useCallback(async () => {
+    if (cameras.length === 0) return;
+    setSimulatingMotion(true);
+    try {
+      const cameraId = cameras[0]!.id;
+      await fetch(`${API_URL}/api/v1/dev/simulate-motion`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ cameraId }),
+      });
+      // The event will arrive via WebSocket or we can refetch
+      setTimeout(() => fetchEvents(), 500);
+    } catch {
+      // Simulation is best-effort
+    } finally {
+      setSimulatingMotion(false);
+    }
+  }, [cameras, fetchEvents]);
+
+  const scrollToTop = useCallback(() => {
+    listRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    setNewWsEventCount(0);
+  }, []);
+
   const cameraNameMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const cam of cameras) {
@@ -299,15 +464,27 @@ export default function EventsPage() {
     return map;
   }, [cameras]);
 
-  // Client-side filtering for multi-select
+  // Merge WS events with fetched events (prepend, deduplicate)
+  const mergedEvents = useMemo(() => {
+    const fetchedIds = new Set(events.map((e) => e.id));
+    const newFromWs = wsEvents.filter((e) => !fetchedIds.has(e.id));
+    return [...newFromWs, ...events];
+  }, [events, wsEvents]);
+
+  // Client-side filtering for multi-select (when more than one value is selected,
+  // the API only accepts a single value, so we filter the rest client-side)
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
+    return mergedEvents.filter((event) => {
       if (filters.cameraIds.size > 1 && !filters.cameraIds.has(event.cameraId)) return false;
       if (filters.eventTypes.size > 1 && !filters.eventTypes.has(event.type)) return false;
       if (filters.severities.size > 1 && !filters.severities.has(event.severity)) return false;
       return true;
     });
-  }, [events, filters.cameraIds, filters.eventTypes, filters.severities]);
+  }, [mergedEvents, filters.cameraIds, filters.eventTypes, filters.severities]);
+
+  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
+
+  const isDev = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   return (
     <div className="flex h-[calc(100vh-3rem)] -m-6">
@@ -324,6 +501,9 @@ export default function EventsPage() {
             Cameras
           </h3>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
+            {cameras.length === 0 && (
+              <p className="text-[10px] text-zinc-600 italic">No cameras loaded</p>
+            )}
             {cameras.map((cam) => (
               <label
                 key={cam.id}
@@ -471,13 +651,61 @@ export default function EventsPage() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-zinc-50">Events</h1>
-            {!loading && (
+            {!loading && pagination && (
               <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-zinc-800 text-zinc-400">
-                {filteredEvents.length} results
+                {pagination.total} total
               </span>
+            )}
+            {/* WebSocket status indicator */}
+            <span className="flex items-center gap-1" title={wsConnected ? "Live updates connected" : "Live updates disconnected"}>
+              {wsConnected ? (
+                <Wifi className="w-3 h-3 text-green-500" />
+              ) : (
+                <WifiOff className="w-3 h-3 text-zinc-600" />
+              )}
+              <span className={`text-[10px] ${wsConnected ? "text-green-500" : "text-zinc-600"}`}>
+                {wsConnected ? "Live" : "Offline"}
+              </span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isDev && (
+              <button
+                onClick={handleSimulateMotion}
+                disabled={simulatingMotion || cameras.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
+                title="Simulate a motion event (dev only)"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                {simulatingMotion ? "Simulating..." : "Simulate Motion"}
+              </button>
             )}
           </div>
         </div>
+
+        {/* Event summary bar */}
+        {!summaryLoading && summary && (
+          <div className="flex items-center gap-4 px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 shrink-0 overflow-x-auto">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Total</span>
+              <span className="text-xs font-semibold text-zinc-200">{summary.total}</span>
+            </div>
+            <div className="w-px h-4 bg-zinc-800" />
+            {SEVERITY_CONFIG.map(({ level, label, color }) => {
+              const count = summary.bySeverity[level] ?? 0;
+              if (count === 0) return null;
+              return (
+                <div key={level} className="flex items-center gap-1.5">
+                  {level === "critical" && <AlertTriangle className={`w-3 h-3 ${color}`} />}
+                  {level === "high" && <AlertTriangle className={`w-3 h-3 ${color}`} />}
+                  {level === "medium" && <Info className={`w-3 h-3 ${color}`} />}
+                  <span className={`text-xs font-medium ${color}`}>{count}</span>
+                  <span className="text-[10px] text-zinc-500">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
@@ -506,8 +734,19 @@ export default function EventsPage() {
           </div>
         )}
 
+        {/* New events banner */}
+        {newWsEventCount > 0 && (
+          <button
+            onClick={scrollToTop}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/10 border-b border-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/15 transition-colors duration-150 cursor-pointer shrink-0"
+          >
+            <ArrowDown className="w-3 h-3 rotate-180" />
+            {newWsEventCount} new {newWsEventCount === 1 ? "event" : "events"} -- click to scroll up
+          </button>
+        )}
+
         {/* Event list */}
-        <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
           {loading && (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -524,7 +763,7 @@ export default function EventsPage() {
               <p className="font-medium mb-1">Failed to load events</p>
               <p className="text-xs text-zinc-500">{error}</p>
               <button
-                onClick={fetchData}
+                onClick={fetchEvents}
                 className="mt-2 text-xs text-zinc-400 underline hover:no-underline cursor-pointer"
               >
                 Try again
@@ -550,15 +789,23 @@ export default function EventsPage() {
               {filteredEvents.map((event) => {
                 const isSelected = selectedIds.has(event.id);
                 const borderClass = getEventBorderColor(event);
+                // WS events that aren't in the fetched set get a slide-in animation
+                const isNewFromWs = !events.some((e) => e.id === event.id);
 
                 return (
                   <div
                     key={event.id}
                     onClick={() => setSelectedEvent(event)}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${borderClass} bg-zinc-900 hover:bg-zinc-800/50 transition-colors duration-150 cursor-pointer ${
+                    className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${borderClass} transition-all duration-150 cursor-pointer ${
+                      event.acknowledged
+                        ? "bg-zinc-900/50 opacity-70"
+                        : "bg-zinc-900 hover:bg-zinc-800/50"
+                    } ${
                       isSelected ? "ring-1 ring-blue-500/50" : ""
                     } ${selectedEvent?.id === event.id ? "bg-zinc-800/50" : ""}`}
-                    style={{ animation: "slideInEvent 300ms ease-out" }}
+                    style={isNewFromWs ? {
+                      animation: "slideInEvent 300ms ease-out",
+                    } : undefined}
                   >
                     {/* Checkbox */}
                     <input
@@ -661,6 +908,59 @@ export default function EventsPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {pagination && totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-800 bg-zinc-950/80 shrink-0">
+            <span className="text-xs text-zinc-500">
+              Page {page} of {totalPages} ({pagination.total} events)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Previous
+              </button>
+              {/* Page number buttons */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`w-7 h-7 text-xs rounded-md transition-colors duration-150 cursor-pointer ${
+                      pageNum === page
+                        ? "bg-blue-500/20 text-blue-400 font-medium"
+                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={!pagination.hasMore}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
+              >
+                Next
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -58,6 +58,7 @@ function formatTime(dateString: string): string {
 }
 
 function formatTimeRange(start: string, end: string): string {
+  if (!end) return `${formatTime(start)} - ongoing`;
   return `${formatTime(start)} - ${formatTime(end)}`;
 }
 

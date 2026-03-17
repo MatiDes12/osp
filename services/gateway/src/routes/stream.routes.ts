@@ -6,7 +6,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { getStreamService } from "../services/stream.service.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
-import type { DiscoveredCamera } from "@osp/shared";
+import { DiscoveryService } from "../services/discovery.service.js";
 
 const logger = createLogger("stream-routes");
 
@@ -225,10 +225,52 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
   );
 });
 
-// POST /api/v1/cameras/discover - ONVIF discovery (placeholder)
+// GET /api/v1/cameras/:id/recording.mp4 - Proxy MP4 stream from go2rtc for playback
+streamRoutes.get("/:id/recording.mp4", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+  const supabase = getSupabase();
+
+  // Verify camera belongs to tenant
+  const { data: camera, error } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const duration = c.req.query("duration") ?? "30";
+  const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}&duration=${duration}`;
+
+  logger.info("Proxying MP4 stream from go2rtc", { cameraId, mp4Url });
+
+  const go2rtcResponse = await fetch(mp4Url);
+
+  if (!go2rtcResponse.ok) {
+    throw new ApiError("STREAM_ERROR", "Failed to get MP4 stream", 502);
+  }
+
+  return new Response(go2rtcResponse.body, {
+    status: 200,
+    headers: {
+      "Content-Type": "video/mp4",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-cache",
+    },
+  });
+});
+
+// POST /api/v1/cameras/discover - Network RTSP port scan discovery
 streamRoutes.post("/discover", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
+  const body = await c.req.json().catch(() => ({}));
+  const subnet = (body as { subnet?: string }).subnet;
 
   // Get existing cameras to mark already-added ones
   const { data: existingCameras } = await supabase
@@ -242,45 +284,26 @@ streamRoutes.post("/discover", requireAuth("admin"), async (c) => {
     ),
   );
 
-  // Mock discovered cameras (placeholder for ONVIF discovery)
-  const mockDiscovered: DiscoveredCamera[] = [
-    {
-      ip: "192.168.1.100",
-      port: 554,
-      manufacturer: "Hikvision",
-      model: "DS-2CD2143G2-I",
-      name: "Front Entrance Camera",
-      rtspUrl: "rtsp://192.168.1.100:554/Streaming/Channels/101",
-      onvifUrl: "http://192.168.1.100:80/onvif/device_service",
-      alreadyAdded: existingUris.has(
-        "rtsp://192.168.1.100:554/Streaming/Channels/101",
-      ),
-    },
-    {
-      ip: "192.168.1.101",
-      port: 554,
-      manufacturer: "Dahua",
-      model: "IPC-HDW3849H-AS-PV",
-      name: "Parking Lot Camera",
-      rtspUrl: "rtsp://192.168.1.101:554/cam/realmonitor?channel=1&subtype=0",
-      onvifUrl: "http://192.168.1.101:80/onvif/device_service",
-      alreadyAdded: existingUris.has(
-        "rtsp://192.168.1.101:554/cam/realmonitor?channel=1&subtype=0",
-      ),
-    },
-    {
-      ip: "192.168.1.102",
-      port: 554,
-      manufacturer: "Reolink",
-      model: "RLC-810A",
-      name: "Backyard Camera",
-      rtspUrl: "rtsp://192.168.1.102:554/h264Preview_01_main",
-      onvifUrl: "http://192.168.1.102:80/onvif/device_service",
-      alreadyAdded: existingUris.has(
-        "rtsp://192.168.1.102:554/h264Preview_01_main",
-      ),
-    },
-  ];
+  const discoveryService = new DiscoveryService();
+  const { cameras, scanDurationMs, subnetScanned } =
+    await discoveryService.scanNetwork(subnet);
 
-  return c.json(createSuccessResponse(mockDiscovered));
+  // Mark cameras that are already added by checking all possible paths
+  const marked = cameras.map((cam) => {
+    const isAdded =
+      existingUris.has(cam.rtspUrl) ||
+      (cam.possiblePaths ?? []).some((p) => existingUris.has(p));
+    return { ...cam, alreadyAdded: isAdded };
+  });
+
+  logger.info("Discovery scan completed", {
+    tenantId,
+    camerasFound: marked.length,
+    scanDurationMs,
+    subnetScanned,
+  });
+
+  return c.json(
+    createSuccessResponse({ cameras: marked, scanDurationMs, subnetScanned }),
+  );
 });

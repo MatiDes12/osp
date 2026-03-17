@@ -3,6 +3,7 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
+import { getRecordingService } from "../services/recording.service.js";
 import { createSuccessResponse } from "@osp/shared";
 
 export const recordingRoutes = new Hono<Env>();
@@ -25,7 +26,7 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
     .from("recordings")
     .select("*", { count: "exact" })
     .eq("tenant_id", tenantId)
-    .order("started_at", { ascending: false })
+    .order("start_time", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (cameraId) {
@@ -38,10 +39,10 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
     query = query.eq("status", status);
   }
   if (from) {
-    query = query.gte("started_at", from);
+    query = query.gte("start_time", from);
   }
   if (to) {
-    query = query.lte("started_at", to);
+    query = query.lte("start_time", to);
   }
 
   const { data: recordings, count, error } = await query;
@@ -50,8 +51,12 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to fetch recordings", 500);
   }
 
+  // Enrich recordings with camera name and playback URL
+  const recordingService = getRecordingService();
+  const enriched = await enrichRecordings(recordings ?? [], recordingService);
+
   return c.json(
-    createSuccessResponse(recordings ?? [], {
+    createSuccessResponse(enriched, {
       total: count ?? 0,
       page,
       limit,
@@ -77,12 +82,12 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
 
   const { data: recordings, error } = await supabase
     .from("recordings")
-    .select("id, started_at, ended_at, trigger, status")
+    .select("id, start_time, end_time, trigger, status")
     .eq("tenant_id", tenantId)
     .eq("camera_id", cameraId)
-    .gte("started_at", dayStart)
-    .lte("started_at", dayEnd)
-    .order("started_at", { ascending: true });
+    .gte("start_time", dayStart)
+    .lte("start_time", dayEnd)
+    .order("start_time", { ascending: true });
 
   if (error) {
     throw new ApiError("INTERNAL_ERROR", "Failed to fetch timeline", 500);
@@ -90,8 +95,8 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
 
   const segments = (recordings ?? []).map((r) => ({
     id: r.id as string,
-    startedAt: r.started_at as string,
-    endedAt: r.ended_at as string | null,
+    startTime: r.start_time as string,
+    endTime: r.end_time as string | null,
     trigger: r.trigger as string,
     status: r.status as string,
   }));
@@ -122,15 +127,18 @@ recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
     throw new ApiError("RECORDING_NOT_FOUND", "Recording not found", 404);
   }
 
-  // Placeholder signed URL - will be replaced with actual S3/storage signed URL
-  const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
-  const playbackUrl = `https://storage.placeholder.local/recordings/${tenantId}/${recordingId}/stream.m3u8?token=placeholder&expires=${encodeURIComponent(expiresAt)}`;
+  const recordingService = getRecordingService();
+  const cameraId = recording.camera_id as string;
+  const playbackUrl = recordingService.getPlaybackUrl(cameraId);
+
+  // Look up camera name
+  const cameraName = await getCameraName(cameraId);
 
   return c.json(
     createSuccessResponse({
       ...recording,
-      playbackUrl,
-      playbackExpiresAt: expiresAt,
+      camera_name: cameraName,
+      playback_url: playbackUrl,
     }),
   );
 });
@@ -151,7 +159,46 @@ recordingRoutes.delete("/:id", requireAuth("admin"), async (c) => {
     throw new ApiError("RECORDING_NOT_FOUND", "Recording not found", 404);
   }
 
-  // TODO: Delete actual storage files via storage service
-
   return c.json(createSuccessResponse({ deleted: true }));
 });
+
+// ── Helpers ──
+
+async function getCameraName(cameraId: string): Promise<string> {
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from("cameras")
+    .select("name")
+    .eq("id", cameraId)
+    .single();
+  return (data?.name as string) ?? "Unknown Camera";
+}
+
+async function enrichRecordings(
+  recordings: Record<string, unknown>[],
+  recordingService: ReturnType<typeof getRecordingService>,
+): Promise<Record<string, unknown>[]> {
+  // Collect unique camera IDs to batch-lookup names
+  const cameraIds = [...new Set(recordings.map((r) => r.camera_id as string))];
+  const supabase = getSupabase();
+
+  const nameMap = new Map<string, string>();
+  if (cameraIds.length > 0) {
+    const { data: cameras } = await supabase
+      .from("cameras")
+      .select("id, name")
+      .in("id", cameraIds);
+    for (const cam of cameras ?? []) {
+      nameMap.set(cam.id as string, cam.name as string);
+    }
+  }
+
+  return recordings.map((r) => {
+    const cameraId = r.camera_id as string;
+    return {
+      ...r,
+      camera_name: nameMap.get(cameraId) ?? "Unknown Camera",
+      playback_url: recordingService.getPlaybackUrl(cameraId),
+    };
+  });
+}

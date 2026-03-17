@@ -185,8 +185,13 @@ export default function RulesPage() {
   const [testSteps, setTestSteps] = useState<
     readonly { label: string; passed: boolean }[]
   >([]);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Editor form state
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editTrigger, setEditTrigger] = useState<EventType>("motion");
   const [editCameraIds, setEditCameraIds] = useState<readonly string[]>([]);
   const [editConditions, setEditConditions] = useState<
@@ -198,8 +203,18 @@ export default function RulesPage() {
     }[]
   >([]);
   const [editActions, setEditActions] = useState<readonly RuleAction[]>([]);
+  const [editCooldown, setEditCooldown] = useState(60);
+  const [editEnabled, setEditEnabled] = useState(true);
 
-  const selectedRule = rules.find((r) => r.id === selectedRuleId) ?? null;
+  const selectedRule = isCreating ? null : (rules.find((r) => r.id === selectedRuleId) ?? null);
+  const showEditor = isCreating || selectedRule !== null;
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -234,9 +249,13 @@ export default function RulesPage() {
   // Populate editor when selecting a rule
   useEffect(() => {
     if (selectedRule) {
+      setEditName(selectedRule.name);
+      setEditDescription(selectedRule.description ?? "");
       setEditTrigger(selectedRule.triggerEvent);
       setEditCameraIds(selectedRule.cameraIds ?? []);
       setEditActions(selectedRule.actions);
+      setEditCooldown(selectedRule.cooldownSec);
+      setEditEnabled(selectedRule.enabled);
 
       // Flatten top-level conditions for editing
       const flatConditions: typeof editConditions extends readonly (infer U)[]
@@ -286,25 +305,158 @@ export default function RulesPage() {
   );
 
   const handleTestRule = useCallback(async () => {
+    if (!selectedRuleId) return;
     setTestRunning(true);
     setTestSteps([]);
-    const steps = [
-      { label: "Evaluating trigger conditions", passed: false },
-      { label: "Checking condition filters", passed: false },
-      { label: "Validating action configs", passed: false },
-      { label: "Simulating action dispatch", passed: false },
-    ];
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise((r) => setTimeout(r, 600));
-      const step = steps[i];
-      if (step) {
-        setTestSteps((prev) => [
-          ...prev,
-          { label: step.label, passed: true },
+
+    try {
+      setTestSteps([{ label: "Fetching recent events...", passed: true }]);
+      const response = await fetch(`${API_URL}/api/v1/rules/${selectedRuleId}/test`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json() as ApiResponse<{
+        testedAgainst: number;
+        matched: number;
+        sampleMatches: readonly { eventId: string; type: string; severity: string }[];
+      }>;
+
+      if (json.success && json.data) {
+        setTestSteps([
+          { label: `Tested against ${json.data.testedAgainst} recent events`, passed: true },
+          { label: `Matched ${json.data.matched} events`, passed: json.data.matched > 0 },
+          ...json.data.sampleMatches.map((m) => ({
+            label: `Match: ${m.type} (${m.severity})`,
+            passed: true,
+          })),
         ]);
+      } else {
+        setTestSteps([{ label: "Test failed: " + (json.error?.message ?? "Unknown error"), passed: false }]);
       }
+    } catch (err) {
+      setTestSteps([{ label: `Test error: ${err instanceof Error ? err.message : "Network error"}`, passed: false }]);
+    } finally {
+      setTestRunning(false);
     }
-    setTestRunning(false);
+  }, [selectedRuleId]);
+
+  /** Build the rule body from editor state */
+  const buildRuleBody = useCallback(() => {
+    const operator = editConditions.length > 0
+      ? (editConditions[0]?.logic ?? "AND")
+      : "AND";
+
+    const conditions = {
+      operator,
+      children: editConditions.map((c) => ({
+        field: c.field,
+        operator: c.operator,
+        value: isNaN(Number(c.value)) ? c.value : Number(c.value),
+      })),
+    };
+
+    return {
+      name: editName.trim() || "Untitled Rule",
+      description: editDescription.trim() || undefined,
+      triggerEvent: editTrigger,
+      conditions: conditions.children.length > 0
+        ? conditions
+        : { operator: "AND" as const, children: [{ field: "intensity", operator: "gte" as const, value: 0 }] },
+      actions: editActions.length > 0
+        ? editActions
+        : [{ type: "push_notification" as const, config: { title: "Alert", body: "{{eventType}} on {{cameraName}}" } }],
+      cameraIds: editCameraIds.length > 0 ? editCameraIds : undefined,
+      cooldownSec: editCooldown,
+      enabled: editEnabled,
+    };
+  }, [editName, editDescription, editTrigger, editCameraIds, editConditions, editActions, editCooldown, editEnabled]);
+
+  /** Save an existing rule */
+  const handleSaveRule = useCallback(async () => {
+    if (!selectedRuleId) return;
+    setSaving(true);
+    try {
+      const body = buildRuleBody();
+      const response = await fetch(`${API_URL}/api/v1/rules/${selectedRuleId}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json: ApiResponse<AlertRule> = await response.json();
+      if (json.success) {
+        setToast({ message: "Rule saved successfully", type: "success" });
+        await fetchData();
+      } else {
+        setToast({ message: json.error?.message ?? "Failed to save rule", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Network error", type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedRuleId, buildRuleBody, fetchData]);
+
+  /** Create a new rule */
+  const handleCreateRule = useCallback(async () => {
+    setSaving(true);
+    try {
+      const body = buildRuleBody();
+      const response = await fetch(`${API_URL}/api/v1/rules`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json: ApiResponse<AlertRule> = await response.json();
+      if (json.success && json.data) {
+        setToast({ message: "Rule created successfully", type: "success" });
+        setIsCreating(false);
+        await fetchData();
+        setSelectedRuleId(json.data.id);
+      } else {
+        setToast({ message: json.error?.message ?? "Failed to create rule", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Network error", type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }, [buildRuleBody, fetchData]);
+
+  /** Delete a rule */
+  const handleDeleteRule = useCallback(async (ruleId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/rules/${ruleId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json() as ApiResponse<unknown>;
+      if (json.success) {
+        setToast({ message: "Rule deleted", type: "success" });
+        if (selectedRuleId === ruleId) {
+          setSelectedRuleId(null);
+        }
+        await fetchData();
+      } else {
+        setToast({ message: json.error?.message ?? "Failed to delete rule", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : "Network error", type: "error" });
+    }
+  }, [selectedRuleId, fetchData]);
+
+  /** Initialize form for creating a new rule */
+  const startCreateRule = useCallback(() => {
+    setIsCreating(true);
+    setSelectedRuleId(null);
+    setEditName("");
+    setEditDescription("");
+    setEditTrigger("motion");
+    setEditCameraIds([]);
+    setEditConditions([{ field: "intensity", operator: "gte", value: "30", logic: "AND" }]);
+    setEditActions([{ type: "push_notification", config: { title: "Alert: {{eventType}}", body: "{{eventType}} detected on {{cameraName}}" } }]);
+    setEditCooldown(60);
+    setEditEnabled(true);
+    setTestSteps([]);
   }, []);
 
   // Sort rules
@@ -333,7 +485,10 @@ export default function RulesPage() {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
           <h1 className="text-lg font-bold text-zinc-50">Alert Rules</h1>
-          <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-blue-600 cursor-pointer">
+          <button
+            onClick={startCreateRule}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-blue-600 cursor-pointer"
+          >
             <Zap className="h-3.5 w-3.5" />
             Create Rule
           </button>
@@ -401,7 +556,7 @@ export default function RulesPage() {
             sortedRules.map((rule) => (
               <button
                 key={rule.id}
-                onClick={() => setSelectedRuleId(rule.id)}
+                onClick={() => { setIsCreating(false); setSelectedRuleId(rule.id); }}
                 className={`w-full text-left bg-zinc-900 border rounded-lg p-4 mb-2 cursor-pointer transition-all duration-150 hover:bg-zinc-800/50 ${
                   selectedRuleId === rule.id
                     ? "ring-1 ring-blue-500/50 bg-zinc-800/30 border-zinc-700"
@@ -479,8 +634,21 @@ export default function RulesPage() {
       </div>
 
       {/* ── Right panel: Rule editor ──────────────────────────── */}
-      <div className="flex-1 overflow-y-auto bg-zinc-950/50">
-        {!selectedRule ? (
+      <div className="flex-1 overflow-y-auto bg-zinc-950/50 relative">
+        {/* Toast notification */}
+        {toast && (
+          <div
+            className={`absolute top-4 right-4 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg animate-[slideDown_300ms_ease-out] ${
+              toast.type === "success"
+                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                : "bg-red-500/20 text-red-400 border border-red-500/30"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+
+        {!showEditor ? (
           <div className="flex flex-col items-center justify-center h-full text-zinc-500">
             <Zap className="h-16 w-16 mb-4 opacity-20" />
             <p className="text-lg font-medium text-zinc-400">
@@ -492,15 +660,26 @@ export default function RulesPage() {
           </div>
         ) : (
           <div className="p-6 max-w-2xl mx-auto">
-            {/* Rule name header */}
+            {/* Rule name + description inputs */}
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-zinc-50">
-                {selectedRule.name}
-              </h2>
-              {selectedRule.description && (
-                <p className="text-sm text-zinc-500 mt-1">
-                  {selectedRule.description}
-                </p>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Rule name"
+                className="w-full bg-transparent text-xl font-bold text-zinc-50 border-none outline-none placeholder-zinc-600 mb-2"
+              />
+              <input
+                type="text"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Optional description..."
+                className="w-full bg-transparent text-sm text-zinc-500 border-none outline-none placeholder-zinc-700"
+              />
+              {isCreating && (
+                <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">
+                  New Rule
+                </span>
               )}
             </div>
 
@@ -848,17 +1027,50 @@ export default function RulesPage() {
 
             {/* ── Bottom buttons ────────────────────────────── */}
             <div className="flex items-center gap-3 mt-6 pt-4 border-t border-zinc-800">
-              <button
-                onClick={handleTestRule}
-                disabled={testRunning}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 disabled:opacity-50 cursor-pointer"
-              >
-                <Play className="h-3.5 w-3.5" />
-                {testRunning ? "Testing..." : "Test Rule"}
-              </button>
-              <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors duration-150 cursor-pointer">
-                Save
-              </button>
+              {!isCreating && selectedRuleId && (
+                <button
+                  onClick={handleTestRule}
+                  disabled={testRunning}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  {testRunning ? "Testing..." : "Test Rule"}
+                </button>
+              )}
+              {isCreating ? (
+                <>
+                  <button
+                    onClick={() => setIsCreating(false)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateRule}
+                    disabled={saving || !editName.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                  >
+                    {saving ? "Creating..." : "Create Rule"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleDeleteRule(selectedRuleId!)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400 hover:bg-red-500/20 transition-colors duration-150 cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                  <button
+                    onClick={handleSaveRule}
+                    disabled={saving || !editName.trim()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors duration-150 disabled:opacity-50 cursor-pointer"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

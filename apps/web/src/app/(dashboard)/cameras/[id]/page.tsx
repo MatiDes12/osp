@@ -11,6 +11,10 @@ import {
   RefreshCw,
   Plus,
   AlertTriangle,
+  Circle,
+  Square,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import { PTZControls } from "@/components/camera/PTZControls";
@@ -119,6 +123,13 @@ export default function CameraDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const fetchCamera = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -200,6 +211,142 @@ export default function CameraDetailPage() {
     link.click();
   }, [camera?.name]);
 
+  // Check for active recording on mount
+  useEffect(() => {
+    if (!cameraId) return;
+    fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/status`, {
+      headers: getAuthHeaders(),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data?.isRecording && json.data.recording) {
+          const rec = json.data.recording;
+          setIsRecording(true);
+          setRecordingId(rec.id);
+          const startMs = new Date(rec.start_time).getTime();
+          setRecordingStartTime(startMs);
+        }
+      })
+      .catch(() => {
+        // Non-critical — ignore
+      });
+  }, [cameraId]);
+
+  // Recording duration timer
+  useEffect(() => {
+    if (isRecording && recordingStartTime) {
+      const tick = () => {
+        setRecordingDuration(Math.floor((Date.now() - recordingStartTime) / 1000));
+      };
+      tick();
+      recordingTimerRef.current = setInterval(tick, 1000);
+      return () => {
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      };
+    }
+    setRecordingDuration(0);
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, [isRecording, recordingStartTime]);
+
+  const handleToggleRecording = useCallback(async () => {
+    if (!cameraId) return;
+
+    if (isRecording) {
+      // Stop recording
+      try {
+        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setIsRecording(false);
+          setRecordingId(null);
+          setRecordingStartTime(null);
+        }
+      } catch {
+        // Failed to stop — ignore for now
+      }
+    } else {
+      // Start recording
+      try {
+        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/start`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ trigger: "manual" }),
+        });
+        const json = await res.json();
+        if (json.success && json.data?.recordingId) {
+          setIsRecording(true);
+          setRecordingId(json.data.recordingId);
+          setRecordingStartTime(Date.now());
+        }
+      } catch {
+        // Failed to start — ignore for now
+      }
+    }
+  }, [cameraId, isRecording]);
+
+  // Reconnect / Delete state
+  const [reconnecting, setReconnecting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleReconnect = useCallback(async () => {
+    if (!cameraId || reconnecting) return;
+    setReconnecting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/reconnect`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setActionError(json.error?.message ?? "Failed to reconnect");
+      } else {
+        // Refresh camera data to reflect new status
+        await fetchCamera();
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setReconnecting(false);
+    }
+  }, [cameraId, reconnecting, fetchCamera]);
+
+  const handleDelete = useCallback(async () => {
+    if (!cameraId || deleting) return;
+    setDeleting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setActionError(json.error?.message ?? "Failed to delete camera");
+        setDeleting(false);
+      } else {
+        // Redirect to cameras list
+        router.push("/cameras");
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Network error");
+      setDeleting(false);
+    }
+  }, [cameraId, deleting, router]);
+
+  const formatRecDuration = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
   // Loading skeleton
   if (loading) {
     return (
@@ -272,6 +419,32 @@ export default function CameraDetailPage() {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Recording indicator + button */}
+            <button
+              onClick={handleToggleRecording}
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 ${
+                isRecording
+                  ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                  : "text-zinc-300 hover:text-white hover:bg-white/10"
+              }`}
+              aria-label={isRecording ? "Stop recording" : "Start recording"}
+              title={isRecording ? "Stop recording" : "Start recording"}
+            >
+              {isRecording ? (
+                <>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                  </span>
+                  <span className="text-xs font-mono font-medium">
+                    REC {formatRecDuration(recordingDuration)}
+                  </span>
+                  <Square className="w-3 h-3 fill-current" />
+                </>
+              ) : (
+                <Circle className="w-4 h-4 text-red-400 fill-red-400" />
+              )}
+            </button>
             <button
               onClick={handleScreenshot}
               className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
@@ -289,12 +462,33 @@ export default function CameraDetailPage() {
               {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
             </button>
             <button
+              onClick={handleReconnect}
+              disabled={reconnecting}
+              className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 disabled:opacity-50"
+              aria-label="Reconnect stream"
+              title="Reconnect stream"
+            >
+              {reconnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+            </button>
+            <button
               onClick={() => router.push(`/cameras/${cameraId}/settings`)}
               className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Settings"
               title="Camera settings"
             >
               <Settings className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 rounded-md text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+              aria-label="Delete camera"
+              title="Delete camera"
+            >
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -319,15 +513,73 @@ export default function CameraDetailPage() {
         {/* Reconnect overlay button (bottom-left) */}
         <div className="absolute bottom-4 left-4 z-10">
           <button
-            onClick={fetchCamera}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black/50 backdrop-blur-sm text-zinc-300 hover:text-white text-xs transition-colors duration-150 cursor-pointer"
+            onClick={handleReconnect}
+            disabled={reconnecting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black/50 backdrop-blur-sm text-zinc-300 hover:text-white text-xs transition-colors duration-150 cursor-pointer disabled:opacity-50"
             title="Reconnect stream"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Reconnect
+            {reconnecting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {reconnecting ? "Reconnecting..." : "Reconnect"}
           </button>
         </div>
       </div>
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400 flex items-center justify-between">
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            className="text-red-400 hover:text-red-300 text-xs underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-[fadeIn_150ms_ease-out]">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowDeleteConfirm(false)}
+            onKeyDown={(e) => { if (e.key === "Escape") setShowDeleteConfirm(false); }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close dialog"
+          />
+          <div className="relative z-50 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg shadow-black/40">
+            <h3 className="text-base font-semibold text-zinc-50 mb-2">Delete Camera</h3>
+            <p className="text-sm text-zinc-400 mb-1">
+              Are you sure you want to delete <span className="font-medium text-zinc-200">{camera.name}</span>?
+            </p>
+            <p className="text-xs text-zinc-500 mb-5">
+              This will remove the camera, its zones, events, and recordings. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-4 py-2 text-sm rounded-md border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info panels below video */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -57,15 +57,28 @@ function formatEventTime(dateString: string): string {
 }
 
 function EventRow({ event }: { readonly event: OSPEvent }) {
-  const Icon = EVENT_ICONS[event.type] ?? Circle;
-  const borderColor =
-    SEVERITY_BORDER_COLORS[event.severity] ?? "border-l-zinc-600";
-  const iconColor =
-    SEVERITY_ICON_COLORS[event.severity] ?? "text-zinc-400";
+  const isRuleTriggered = Boolean(event.metadata?.["ruleTriggered"]);
+  const Icon = isRuleTriggered ? ShieldAlert : (EVENT_ICONS[event.type] ?? Circle);
+  const borderColor = isRuleTriggered
+    ? "border-l-emerald-500"
+    : (SEVERITY_BORDER_COLORS[event.severity] ?? "border-l-zinc-600");
+  const iconColor = isRuleTriggered
+    ? "text-emerald-400"
+    : (SEVERITY_ICON_COLORS[event.severity] ?? "text-zinc-400");
+
+  const displayType = isRuleTriggered
+    ? `Rule: ${(event.metadata?.["ruleName"] as string) ?? "triggered"}`
+    : event.type.replace("_", " ");
+
+  const subtitle = isRuleTriggered
+    ? `${(event.metadata?.["sourceEventType"] as string)?.replace("_", " ") ?? ""} on ${event.cameraName}`
+    : event.cameraName;
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 border-l-4 ${borderColor} border-b border-b-zinc-800/50 last:border-b-0 animate-[slideDown_300ms_ease-out]`}
+      className={`flex items-center gap-3 px-3 py-2.5 border-l-4 ${borderColor} border-b border-b-zinc-800/50 last:border-b-0 animate-[slideDown_300ms_ease-out] ${
+        isRuleTriggered ? "bg-emerald-500/5" : ""
+      }`}
     >
       {/* Thumbnail / Icon */}
       {event.snapshotUrl ? (
@@ -75,7 +88,9 @@ function EventRow({ event }: { readonly event: OSPEvent }) {
           className="h-10 w-10 rounded object-cover shrink-0"
         />
       ) : (
-        <div className="h-10 w-10 rounded bg-zinc-800 flex items-center justify-center shrink-0">
+        <div className={`h-10 w-10 rounded flex items-center justify-center shrink-0 ${
+          isRuleTriggered ? "bg-emerald-500/10" : "bg-zinc-800"
+        }`}>
           <Icon className={`h-4 w-4 ${iconColor}`} />
         </div>
       )}
@@ -83,11 +98,16 @@ function EventRow({ event }: { readonly event: OSPEvent }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-zinc-200 truncate capitalize">
-            {event.type.replace("_", " ")}
+            {displayType}
           </span>
+          {isRuleTriggered && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+              RULE
+            </span>
+          )}
         </div>
         <span className="text-[11px] text-zinc-500 truncate block">
-          {event.cameraName}
+          {subtitle}
         </span>
       </div>
 

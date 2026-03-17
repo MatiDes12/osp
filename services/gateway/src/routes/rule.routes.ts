@@ -3,6 +3,7 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
+import { evaluateRules } from "../lib/rule-evaluator.js";
 import { CreateRuleSchema, UpdateRuleSchema } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
 
@@ -29,7 +30,6 @@ ruleRoutes.get("/", requireAuth("viewer"), async (c) => {
 // Create rule
 ruleRoutes.post("/", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
-  const userId = c.get("userId");
   const body = await c.req.json();
   const input = CreateRuleSchema.parse(body);
   const supabase = getSupabase();
@@ -38,7 +38,6 @@ ruleRoutes.post("/", requireAuth("admin"), async (c) => {
     .from("alert_rules")
     .insert({
       tenant_id: tenantId,
-      created_by: userId,
       name: input.name,
       description: input.description ?? null,
       trigger_event: input.triggerEvent,
@@ -156,29 +155,52 @@ ruleRoutes.post("/:id/test", requireAuth("admin"), async (c) => {
   // Fetch recent events for the rule's trigger type
   const { data: recentEvents } = await supabase
     .from("events")
-    .select("id, type, severity, camera_id, created_at")
+    .select("*")
     .eq("tenant_id", tenantId)
     .eq("type", rule.trigger_event)
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // Placeholder: return simulated match results
-  const matchedCount = Math.floor(((recentEvents ?? []).length) * 0.3);
+  // Convert DB rows to the shape the evaluator expects
+  const eventsForEval = (recentEvents ?? []).map((e) => ({
+    id: e.id as string,
+    cameraId: e.camera_id as string,
+    cameraName: "Unknown",
+    type: e.type as string,
+    severity: e.severity as string,
+    intensity: (e.intensity as number) ?? 50,
+    detectedAt: e.detected_at as string,
+    metadata: (e.metadata as Record<string, unknown>) ?? {},
+    zoneId: (e.zone_id as string | null) ?? null,
+    zoneName: null,
+    tenantId,
+    snapshotUrl: null,
+    clipUrl: null,
+    acknowledged: false,
+    acknowledgedBy: null,
+    acknowledgedAt: null,
+    createdAt: e.created_at as string,
+  }));
+
+  // Run the actual rule evaluator against each event
+  const matchedEvents = eventsForEval.filter((evt) => {
+    const matches = evaluateRules(evt, [rule]);
+    return matches.length > 0;
+  });
 
   return c.json(
     createSuccessResponse({
       ruleId,
       ruleName: rule.name as string,
-      testedAgainst: (recentEvents ?? []).length,
-      matched: matchedCount,
-      sampleMatches: (recentEvents ?? []).slice(0, Math.min(matchedCount, 5)).map((e) => ({
-        eventId: e.id as string,
-        type: e.type as string,
-        severity: e.severity as string,
-        cameraId: e.camera_id as string,
-        createdAt: e.created_at as string,
+      testedAgainst: eventsForEval.length,
+      matched: matchedEvents.length,
+      sampleMatches: matchedEvents.slice(0, 5).map((e) => ({
+        eventId: e.id,
+        type: e.type,
+        severity: e.severity,
+        cameraId: e.cameraId,
+        createdAt: e.createdAt,
       })),
-      note: "This is a simulated test. Actual condition matching will be implemented with the rule engine.",
     }),
   );
 });

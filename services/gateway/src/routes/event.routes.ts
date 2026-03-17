@@ -5,6 +5,10 @@ import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { publishEvent } from "../lib/event-publisher.js";
+import { evaluateRules } from "../lib/rule-evaluator.js";
+import { executeActions } from "../lib/action-executor.js";
+import { getRecordingService } from "../services/recording.service.js";
+import { createLogger } from "../lib/logger.js";
 import {
   ListEventsSchema,
   BulkAcknowledgeSchema,
@@ -12,6 +16,8 @@ import {
   EventSeveritySchema,
 } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
+
+const ruleLogger = createLogger("rule-engine");
 
 export const eventRoutes = new Hono<Env>();
 
@@ -102,6 +108,79 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
   // Publish to Redis so all WS clients receive the event in real-time
   await publishEvent(tenantId, ospEvent);
+
+  // --- Rule Engine: evaluate and execute matching rules ---
+  // Run asynchronously so event creation response is not delayed
+  (async () => {
+    try {
+      const { data: enabledRules } = await supabase
+        .from("alert_rules")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .eq("enabled", true);
+
+      if (!enabledRules || enabledRules.length === 0) return;
+
+      const matched = evaluateRules(ospEvent, enabledRules);
+
+      if (matched.length > 0) {
+        ruleLogger.info("Rules matched for event", {
+          eventId: ospEvent.id,
+          eventType: ospEvent.type,
+          matchedCount: String(matched.length),
+          ruleNames: matched.map((m) => m.ruleName).join(", "),
+        });
+
+        for (const match of matched) {
+          await executeActions(match, ospEvent, tenantId);
+        }
+      }
+    } catch (err) {
+      ruleLogger.error("Rule evaluation failed", {
+        eventId: ospEvent.id,
+        error: String(err),
+      });
+    }
+  })();
+
+  // --- Auto-record on motion events ---
+  if (input.type === "motion") {
+    (async () => {
+      try {
+        // Check if the camera has recording_mode set to "motion"
+        const { data: cameraConfig } = await supabase
+          .from("cameras")
+          .select("config")
+          .eq("id", input.cameraId)
+          .eq("tenant_id", tenantId)
+          .single();
+
+        const config = cameraConfig?.config as Record<string, unknown> | null;
+        const recordingMode = config?.recording_mode ?? config?.recordingMode;
+
+        if (recordingMode === "motion") {
+          const recordingService = getRecordingService();
+          const recordingId = await recordingService.startTimedRecording(
+            input.cameraId,
+            tenantId,
+            "motion",
+            30_000, // 30 seconds
+          );
+          ruleLogger.info("Auto-started motion recording", {
+            eventId: ospEvent.id,
+            cameraId: input.cameraId,
+            recordingId,
+          });
+        }
+      } catch (err) {
+        ruleLogger.warn("Failed to auto-start motion recording", {
+          eventId: ospEvent.id,
+          cameraId: input.cameraId,
+          error: String(err),
+        });
+      }
+    })();
+  }
 
   return c.json(createSuccessResponse(ospEvent), 201);
 });

@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getStreamService } from "../services/stream.service.js";
+import { getRecordingService } from "../services/recording.service.js";
 import { createLogger } from "../lib/logger.js";
 import {
   CreateCameraSchema,
@@ -12,6 +13,7 @@ import {
   UpdateZoneSchema,
 } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
+import type { RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("camera-routes");
 
@@ -209,29 +211,94 @@ cameraRoutes.delete("/:id", requireAuth("admin"), async (c) => {
   const cameraId = c.req.param("id");
   const supabase = getSupabase();
 
-  const { error } = await supabase
+  // Verify camera exists and belongs to tenant before deleting
+  const { data: camera, error: fetchError } = await supabase
     .from("cameras")
-    .delete()
+    .select("id")
     .eq("id", cameraId)
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .single();
 
-  if (error) {
+  if (fetchError || !camera) {
     throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
   }
 
-  // Remove stream from go2rtc
+  // Remove stream from go2rtc BEFORE deleting from DB so we still have the ID
   try {
     const streamService = getStreamService();
     await streamService.removeStream(cameraId);
+    logger.info("Removed go2rtc stream for deleted camera", { cameraId });
   } catch (err) {
     logger.warn("Failed to remove stream from go2rtc on camera delete", {
       cameraId,
       error: String(err),
     });
-    // Non-fatal: camera is deleted, go2rtc stream will be orphaned but harmless
+    // Non-fatal: proceed with DB deletion; orphaned go2rtc stream is harmless
+  }
+
+  // Delete camera from Supabase (ON DELETE CASCADE handles camera_zones, events, recordings)
+  const { error: deleteError } = await supabase
+    .from("cameras")
+    .delete()
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId);
+
+  if (deleteError) {
+    logger.error("Failed to delete camera from database", {
+      cameraId,
+      error: String(deleteError),
+    });
+    throw new ApiError("INTERNAL_ERROR", "Failed to delete camera", 500);
   }
 
   return c.json(createSuccessResponse({ deleted: true }));
+});
+
+// ── Recording controls ──
+
+// Start recording for a camera
+cameraRoutes.post("/:id/record/start", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+
+  const body = await c.req.json().catch(() => ({}));
+  const trigger = ((body as Record<string, unknown>).trigger as RecordingTrigger) ?? "manual";
+
+  const recordingService = getRecordingService();
+  const recordingId = await recordingService.startRecording(cameraId, tenantId, trigger);
+
+  return c.json(createSuccessResponse({ recordingId, cameraId, status: "recording" }), 201);
+});
+
+// Stop active recording for a camera
+cameraRoutes.post("/:id/record/stop", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+
+  const recordingService = getRecordingService();
+  const active = await recordingService.getActiveRecording(cameraId, tenantId);
+
+  if (!active) {
+    throw new ApiError("NO_ACTIVE_RECORDING", "No active recording for this camera", 404);
+  }
+
+  const stopped = await recordingService.stopRecording(active.id as string);
+
+  return c.json(createSuccessResponse(stopped));
+});
+
+// Get active recording status for a camera
+cameraRoutes.get("/:id/record/status", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+
+  const recordingService = getRecordingService();
+  const active = await recordingService.getActiveRecording(cameraId, tenantId);
+
+  return c.json(createSuccessResponse({
+    isRecording: !!active,
+    recording: active,
+  }));
 });
 
 // ── Zones ──
