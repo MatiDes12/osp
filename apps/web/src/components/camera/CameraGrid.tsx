@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Camera as CameraIcon, Plus } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { CameraCard, CameraCardSkeleton } from "./CameraCard";
+import type { CameraTag } from "@/hooks/use-tags";
 
 type GridLayout = 1 | 4 | 9 | 16;
 
@@ -11,6 +12,10 @@ interface CameraGridProps {
   readonly cameras: readonly Camera[];
   readonly loading?: boolean;
   readonly onAddCamera?: () => void;
+  readonly selectable?: boolean;
+  readonly selectedIds?: ReadonlySet<string>;
+  readonly onToggleSelect?: (cameraId: string) => void;
+  readonly cameraTagsMap?: ReadonlyMap<string, readonly CameraTag[]>;
 }
 
 const GRID_COLUMNS: Record<GridLayout, string> = {
@@ -27,7 +32,15 @@ const LAYOUT_OPTIONS: readonly { readonly value: GridLayout; readonly label: str
   { value: 16, label: "4x4" },
 ];
 
-export function CameraGrid({ cameras, loading = false, onAddCamera }: CameraGridProps) {
+export function CameraGrid({
+  cameras,
+  loading = false,
+  onAddCamera,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
+  cameraTagsMap,
+}: CameraGridProps) {
   const [layout, setLayout] = useState<GridLayout>(4);
 
   if (loading) {
@@ -97,7 +110,14 @@ export function CameraGrid({ cameras, loading = false, onAddCamera }: CameraGrid
       {/* Camera grid */}
       <div className={`grid gap-2 ${GRID_COLUMNS[layout]}`}>
         {cameras.map((camera) => (
-          <CameraCard key={camera.id} camera={camera} />
+          <CameraCard
+            key={camera.id}
+            camera={camera}
+            selectable={selectable}
+            selected={selectedIds?.has(camera.id) ?? false}
+            onToggleSelect={onToggleSelect}
+            tags={cameraTagsMap?.get(camera.id) ?? []}
+          />
         ))}
       </div>
     </div>

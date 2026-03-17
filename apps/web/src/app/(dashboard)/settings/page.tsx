@@ -6,6 +6,11 @@ import type { User, Camera, ApiResponse, UserRole } from "@osp/shared";
 import { transformCameras, transformUsers } from "@/lib/transforms";
 import { showToast } from "@/stores/toast";
 import {
+  useNotificationPrefsStore,
+  type NotificationPrefs,
+} from "@/stores/notification-prefs";
+import { requestNotificationPermission } from "@/lib/notifications";
+import {
   Camera as CameraIcon,
   Users,
   Shield,
@@ -24,6 +29,8 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Bell,
+  Clock,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -196,6 +203,206 @@ function ConfirmDeleteModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Notifications tab (extracted component)                            */
+/* ------------------------------------------------------------------ */
+
+const SEVERITY_OPTIONS: readonly {
+  value: NotificationPrefs["severityThreshold"];
+  label: string;
+  desc: string;
+}[] = [
+  { value: "all", label: "All Severities", desc: "Low, medium, high, and critical" },
+  { value: "high", label: "High & Critical", desc: "Only high and critical events" },
+  { value: "critical", label: "Critical Only", desc: "Only critical events" },
+];
+
+function NotificationsTab() {
+  const prefs = useNotificationPrefsStore();
+
+  const handlePushToggle = async () => {
+    if (!prefs.pushEnabled) {
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        showToast("Browser notification permission denied", "error");
+        return;
+      }
+    }
+    prefs.setPref("pushEnabled", !prefs.pushEnabled);
+    showToast(
+      !prefs.pushEnabled ? "Push notifications enabled" : "Push notifications disabled",
+      "info",
+    );
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-xl font-bold text-zinc-50 mb-6">Notifications</h2>
+
+      {/* ── Toggle switches ── */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
+        {/* Push Notifications */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Bell className="h-4 w-4 text-zinc-400" />
+            <div>
+              <p className="text-sm font-medium text-zinc-200">
+                Push Notifications
+              </p>
+              <p className="text-xs text-zinc-500">
+                Receive browser alerts for events
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handlePushToggle()}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 cursor-pointer ${
+              prefs.pushEnabled ? "bg-green-500" : "bg-zinc-700"
+            }`}
+            role="switch"
+            aria-checked={prefs.pushEnabled}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 ${
+                prefs.pushEnabled ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Email Alerts */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-4 w-4 text-zinc-400" />
+            <div>
+              <p className="text-sm font-medium text-zinc-200">Email Alerts</p>
+              <p className="text-xs text-zinc-500">
+                Get email alerts for events
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => prefs.setPref("emailEnabled", !prefs.emailEnabled)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 cursor-pointer ${
+              prefs.emailEnabled ? "bg-green-500" : "bg-zinc-700"
+            }`}
+            role="switch"
+            aria-checked={prefs.emailEnabled}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 ${
+                prefs.emailEnabled ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="h-px bg-zinc-800" />
+
+        {/* Severity Threshold */}
+        <div>
+          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+            Severity Threshold
+          </label>
+          <p className="text-xs text-zinc-500 mb-2">
+            Only receive notifications for events at or above this severity
+          </p>
+          <select
+            value={prefs.severityThreshold}
+            onChange={(e) =>
+              prefs.setPref(
+                "severityThreshold",
+                e.target.value as NotificationPrefs["severityThreshold"],
+              )
+            }
+            className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+          >
+            {SEVERITY_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label} &mdash; {opt.desc}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="h-px bg-zinc-800" />
+
+        {/* Quiet Hours */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Clock className="h-4 w-4 text-zinc-400" />
+              <div>
+                <p className="text-sm font-medium text-zinc-200">
+                  Quiet Hours
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Suppress notifications during this time range
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                prefs.setPref("quietHoursEnabled", !prefs.quietHoursEnabled)
+              }
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 cursor-pointer ${
+                prefs.quietHoursEnabled ? "bg-green-500" : "bg-zinc-700"
+              }`}
+              role="switch"
+              aria-checked={prefs.quietHoursEnabled}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 ${
+                  prefs.quietHoursEnabled ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {prefs.quietHoursEnabled && (
+            <div className="flex items-center gap-3 pl-7">
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">
+                  Start
+                </label>
+                <input
+                  type="time"
+                  value={prefs.quietHoursStart}
+                  onChange={(e) =>
+                    prefs.setPref("quietHoursStart", e.target.value)
+                  }
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <span className="text-zinc-500 mt-5">&ndash;</span>
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">End</label>
+                <input
+                  type="time"
+                  value={prefs.quietHoursEnd}
+                  onChange={(e) =>
+                    prefs.setPref("quietHoursEnd", e.target.value)
+                  }
+                  className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Note about dashboard */}
+      <p className="mt-4 text-xs text-zinc-500">
+        Note: Dashboard is optimized for dark mode. Theme preferences apply to
+        landing and auth pages.
+      </p>
     </div>
   );
 }
@@ -1132,50 +1339,7 @@ function SettingsPageInner() {
         )}
 
         {/* ── Notifications tab ──────────────────────────────── */}
-        {activeTab === "notifications" && (
-          <div className="max-w-2xl">
-            <h2 className="text-xl font-bold text-zinc-50 mb-6">
-              Notifications
-            </h2>
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-              <div className="space-y-4">
-                {[
-                  {
-                    label: "Push Notifications",
-                    desc: "Receive alerts on your mobile device",
-                  },
-                  {
-                    label: "Email Notifications",
-                    desc: "Get email alerts for critical events",
-                  },
-                  {
-                    label: "Digest Summary",
-                    desc: "Daily summary of all events",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between py-2"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-zinc-200">
-                        {item.label}
-                      </p>
-                      <p className="text-xs text-zinc-500">{item.desc}</p>
-                    </div>
-                    <button
-                      className="relative inline-flex h-5 w-9 items-center rounded-full bg-green-500 transition-colors duration-150 cursor-pointer"
-                      role="switch"
-                      aria-checked={true}
-                    >
-                      <span className="inline-block h-3.5 w-3.5 translate-x-4 rounded-full bg-white transition-transform duration-150" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === "notifications" && <NotificationsTab />}
 
         {/* ── Recording tab ──────────────────────────────────── */}
         {activeTab === "recording" && (

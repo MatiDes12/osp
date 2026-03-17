@@ -1,13 +1,16 @@
 "use client";
 
+import { useState, useCallback, useMemo } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ToastContainer } from "@/components/ui/Toast";
+import { ShortcutsModal } from "@/components/ui/ShortcutsModal";
 import { ActionLogPanel } from "@/components/ui/ActionLogPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useRouteLogger } from "@/hooks/use-action-logger";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 export default function DashboardLayout({
   children,
@@ -16,6 +19,17 @@ export default function DashboardLayout({
 }) {
   const collapsed = useSidebarStore((s) => s.collapsed);
   useRouteLogger();
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  const shortcuts = useMemo(
+    () => ({
+      onShowShortcuts: () => setShortcutsOpen((prev) => !prev),
+    }),
+    [],
+  );
+
+  useKeyboardShortcuts(shortcuts);
 
   return (
     <AuthGuard>
@@ -36,6 +50,10 @@ export default function DashboardLayout({
         </div>
       </div>
       <ToastContainer />
+      <ShortcutsModal
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
       {process.env.NODE_ENV === "development" && <ActionLogPanel />}
     </AuthGuard>
   );

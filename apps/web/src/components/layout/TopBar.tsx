@@ -13,7 +13,11 @@ import {
   AlertTriangle,
   Activity,
   X,
+  Sun,
+  Moon,
+  Monitor,
 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 import { getUserFromToken } from "@/hooks/use-auth";
 import { useEventStream } from "@/hooks/use-event-stream";
 import type { OSPEvent } from "@osp/shared";
@@ -92,6 +96,7 @@ export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  const { theme, cycleTheme, resolvedTheme } = useTheme();
   const jwtUser = useMemo(() => getUserFromToken(), []);
   const userEmail = jwtUser?.email ?? "unknown";
   const userInitial = userEmail.charAt(0).toUpperCase();
@@ -329,6 +334,23 @@ export function TopBar() {
             aria-label="Grid 3x3 view"
           >
             <Grid3x3 className="h-5 w-5" />
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={cycleTheme}
+            className="rounded-md p-2 text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
+            aria-label={`Theme: ${theme}`}
+            title={`Theme: ${theme} (${resolvedTheme})`}
+          >
+            {theme === "system" ? (
+              <Monitor className="h-5 w-5" />
+            ) : resolvedTheme === "dark" ? (
+              <Moon className="h-5 w-5" />
+            ) : (
+              <Sun className="h-5 w-5" />
+            )}
           </button>
 
           {/* Divider */}

@@ -3,15 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Maximize2, Settings, MapPin } from "lucide-react";
+import { Maximize2, Settings, MapPin, Check } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { getToken } from "@/hooks/use-auth";
+import type { CameraTag } from "@/hooks/use-tags";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 interface CameraCardProps {
   readonly camera: Camera;
   readonly locationName?: string;
+  readonly selectable?: boolean;
+  readonly selected?: boolean;
+  readonly onToggleSelect?: (cameraId: string) => void;
+  readonly tags?: readonly CameraTag[];
 }
 
 function formatTime(dateString: string | null): string {
@@ -109,7 +114,7 @@ function getStatusConfig(status: string) {
   return (STATUS_CONFIG[status] ?? STATUS_CONFIG["offline"])!;
 }
 
-export function CameraCard({ camera }: CameraCardProps) {
+export function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [] }: CameraCardProps) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const isOnline = camera.status === "online";
@@ -117,103 +122,148 @@ export function CameraCard({ camera }: CameraCardProps) {
   const snapshotUrl = useSnapshotUrl(camera.id, isOnline || camera.status === "connecting");
   const statusCfg = getStatusConfig(camera.status);
 
-  return (
-    <Link
-      href={`/cameras/${camera.id}`}
-      className="group block border border-zinc-800 rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:ring-1 hover:ring-blue-500/30"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+  const showCheckbox = selectable && (hovered || selected);
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (selectable && onToggleSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelect(camera.id);
+    }
+  };
+
+  const cardContent = (
+    <div
+      className={`relative aspect-video bg-black ${selected ? "ring-2 ring-blue-500" : ""}`}
+      onClick={selectable ? handleClick : undefined}
     >
-      {/* Video area - 16:9 */}
-      <div className="relative aspect-video bg-black">
-        {/* Snapshot preview */}
-        {snapshotUrl ? (
-          <img
-            src={snapshotUrl}
-            alt={`${camera.name} live preview`}
-            className="absolute inset-0 w-full h-full object-cover"
+      {/* Snapshot preview */}
+      {snapshotUrl ? (
+        <img
+          src={snapshotUrl}
+          alt={`${camera.name} live preview`}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center">
+          {camera.status === "connecting" ? (
+            <div className="h-6 w-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          ) : !isOnline ? (
+            <span className="text-zinc-600 text-sm">
+              {camera.status === "error" ? "Error" : "Offline"}
+            </span>
+          ) : (
+            <div className="h-6 w-6 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
+          )}
+        </div>
+      )}
+
+      {/* Selected overlay */}
+      {selected && (
+        <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
+      )}
+
+      {/* Bottom gradient overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+      {/* Selection checkbox */}
+      {showCheckbox && (
+        <button
+          type="button"
+          className={`absolute top-2.5 left-10 z-10 flex h-5 w-5 items-center justify-center rounded border transition-colors cursor-pointer ${
+            selected
+              ? "bg-blue-500 border-blue-500 text-white"
+              : "bg-zinc-900/80 border-zinc-500 text-transparent hover:border-blue-400"
+          }`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelect?.(camera.id);
+          }}
+          aria-label={selected ? "Deselect camera" : "Select camera"}
+        >
+          {selected && <Check className="h-3 w-3" />}
+        </button>
+      )}
+
+      {/* Top-left: Status indicator */}
+      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+        <span className="relative flex h-2 w-2">
+          {statusCfg.ping && (
+            <span
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full ${statusCfg.dotClass} opacity-75`}
+            />
+          )}
+          <span
+            className={`relative inline-flex h-2 w-2 rounded-full ${statusCfg.dotClass}`}
           />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            {camera.status === "connecting" ? (
-              <div className="h-6 w-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            ) : !isOnline ? (
-              <span className="text-zinc-600 text-sm">
-                {camera.status === "error" ? "Error" : "Offline"}
+        </span>
+        <span
+          className={`text-[10px] font-semibold uppercase tracking-wider ${statusCfg.badgeClass}`}
+        >
+          {statusCfg.label}
+        </span>
+      </div>
+
+      {/* Top-right: Badges */}
+      <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+        {camera.capabilities.resolution && (
+          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-900/80 text-zinc-300 backdrop-blur-sm">
+            {camera.capabilities.resolution.includes("1080") ||
+            camera.capabilities.resolution.includes("1920")
+              ? "HD"
+              : camera.capabilities.resolution.includes("4K") ||
+                  camera.capabilities.resolution.includes("3840")
+                ? "4K"
+                : "SD"}
+          </span>
+        )}
+        {isRecording && (
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 backdrop-blur-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+            REC
+          </span>
+        )}
+      </div>
+
+      {/* Bottom-left: Camera name + location + tags */}
+      <div className="absolute bottom-2.5 left-2.5 max-w-[70%]">
+        <span className="text-sm font-medium text-zinc-50 drop-shadow-md">
+          {camera.name}
+        </span>
+        {camera.location?.label && (
+          <span className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400 drop-shadow-md">
+            <MapPin className="h-2.5 w-2.5" />
+            {camera.location.label}
+          </span>
+        )}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium text-white drop-shadow-md"
+                style={{ backgroundColor: `${tag.color}CC` }}
+              >
+                {tag.name}
               </span>
-            ) : (
-              <div className="h-6 w-6 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
-            )}
+            ))}
           </div>
         )}
+      </div>
 
-        {/* Bottom gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+      {/* Bottom-right: Timestamp */}
+      <div className="absolute bottom-2.5 right-2.5">
+        <span
+          className="text-xs text-zinc-400 drop-shadow-md"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {formatTime(camera.lastSeenAt)}
+        </span>
+      </div>
 
-        {/* Top-left: Status indicator */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-          <span className="relative flex h-2 w-2">
-            {statusCfg.ping && (
-              <span
-                className={`absolute inline-flex h-full w-full animate-ping rounded-full ${statusCfg.dotClass} opacity-75`}
-              />
-            )}
-            <span
-              className={`relative inline-flex h-2 w-2 rounded-full ${statusCfg.dotClass}`}
-            />
-          </span>
-          <span
-            className={`text-[10px] font-semibold uppercase tracking-wider ${statusCfg.badgeClass}`}
-          >
-            {statusCfg.label}
-          </span>
-        </div>
-
-        {/* Top-right: Badges */}
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
-          {camera.capabilities.resolution && (
-            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-900/80 text-zinc-300 backdrop-blur-sm">
-              {camera.capabilities.resolution.includes("1080") ||
-              camera.capabilities.resolution.includes("1920")
-                ? "HD"
-                : camera.capabilities.resolution.includes("4K") ||
-                    camera.capabilities.resolution.includes("3840")
-                  ? "4K"
-                  : "SD"}
-            </span>
-          )}
-          {isRecording && (
-            <span className="flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-              REC
-            </span>
-          )}
-        </div>
-
-        {/* Bottom-left: Camera name + location */}
-        <div className="absolute bottom-2.5 left-2.5">
-          <span className="text-sm font-medium text-zinc-50 drop-shadow-md">
-            {camera.name}
-          </span>
-          {camera.location?.label && (
-            <span className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400 drop-shadow-md">
-              <MapPin className="h-2.5 w-2.5" />
-              {camera.location.label}
-            </span>
-          )}
-        </div>
-
-        {/* Bottom-right: Timestamp */}
-        <div className="absolute bottom-2.5 right-2.5">
-          <span
-            className="text-xs text-zinc-400 drop-shadow-md"
-            style={{ fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            {formatTime(camera.lastSeenAt)}
-          </span>
-        </div>
-
-        {/* Hover actions */}
+      {/* Hover actions (hide when in selection mode) */}
+      {!selectable && (
         <div
           className={`absolute inset-0 flex items-center justify-center gap-3 bg-black/20 transition-opacity duration-200 ${
             hovered ? "opacity-100" : "opacity-0"
@@ -244,7 +294,32 @@ export function CameraCard({ camera }: CameraCardProps) {
             <Settings className="h-4 w-4" />
           </button>
         </div>
+      )}
+    </div>
+  );
+
+  if (selectable) {
+    return (
+      <div
+        className={`group block border rounded-lg overflow-hidden cursor-pointer transition-all duration-200 ${
+          selected ? "border-blue-500" : "border-zinc-800 hover:ring-1 hover:ring-blue-500/30"
+        }`}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {cardContent}
       </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/cameras/${camera.id}`}
+      className="group block border border-zinc-800 rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:ring-1 hover:ring-blue-500/30"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {cardContent}
     </Link>
   );
 }

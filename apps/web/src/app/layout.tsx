@@ -19,13 +19,30 @@ export const metadata: Metadata = {
   description: "Extensible camera management for every scale",
 };
 
+/**
+ * Inline script that runs before React hydration to apply the correct theme
+ * class, preventing a flash of the wrong theme.
+ */
+const themeInitScript = `
+(function(){
+  try {
+    var t = localStorage.getItem("osp_theme") || "dark";
+    var dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+  } catch(e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
       >

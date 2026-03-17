@@ -259,6 +259,188 @@ cameraRoutes.delete("/:id", requireAuth("admin"), async (c) => {
   return c.json(createSuccessResponse({ deleted: true }));
 });
 
+// ── Bulk operations ──
+
+// Bulk assign location
+cameraRoutes.post("/bulk/assign-location", requireAuth("admin"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const { cameraIds, locationId } = body as { cameraIds?: string[]; locationId?: string | null };
+
+  if (!Array.isArray(cameraIds) || cameraIds.length === 0) {
+    throw new ApiError("VALIDATION_ERROR", "cameraIds array is required", 422);
+  }
+
+  const supabase = getSupabase();
+
+  // Verify all cameras belong to tenant
+  const { data: ownedCameras } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("id", cameraIds);
+
+  const ownedIds = new Set((ownedCameras ?? []).map((cam: { id: string }) => cam.id));
+  const validIds = cameraIds.filter((id) => ownedIds.has(id));
+
+  if (validIds.length === 0) {
+    throw new ApiError("CAMERA_NOT_FOUND", "No valid cameras found", 404);
+  }
+
+  // If locationId is provided (non-null), verify it belongs to tenant
+  if (locationId) {
+    const { data: loc } = await supabase
+      .from("locations")
+      .select("id")
+      .eq("id", locationId)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (!loc) {
+      throw new ApiError("NOT_FOUND", "Location not found", 404);
+    }
+  }
+
+  const { error } = await supabase
+    .from("cameras")
+    .update({ location_id: locationId ?? null, updated_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .in("id", validIds);
+
+  if (error) {
+    logger.error("Bulk assign-location failed", { error: String(error) });
+    throw new ApiError("INTERNAL_ERROR", "Failed to assign location", 500);
+  }
+
+  return c.json(createSuccessResponse({ updated: validIds.length }));
+});
+
+// Bulk delete
+cameraRoutes.post("/bulk/delete", requireAuth("admin"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const { cameraIds } = body as { cameraIds?: string[] };
+
+  if (!Array.isArray(cameraIds) || cameraIds.length === 0) {
+    throw new ApiError("VALIDATION_ERROR", "cameraIds array is required", 422);
+  }
+
+  const supabase = getSupabase();
+
+  // Verify all cameras belong to tenant
+  const { data: ownedCameras } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("id", cameraIds);
+
+  const validIds = (ownedCameras ?? []).map((cam: { id: string }) => cam.id);
+
+  if (validIds.length === 0) {
+    throw new ApiError("CAMERA_NOT_FOUND", "No valid cameras found", 404);
+  }
+
+  // Remove streams from go2rtc
+  const streamService = getStreamService();
+  for (const id of validIds) {
+    try {
+      await streamService.removeStream(id);
+    } catch (err) {
+      logger.warn("Failed to remove stream on bulk delete", { cameraId: id, error: String(err) });
+    }
+  }
+
+  const { error } = await supabase
+    .from("cameras")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .in("id", validIds);
+
+  if (error) {
+    logger.error("Bulk delete failed", { error: String(error) });
+    throw new ApiError("INTERNAL_ERROR", "Failed to delete cameras", 500);
+  }
+
+  return c.json(createSuccessResponse({ deleted: validIds.length }));
+});
+
+// Bulk record start
+cameraRoutes.post("/bulk/record-start", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const { cameraIds } = body as { cameraIds?: string[] };
+
+  if (!Array.isArray(cameraIds) || cameraIds.length === 0) {
+    throw new ApiError("VALIDATION_ERROR", "cameraIds array is required", 422);
+  }
+
+  const supabase = getSupabase();
+
+  // Verify all cameras belong to tenant
+  const { data: ownedCameras } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("id", cameraIds);
+
+  const validIds = (ownedCameras ?? []).map((cam: { id: string }) => cam.id);
+
+  const recordingService = getRecordingService();
+  const results: { cameraId: string; recordingId?: string; error?: string }[] = [];
+
+  for (const id of validIds) {
+    try {
+      const recordingId = await recordingService.startRecording(id, tenantId, "manual");
+      results.push({ cameraId: id, recordingId });
+    } catch (err) {
+      results.push({ cameraId: id, error: String(err) });
+    }
+  }
+
+  return c.json(createSuccessResponse({ started: results.filter((r) => !r.error).length, results }));
+});
+
+// Bulk record stop
+cameraRoutes.post("/bulk/record-stop", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const { cameraIds } = body as { cameraIds?: string[] };
+
+  if (!Array.isArray(cameraIds) || cameraIds.length === 0) {
+    throw new ApiError("VALIDATION_ERROR", "cameraIds array is required", 422);
+  }
+
+  const supabase = getSupabase();
+
+  // Verify all cameras belong to tenant
+  const { data: ownedCameras } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .in("id", cameraIds);
+
+  const validIds = (ownedCameras ?? []).map((cam: { id: string }) => cam.id);
+
+  const recordingService = getRecordingService();
+  const results: { cameraId: string; stopped: boolean; error?: string }[] = [];
+
+  for (const id of validIds) {
+    try {
+      const active = await recordingService.getActiveRecording(id, tenantId);
+      if (active) {
+        await recordingService.stopRecording(active.id as string);
+        results.push({ cameraId: id, stopped: true });
+      } else {
+        results.push({ cameraId: id, stopped: false });
+      }
+    } catch (err) {
+      results.push({ cameraId: id, stopped: false, error: String(err) });
+    }
+  }
+
+  return c.json(createSuccessResponse({ stopped: results.filter((r) => r.stopped).length, results }));
+});
+
 // ── Recording controls ──
 
 // Start recording for a camera

@@ -21,6 +21,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { PageError } from "@/components/PageError";
+import { exportRecordingsCSV } from "@/lib/export";
+import { showToast } from "@/stores/toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -315,6 +317,21 @@ export default function RecordingsPage() {
           >
             <X className="h-3 w-3" />
             Clear
+          </button>
+        )}
+
+        {/* Export CSV */}
+        {!loading && !error && recordings.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              exportRecordingsCSV(recordings);
+              showToast(`Exported ${recordings.length} recordings as CSV`, "success");
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
           </button>
         )}
 

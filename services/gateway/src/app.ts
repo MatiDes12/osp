@@ -15,6 +15,7 @@ import { ruleRoutes } from "./routes/rule.routes.js";
 import { tenantRoutes } from "./routes/tenant.routes.js";
 import { extensionRoutes } from "./routes/extension.routes.js";
 import { locationRoutes } from "./routes/location.routes.js";
+import { tagRoutes } from "./routes/tag.routes.js";
 import { devRoutes } from "./routes/dev.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
@@ -70,6 +71,7 @@ app.get("/", (c) => {
       rules: "/api/v1/rules",
       tenants: "/api/v1/tenants",
       locations: "/api/v1/locations",
+      tags: "/api/v1/tags",
       extensions: "/api/v1/extensions",
     },
     docs: "https://github.com/MatiDes12/osp",
@@ -86,6 +88,8 @@ app.route("/api/v1/recordings", recordingRoutes);
 app.route("/api/v1/rules", ruleRoutes);
 app.route("/api/v1/tenants", tenantRoutes);
 app.route("/api/v1/locations", locationRoutes);
+app.route("/api/v1/tags", tagRoutes);
+app.route("/api/v1/cameras", tagRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
 app.route("/api/v1/dev", devRoutes);
 

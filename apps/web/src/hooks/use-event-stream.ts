@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { OSPEvent } from "@osp/shared";
 import { showNotification } from "@/lib/notifications";
+import { shouldShowNotification } from "@/stores/notification-prefs";
 
 interface UseEventStreamOptions {
   readonly cameraIds?: string[];
@@ -179,8 +180,8 @@ export function useEventStream(
                   : updated;
               });
 
-              // Show browser notification for high/critical severity events
-              if (event.severity === "high" || event.severity === "critical") {
+              // Show browser notification respecting user preferences
+              if (shouldShowNotification(event.severity)) {
                 const title = event.type === "motion" ? "Motion Detected" : `Event: ${event.type}`;
                 showNotification(title, {
                   body: `Camera: ${event.cameraName || "Unknown"}`,

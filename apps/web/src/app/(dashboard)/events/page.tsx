@@ -21,6 +21,8 @@ import type { OSPEvent, EventType, EventSeverity, Camera } from "@osp/shared";
 import { transformEvents, transformCameras } from "@/lib/transforms";
 import { useEventStream } from "@/hooks/use-event-stream";
 import { PageError } from "@/components/PageError";
+import { exportEventsCSV, exportEventsJSON } from "@/lib/export";
+import { showToast } from "@/stores/toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -205,6 +207,8 @@ export default function EventsPage() {
 
   const listRef = useRef<HTMLDivElement>(null);
   const isScrolledRef = useRef(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   // Real-time WebSocket events
   const { events: wsEvents, connected: wsConnected } = useEventStream({
@@ -485,6 +489,30 @@ export default function EventsPage() {
 
   const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
 
+  // Export dropdown outside-click handler
+  useEffect(() => {
+    if (!exportOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setExportOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [exportOpen]);
+
+  const handleExportCSV = useCallback(() => {
+    exportEventsCSV(filteredEvents);
+    showToast(`Exported ${filteredEvents.length} events as CSV`, "success");
+    setExportOpen(false);
+  }, [filteredEvents]);
+
+  const handleExportJSON = useCallback(() => {
+    exportEventsJSON(filteredEvents);
+    showToast(`Exported ${filteredEvents.length} events as JSON`, "success");
+    setExportOpen(false);
+  }, [filteredEvents]);
+
   const isDev = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   return (
@@ -670,6 +698,38 @@ export default function EventsPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Export dropdown */}
+            <div className="relative" ref={exportRef}>
+              <button
+                type="button"
+                onClick={() => setExportOpen((prev) => !prev)}
+                disabled={filteredEvents.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export
+              </button>
+              {exportOpen && (
+                <div className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl z-50">
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportJSON}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export JSON
+                  </button>
+                </div>
+              )}
+            </div>
             {isDev && (
               <button
                 onClick={handleSimulateMotion}

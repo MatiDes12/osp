@@ -5,7 +5,7 @@
 /*  Design-system CSS custom properties                                */
 /* ------------------------------------------------------------------ */
 :root {
-  /* Background layers */
+  /* Background layers (dark defaults) */
   --color-bg: #09090b;
   --color-surface: #18181b;
   --color-raised: #27272a;
@@ -35,6 +35,22 @@
   --sidebar-width: 256px;
   --sidebar-collapsed-width: 64px;
   --topbar-height: 56px;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Light mode overrides                                               */
+/* ------------------------------------------------------------------ */
+:root:not(.dark) {
+  --color-bg: #ffffff;
+  --color-surface: #f4f4f5;
+  --color-raised: #e4e4e7;
+
+  --color-border: #d4d4d8;
+  --color-border-subtle: #e4e4e7;
+
+  --color-text-primary: #09090b;
+  --color-text-secondary: #52525b;
+  --color-text-muted: #a1a1aa;
 }
 
 /* ------------------------------------------------------------------ */
