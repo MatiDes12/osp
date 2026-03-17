@@ -11,6 +11,7 @@ import {
   UpdateCameraSchema,
   CreateZoneSchema,
   UpdateZoneSchema,
+  PTZCommandSchema,
 } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
 import type { RecordingTrigger } from "@osp/shared";
@@ -299,6 +300,49 @@ cameraRoutes.get("/:id/record/status", requireAuth("viewer"), async (c) => {
     isRecording: !!active,
     recording: active,
   }));
+});
+
+// ── PTZ ──
+
+cameraRoutes.post("/:id/ptz", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+  const body = await c.req.json();
+  const command = PTZCommandSchema.parse(body);
+  const supabase = getSupabase();
+
+  // Verify camera exists and belongs to tenant
+  const { data: camera, error } = await supabase
+    .from("cameras")
+    .select("id, ptz_capable")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  // MVP: Log the PTZ command for now. The Go camera-ingest service will
+  // handle real ONVIF PTZ SOAP calls in the future.
+  logger.info("PTZ command received", {
+    cameraId,
+    tenantId,
+    action: command.action,
+    pan: command.pan,
+    tilt: command.tilt,
+    zoom: command.zoom,
+    presetId: command.presetId,
+    speed: command.speed,
+  });
+
+  return c.json(
+    createSuccessResponse({
+      cameraId,
+      command,
+      status: "accepted",
+    }),
+  );
 });
 
 // ── Zones ──

@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  LogOut,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -198,6 +199,21 @@ export function Sidebar() {
               <span>Collapse</span>
             </>
           )}
+        </button>
+
+        {/* Sign out */}
+        <button
+          type="button"
+          onClick={() => {
+            localStorage.removeItem("osp_access_token");
+            localStorage.removeItem("osp_refresh_token");
+            window.location.href = "/login";
+          }}
+          title={collapsed ? "Sign Out" : undefined}
+          className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:text-red-400 cursor-pointer"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Sign Out</span>}
         </button>
       </div>
     </aside>

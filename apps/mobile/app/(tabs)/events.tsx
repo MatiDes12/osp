@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import type { OSPEvent } from "@osp/shared/types";
 import { api } from "@/lib/api";
+import { transformEvents } from "@/lib/transforms";
 import { EventRow } from "@/components/EventRow";
 import { colors, spacing, fontSize } from "@/constants/theme";
 
@@ -27,11 +28,9 @@ export default function EventsScreen() {
     try {
       const result = await api.get<OSPEvent[]>("/api/v1/events", {
         limit: 50,
-        sortBy: "detectedAt",
-        sortOrder: "desc",
       });
       if (result.success && result.data) {
-        setEvents(result.data);
+        setEvents(transformEvents(result.data));
         setError(null);
       } else {
         setError(result.error?.message ?? "Failed to load events.");

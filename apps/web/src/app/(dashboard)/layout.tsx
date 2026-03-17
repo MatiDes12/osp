@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ToastContainer } from "@/components/ui/Toast";
 import { ActionLogPanel } from "@/components/ui/ActionLogPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useRouteLogger } from "@/hooks/use-action-logger";
 
@@ -29,7 +30,9 @@ export default function DashboardLayout({
         >
           <TopBar />
 
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          <ErrorBoundary>
+            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          </ErrorBoundary>
         </div>
       </div>
       <ToastContainer />

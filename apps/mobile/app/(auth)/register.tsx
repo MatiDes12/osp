@@ -43,10 +43,10 @@ export default function RegisterScreen() {
     try {
       const result = await api.post<RegisterResponse>("/api/v1/auth/register", {
         displayName: name.trim(),
-        organization: organization.trim() || undefined,
+        tenantName: organization.trim() || name.trim(),
         email: email.trim(),
         password,
-      });
+      }, { requiresAuth: false });
 
       if (result.success && result.data) {
         await setTokens(result.data.accessToken, result.data.refreshToken);

@@ -26,6 +26,7 @@ import {
   AlertCircle,
   ArrowUpDown,
 } from "lucide-react";
+import { PageError } from "@/components/PageError";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -526,19 +527,7 @@ export default function RulesPage() {
           )}
 
           {error && !loading && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">Failed to load rules</span>
-              </div>
-              <p className="text-xs text-red-400/80">{error}</p>
-              <button
-                onClick={fetchData}
-                className="mt-2 text-xs underline hover:no-underline cursor-pointer"
-              >
-                Try again
-              </button>
-            </div>
+            <PageError message={error} onRetry={fetchData} />
           )}
 
           {!loading && !error && rules.length === 0 && (

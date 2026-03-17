@@ -236,13 +236,22 @@ export function LiveViewPlayer({
     fetchStreamAndConnect();
   }, [fetchStreamAndConnect]);
 
-  // HLS fallback mode
-  if (state === "fallback" && streamInfo?.fallbackHlsUrl) {
+  // Fallback: MJPEG snapshot refresh (simpler and more reliable than HLS)
+  if (state === "fallback") {
+    const go2rtcUrl = process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984";
+    const mjpegUrl = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
     return (
       <div className={`relative ${className ?? ""}`}>
-        <HLSPlayer
-          url={streamInfo.fallbackHlsUrl}
-          className="aspect-video w-full"
+        <video
+          src={mjpegUrl}
+          autoPlay
+          muted
+          playsInline
+          className="aspect-video w-full bg-black rounded-lg object-contain"
+          onError={() => {
+            setErrorMessage("Stream unavailable");
+            setState("error");
+          }}
         />
         <div className="absolute top-2 left-2 flex items-center gap-2">
           <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">

@@ -5,38 +5,71 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Switch,
   ActivityIndicator,
   Alert,
 } from "react-native";
 import { router } from "expo-router";
-import type { User, Tenant } from "@osp/shared/types";
+import type { Tenant } from "@osp/shared/types";
 import { api } from "@/lib/api";
-import { clearTokens } from "@/lib/auth";
+import { getAccessToken, clearTokens } from "@/lib/auth";
+import { transformTenant } from "@/lib/transforms";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
 
+interface JwtUser {
+  readonly id: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly role: string;
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = parts[1]!;
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(padded);
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function extractUserFromJwt(token: string): JwtUser | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+
+  const meta = (payload["user_metadata"] ?? {}) as Record<string, unknown>;
+
+  return {
+    id: (payload["sub"] as string) ?? "",
+    email: (payload["email"] as string) ?? "",
+    displayName: (meta["display_name"] as string) ?? (payload["email"] as string) ?? "",
+    role: (meta["role"] as string) ?? "viewer",
+  };
+}
+
 export default function SettingsScreen() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<JwtUser | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [userResult, tenantResult] = await Promise.all([
-        api.get<User>("/api/v1/users/me"),
-        api.get<Tenant>("/api/v1/tenants/current"),
-      ]);
-
-      if (userResult.success && userResult.data) {
-        setUser(userResult.data);
-        setNotificationsEnabled(
-          userResult.data.preferences.notificationsEnabled,
-        );
+      // Extract user info from JWT
+      const token = await getAccessToken();
+      if (token) {
+        const jwtUser = extractUserFromJwt(token);
+        if (jwtUser) {
+          setUser(jwtUser);
+        }
       }
+
+      // Fetch tenant from API
+      const tenantResult = await api.get<Tenant>("/api/v1/tenants/current");
       if (tenantResult.success && tenantResult.data) {
-        setTenant(tenantResult.data);
+        setTenant(transformTenant(tenantResult.data));
       }
     } catch {
       // Silently fail - user can still use logout
@@ -48,21 +81,6 @@ export default function SettingsScreen() {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
-
-  const handleToggleNotifications = useCallback(
-    async (value: boolean) => {
-      setNotificationsEnabled(value);
-      try {
-        await api.put("/api/v1/users/me/preferences", {
-          notificationsEnabled: value,
-        });
-      } catch {
-        setNotificationsEnabled(!value);
-        Alert.alert("Error", "Failed to update notification preferences.");
-      }
-    },
-    [],
-  );
 
   const handleLogout = useCallback(() => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -126,24 +144,6 @@ export default function SettingsScreen() {
           </View>
         </View>
       )}
-
-      {/* Notifications Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <View style={styles.infoCard}>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Push Notifications</Text>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={handleToggleNotifications}
-              trackColor={{ false: colors.border, true: colors.primaryDark }}
-              thumbColor={
-                notificationsEnabled ? colors.primary : colors.textMuted
-              }
-            />
-          </View>
-        </View>
-      </View>
 
       {/* Logout */}
       <View style={styles.section}>
@@ -275,17 +275,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: fontSize.md,
     fontWeight: "500",
-  },
-  switchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  switchLabel: {
-    color: colors.text,
-    fontSize: fontSize.md,
   },
   logoutButton: {
     backgroundColor: colors.surface,

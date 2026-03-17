@@ -11,6 +11,7 @@ import {
 import { router } from "expo-router";
 import type { Camera } from "@osp/shared/types";
 import { api } from "@/lib/api";
+import { transformCameras } from "@/lib/transforms";
 import { CameraCard } from "@/components/CameraCard";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
 
@@ -27,7 +28,7 @@ export default function CamerasScreen() {
     try {
       const result = await api.get<Camera[]>("/api/v1/cameras");
       if (result.success && result.data) {
-        setCameras(result.data);
+        setCameras(transformCameras(result.data));
         setError(null);
       } else {
         setError(result.error?.message ?? "Failed to load cameras.");

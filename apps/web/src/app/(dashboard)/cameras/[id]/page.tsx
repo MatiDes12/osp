@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import { PTZControls } from "@/components/camera/PTZControls";
+import { ZoneDrawer } from "@/components/camera/ZoneDrawer";
+import { ZoneNameDialog } from "@/components/camera/ZoneNameDialog";
 import type { Camera as CameraType, CameraZone, OSPEvent } from "@osp/shared";
 import {
   transformCamera,
@@ -122,6 +124,11 @@ export default function CameraDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Zone drawing state
+  const [isDrawingZone, setIsDrawingZone] = useState(false);
+  const [pendingPolygon, setPendingPolygon] = useState<readonly { x: number; y: number }[] | null>(null);
+  const [videoSize, setVideoSize] = useState({ width: 960, height: 540 });
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -289,6 +296,79 @@ export default function CameraDetailPage() {
     }
   }, [cameraId, isRecording]);
 
+  // Zone drawing handlers
+  const handleZonePolygonCreated = useCallback(
+    (polygon: readonly { x: number; y: number }[]) => {
+      setPendingPolygon(polygon);
+      setIsDrawingZone(false);
+    },
+    [],
+  );
+
+  const handleZoneSave = useCallback(
+    async (zone: {
+      name: string;
+      colorHex: string;
+      alertEnabled: boolean;
+      sensitivity: number;
+      polygonCoordinates: readonly { x: number; y: number }[];
+    }) => {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          name: zone.name,
+          polygonCoordinates: zone.polygonCoordinates,
+          alertEnabled: zone.alertEnabled,
+          sensitivity: zone.sensitivity,
+          colorHex: zone.colorHex,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        throw new Error(json.error?.message ?? "Failed to create zone");
+      }
+      setPendingPolygon(null);
+      // Refresh zones
+      await fetchCamera();
+    },
+    [cameraId, fetchCamera],
+  );
+
+  const handleZoneDeleted = useCallback(
+    async (zoneId: string) => {
+      try {
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/zones/${zoneId}`,
+          { method: "DELETE", headers: getAuthHeaders() },
+        );
+        const json = await res.json();
+        if (json.success) {
+          await fetchCamera();
+        }
+      } catch {
+        // Non-critical
+      }
+    },
+    [cameraId, fetchCamera],
+  );
+
+  // Track video container size for zone overlay
+  useEffect(() => {
+    const container = videoContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setVideoSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
   // Reconnect / Delete state
   const [reconnecting, setReconnecting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -419,6 +499,22 @@ export default function CameraDetailPage() {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Draw zone button */}
+            <button
+              onClick={() => setIsDrawingZone((prev) => !prev)}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
+                isDrawingZone
+                  ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                  : "text-zinc-300 hover:text-white hover:bg-white/10"
+              }`}
+              aria-label={isDrawingZone ? "Cancel zone drawing" : "Draw zone"}
+              title={isDrawingZone ? "Cancel zone drawing" : "Draw zone on video"}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-xs font-medium hidden sm:inline">
+                {isDrawingZone ? "Cancel" : "Zone"}
+              </span>
+            </button>
             {/* Recording indicator + button */}
             <button
               onClick={handleToggleRecording}
@@ -500,12 +596,23 @@ export default function CameraDetailPage() {
           className="w-full aspect-video"
         />
 
+        {/* Zone drawing overlay */}
+        <ZoneDrawer
+          zones={zones}
+          cameraId={camera.id}
+          videoWidth={videoSize.width}
+          videoHeight={videoSize.height}
+          isDrawing={isDrawingZone}
+          onZoneCreated={handleZonePolygonCreated}
+          onZoneDeleted={handleZoneDeleted}
+          onDrawingCancelled={() => setIsDrawingZone(false)}
+        />
+
         {/* PTZ overlay — only if camera is PTZ-capable */}
         {camera.ptzCapable && (
           <div className="absolute bottom-4 right-4 z-10">
             <PTZControls
-              onMove={(dir) => console.log("PTZ move:", dir)}
-              onZoom={(z) => console.log("PTZ zoom:", z)}
+              cameraId={camera.id}
             />
           </div>
         )}
@@ -581,6 +688,16 @@ export default function CameraDetailPage() {
         </div>
       )}
 
+      {/* Zone name dialog */}
+      {pendingPolygon && (
+        <ZoneNameDialog
+          cameraId={camera.id}
+          polygon={pendingPolygon}
+          onSave={handleZoneSave}
+          onCancel={() => setPendingPolygon(null)}
+        />
+      )}
+
       {/* Info panels below video */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Camera Details */}
@@ -644,9 +761,16 @@ export default function CameraDetailPage() {
             <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
               Zones ({zones.length})
             </h3>
-            <button className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors duration-150 cursor-pointer">
+            <button
+              onClick={() => setIsDrawingZone(true)}
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-md transition-colors duration-150 cursor-pointer ${
+                isDrawingZone
+                  ? "bg-blue-500/30 text-blue-300 ring-1 ring-blue-500/50"
+                  : "bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"
+              }`}
+            >
               <Plus className="w-3 h-3" />
-              Add Zone
+              {isDrawingZone ? "Drawing..." : "Draw Zone"}
             </button>
           </div>
           {zones.length === 0 ? (

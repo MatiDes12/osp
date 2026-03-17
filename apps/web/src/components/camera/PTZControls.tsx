@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   ArrowUp,
   ArrowDown,
@@ -15,32 +15,92 @@ type PTZDirection = "up" | "down" | "left" | "right" | "home";
 type PTZZoom = "in" | "out";
 
 interface PTZControlsProps {
-  readonly onMove?: (direction: PTZDirection) => void;
-  readonly onZoom?: (zoom: PTZZoom) => void;
+  readonly cameraId: string;
   readonly disabled?: boolean;
   readonly className?: string;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem("osp_access_token");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function sendPTZCommand(
+  cameraId: string,
+  body: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/v1/cameras/${cameraId}/ptz`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Non-critical: PTZ commands are best-effort
+  }
+}
+
+function getDirectionCommand(direction: PTZDirection): Record<string, unknown> {
+  switch (direction) {
+    case "up":
+      return { action: "move", pan: 0, tilt: 1, speed: 0.5 };
+    case "down":
+      return { action: "move", pan: 0, tilt: -1, speed: 0.5 };
+    case "left":
+      return { action: "move", pan: -1, tilt: 0, speed: 0.5 };
+    case "right":
+      return { action: "move", pan: 1, tilt: 0, speed: 0.5 };
+    case "home":
+      return { action: "preset", presetId: "1" };
+  }
 }
 
 function DirectionButton({
   direction,
   icon: Icon,
-  onMove,
+  cameraId,
   disabled,
   label,
 }: {
   readonly direction: PTZDirection;
   readonly icon: React.ComponentType<{ className?: string }>;
-  readonly onMove?: (direction: PTZDirection) => void;
+  readonly cameraId: string;
   readonly disabled?: boolean;
   readonly label: string;
 }) {
-  const handleClick = useCallback(() => {
-    onMove?.(direction);
-  }, [direction, onMove]);
+  const activeRef = useRef(false);
+
+  const handleStart = useCallback(() => {
+    if (disabled) return;
+    activeRef.current = true;
+    const cmd = getDirectionCommand(direction);
+    sendPTZCommand(cameraId, cmd);
+  }, [direction, cameraId, disabled]);
+
+  const handleEnd = useCallback(() => {
+    if (!activeRef.current) return;
+    activeRef.current = false;
+    // Home is a one-shot command, no stop needed
+    if (direction !== "home") {
+      sendPTZCommand(cameraId, { action: "stop" });
+    }
+  }, [direction, cameraId]);
 
   return (
     <button
-      onClick={handleClick}
+      onMouseDown={handleStart}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleEnd}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
       disabled={disabled}
       aria-label={label}
       className="w-11 h-11 flex items-center justify-center rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-50 transition-colors duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
@@ -51,13 +111,27 @@ function DirectionButton({
 }
 
 export function PTZControls({
-  onMove,
-  onZoom,
+  cameraId,
   disabled = false,
   className,
 }: PTZControlsProps) {
-  const handleZoomIn = useCallback(() => onZoom?.("in"), [onZoom]);
-  const handleZoomOut = useCallback(() => onZoom?.("out"), [onZoom]);
+  const zoomActiveRef = useRef(false);
+
+  const handleZoomStart = useCallback(
+    (direction: PTZZoom) => {
+      if (disabled) return;
+      zoomActiveRef.current = true;
+      const zoom = direction === "in" ? 1 : -1;
+      sendPTZCommand(cameraId, { action: "zoom", zoom, speed: 0.5 });
+    },
+    [cameraId, disabled],
+  );
+
+  const handleZoomEnd = useCallback(() => {
+    if (!zoomActiveRef.current) return;
+    zoomActiveRef.current = false;
+    sendPTZCommand(cameraId, { action: "stop" });
+  }, [cameraId]);
 
   return (
     <div
@@ -70,7 +144,7 @@ export function PTZControls({
         <DirectionButton
           direction="up"
           icon={ArrowUp}
-          onMove={onMove}
+          cameraId={cameraId}
           disabled={disabled}
           label="Pan up"
         />
@@ -80,21 +154,21 @@ export function PTZControls({
         <DirectionButton
           direction="left"
           icon={ArrowLeft}
-          onMove={onMove}
+          cameraId={cameraId}
           disabled={disabled}
           label="Pan left"
         />
         <DirectionButton
           direction="home"
           icon={Home}
-          onMove={onMove}
+          cameraId={cameraId}
           disabled={disabled}
           label="Return to home position"
         />
         <DirectionButton
           direction="right"
           icon={ArrowRight}
-          onMove={onMove}
+          cameraId={cameraId}
           disabled={disabled}
           label="Pan right"
         />
@@ -104,7 +178,7 @@ export function PTZControls({
         <DirectionButton
           direction="down"
           icon={ArrowDown}
-          onMove={onMove}
+          cameraId={cameraId}
           disabled={disabled}
           label="Pan down"
         />
@@ -114,7 +188,11 @@ export function PTZControls({
       {/* Zoom row */}
       <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-zinc-700/50">
         <button
-          onClick={handleZoomOut}
+          onMouseDown={() => handleZoomStart("out")}
+          onMouseUp={handleZoomEnd}
+          onMouseLeave={handleZoomEnd}
+          onTouchStart={() => handleZoomStart("out")}
+          onTouchEnd={handleZoomEnd}
           disabled={disabled}
           aria-label="Zoom out"
           className="w-11 h-11 flex items-center justify-center rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-50 transition-colors duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
@@ -125,7 +203,11 @@ export function PTZControls({
           <div className="h-full w-1/2 rounded-full bg-zinc-500" />
         </div>
         <button
-          onClick={handleZoomIn}
+          onMouseDown={() => handleZoomStart("in")}
+          onMouseUp={handleZoomEnd}
+          onMouseLeave={handleZoomEnd}
+          onTouchStart={() => handleZoomStart("in")}
+          onTouchEnd={handleZoomEnd}
           disabled={disabled}
           aria-label="Zoom in"
           className="w-11 h-11 flex items-center justify-center rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-50 transition-colors duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"

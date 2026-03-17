@@ -86,7 +86,7 @@ extensionRoutes.get("/", requireAuth("admin"), async (c) => {
   const supabase = getSupabase();
 
   const { data: installed, error } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .select("*, extension:extensions(*)")
     .eq("tenant_id", tenantId)
     .order("installed_at", { ascending: false });
@@ -119,7 +119,7 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
 
   // Check if already installed
   const { data: existing } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("extension_id", input.extensionId)
@@ -130,7 +130,7 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
   }
 
   const { data: installed, error } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .insert({
       tenant_id: tenantId,
       extension_id: input.extensionId,
@@ -161,7 +161,7 @@ extensionRoutes.patch("/:id/config", requireAuth("admin"), async (c) => {
   const supabase = getSupabase();
 
   const { data: installed, error } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .update({
       config: input.config,
       updated_at: new Date().toISOString(),
@@ -187,7 +187,7 @@ extensionRoutes.patch("/:id/toggle", requireAuth("admin"), async (c) => {
   const supabase = getSupabase();
 
   const { data: installed, error } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .update({
       enabled: input.enabled,
       updated_at: new Date().toISOString(),
@@ -212,7 +212,7 @@ extensionRoutes.delete("/:id", requireAuth("admin"), async (c) => {
 
   // Get extension_id before deleting for decrementing count
   const { data: installed } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .select("extension_id")
     .eq("id", installedId)
     .eq("tenant_id", tenantId)
@@ -223,7 +223,7 @@ extensionRoutes.delete("/:id", requireAuth("admin"), async (c) => {
   }
 
   const { error } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .delete()
     .eq("id", installedId)
     .eq("tenant_id", tenantId);

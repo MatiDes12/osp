@@ -20,6 +20,7 @@ import {
 import type { OSPEvent, EventType, EventSeverity, Camera } from "@osp/shared";
 import { transformEvents, transformCameras } from "@/lib/transforms";
 import { useEventStream } from "@/hooks/use-event-stream";
+import { PageError } from "@/components/PageError";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -759,16 +760,7 @@ export default function EventsPage() {
           )}
 
           {error && !loading && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
-              <p className="font-medium mb-1">Failed to load events</p>
-              <p className="text-xs text-zinc-500">{error}</p>
-              <button
-                onClick={fetchEvents}
-                className="mt-2 text-xs text-zinc-400 underline hover:no-underline cursor-pointer"
-              >
-                Try again
-              </button>
-            </div>
+            <PageError message={error} onRetry={fetchEvents} />
           )}
 
           {!loading && !error && filteredEvents.length === 0 && (

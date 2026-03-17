@@ -20,6 +20,7 @@ import {
   Video,
   ChevronDown,
 } from "lucide-react";
+import { PageError } from "@/components/PageError";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -190,6 +191,17 @@ export default function RecordingsPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  /**
+   * Resolve a playback URL for the selected recording.
+   * If the recording already has a playbackUrl from the API, use it.
+   * Otherwise fall back to go2rtc's live MP4 stream as an MVP preview.
+   */
+  const getPlaybackUrl = useCallback((rec: Recording): string => {
+    if (rec.playbackUrl) return rec.playbackUrl;
+    const go2rtcBase = process.env.NEXT_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
+    return `${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(rec.cameraId)}&duration=30`;
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -329,19 +341,7 @@ export default function RecordingsPage() {
           )}
 
           {error && !loading && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">Failed to load recordings</span>
-              </div>
-              <p className="text-xs text-red-400/80">{error}</p>
-              <button
-                onClick={fetchData}
-                className="mt-2 text-xs underline hover:no-underline cursor-pointer"
-              >
-                Try again
-              </button>
-            </div>
+            <PageError message={error} onRetry={fetchData} />
           )}
 
           {!loading && !error && recordings.length === 0 && (
@@ -450,23 +450,23 @@ export default function RecordingsPage() {
             <div className="max-w-3xl mx-auto">
               {/* Video player */}
               <div className="bg-black rounded-lg aspect-video overflow-hidden flex items-center justify-center relative group">
-                {selectedRecording.playbackUrl ? (
-                  <video
-                    ref={videoRef}
-                    src={selectedRecording.playbackUrl}
-                    controls
-                    className="w-full h-full object-contain"
-                    poster={selectedRecording.thumbnailUrl ?? undefined}
-                  />
-                ) : (
+                {selectedRecording.status === "recording" ? (
                   <div className="text-center">
                     <Play className="h-12 w-12 mx-auto mb-2 text-zinc-600" />
                     <p className="text-sm text-zinc-500">
-                      {selectedRecording.status === "recording"
-                        ? "Recording in progress..."
-                        : "Playback unavailable"}
+                      Recording in progress...
                     </p>
                   </div>
+                ) : (
+                  <video
+                    ref={videoRef}
+                    key={selectedRecording.id}
+                    src={getPlaybackUrl(selectedRecording)}
+                    controls
+                    autoPlay
+                    className="w-full h-full object-contain"
+                    poster={selectedRecording.thumbnailUrl ?? undefined}
+                  />
                 )}
               </div>
 

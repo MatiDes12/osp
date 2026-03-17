@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,12 +7,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import type { Camera, OSPEvent } from "@osp/shared/types";
 import { api } from "@/lib/api";
+import { transformCamera, transformEvents } from "@/lib/transforms";
 import { EventRow } from "@/components/EventRow";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const GO2RTC_BASE_URL = process.env.EXPO_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
+const MJPEG_REFRESH_MS = 500;
 
 const STATUS_COLORS: Record<string, string> = {
   online: colors.success,
@@ -29,6 +35,8 @@ export default function CameraDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [frameKey, setFrameKey] = useState(0);
+  const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(
     async (showRefresh = false) => {
@@ -40,22 +48,21 @@ export default function CameraDetailScreen() {
       try {
         const [cameraResult, eventsResult] = await Promise.all([
           api.get<Camera>(`/api/v1/cameras/${id}`),
-          api.get<OSPEvent[]>(`/api/v1/cameras/${id}/events`, {
+          api.get<OSPEvent[]>(`/api/v1/events`, {
+            cameraId: id,
             limit: 10,
-            sortBy: "detectedAt",
-            sortOrder: "desc",
           }),
         ]);
 
         if (cameraResult.success && cameraResult.data) {
-          setCamera(cameraResult.data);
+          setCamera(transformCamera(cameraResult.data));
           setError(null);
         } else {
           setError(cameraResult.error?.message ?? "Camera not found.");
         }
 
         if (eventsResult.success && eventsResult.data) {
-          setEvents(eventsResult.data);
+          setEvents(transformEvents(eventsResult.data));
         }
       } catch {
         setError("Unable to connect to server.");
@@ -70,6 +77,34 @@ export default function CameraDetailScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // MJPEG frame refresh timer
+  useEffect(() => {
+    if (camera?.status === "online") {
+      frameTimerRef.current = setInterval(() => {
+        setFrameKey((prev) => prev + 1);
+      }, MJPEG_REFRESH_MS);
+    }
+
+    return () => {
+      if (frameTimerRef.current) {
+        clearInterval(frameTimerRef.current);
+        frameTimerRef.current = null;
+      }
+    };
+  }, [camera?.status]);
+
+  const handlePtz = useCallback(
+    async (direction: string) => {
+      if (!id) return;
+      try {
+        await api.post(`/api/v1/cameras/${id}/ptz`, { action: direction });
+      } catch {
+        // PTZ command failed silently
+      }
+    },
+    [id],
+  );
 
   if (isLoading) {
     return (
@@ -91,6 +126,7 @@ export default function CameraDetailScreen() {
   }
 
   const statusColor = STATUS_COLORS[camera.status] ?? colors.textMuted;
+  const frameUri = `${GO2RTC_BASE_URL}/api/frame.jpeg?src=${camera.id}&t=${frameKey}`;
 
   return (
     <ScrollView
@@ -104,21 +140,41 @@ export default function CameraDetailScreen() {
         />
       }
     >
-      {/* Live View Placeholder */}
+      {/* Live View */}
       <View style={styles.liveView}>
-        <Text style={styles.liveViewLabel}>{camera.name}</Text>
-        <View style={styles.liveViewStatus}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.statusText, { color: statusColor }]}>
-            {camera.status.toUpperCase()}
-          </Text>
-        </View>
+        {camera.status === "online" ? (
+          <Image
+            source={{ uri: frameUri }}
+            style={styles.liveImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <View style={styles.liveViewOffline}>
+            <Text style={styles.liveViewLabel}>{camera.name}</Text>
+            <View style={styles.liveViewStatus}>
+              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {camera.status.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+        )}
+        {camera.status === "online" && (
+          <View style={styles.liveOverlay}>
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+            <Text style={styles.liveNameText}>{camera.name}</Text>
+          </View>
+        )}
       </View>
 
       {/* Camera Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Camera Info</Text>
         <View style={styles.infoCard}>
+          <InfoRow label="Status" value={camera.status.toUpperCase()} />
           <InfoRow label="Protocol" value={camera.protocol.toUpperCase()} />
           {camera.manufacturer && (
             <InfoRow label="Manufacturer" value={camera.manufacturer} />
@@ -149,22 +205,22 @@ export default function CameraDetailScreen() {
           <View style={styles.ptzContainer}>
             <View style={styles.ptzRow}>
               <View style={styles.ptzSpacer} />
-              <PtzButton label="Up" />
+              <PtzButton label="Up" onPress={() => handlePtz("up")} />
               <View style={styles.ptzSpacer} />
             </View>
             <View style={styles.ptzRow}>
-              <PtzButton label="Left" />
-              <PtzButton label="Home" />
-              <PtzButton label="Right" />
+              <PtzButton label="Left" onPress={() => handlePtz("left")} />
+              <PtzButton label="Home" onPress={() => handlePtz("home")} />
+              <PtzButton label="Right" onPress={() => handlePtz("right")} />
             </View>
             <View style={styles.ptzRow}>
               <View style={styles.ptzSpacer} />
-              <PtzButton label="Down" />
+              <PtzButton label="Down" onPress={() => handlePtz("down")} />
               <View style={styles.ptzSpacer} />
             </View>
             <View style={styles.zoomRow}>
-              <PtzButton label="Zoom +" />
-              <PtzButton label="Zoom -" />
+              <PtzButton label="Zoom +" onPress={() => handlePtz("zoom_in")} />
+              <PtzButton label="Zoom -" onPress={() => handlePtz("zoom_out")} />
             </View>
           </View>
         </View>
@@ -210,9 +266,15 @@ function InfoRow({
   );
 }
 
-function PtzButton({ label }: { readonly label: string }) {
+function PtzButton({
+  label,
+  onPress,
+}: {
+  readonly label: string;
+  readonly onPress: () => void;
+}) {
   return (
-    <TouchableOpacity style={styles.ptzButton} activeOpacity={0.6}>
+    <TouchableOpacity style={styles.ptzButton} activeOpacity={0.6} onPress={onPress}>
       <Text style={styles.ptzButtonText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -234,8 +296,16 @@ const styles = StyleSheet.create({
     padding: spacing.xxl,
   },
   liveView: {
-    height: 220,
+    height: 240,
     backgroundColor: "#000",
+    position: "relative",
+  },
+  liveImage: {
+    width: "100%",
+    height: "100%",
+  },
+  liveViewOffline: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -248,6 +318,43 @@ const styles = StyleSheet.create({
   liveViewStatus: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  liveOverlay: {
+    position: "absolute",
+    top: spacing.md,
+    left: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(220, 38, 38, 0.85)",
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    marginRight: spacing.sm,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+    marginRight: 4,
+  },
+  liveText: {
+    color: "#fff",
+    fontSize: fontSize.xs,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  liveNameText: {
+    color: "#fff",
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   statusDot: {
     width: 8,

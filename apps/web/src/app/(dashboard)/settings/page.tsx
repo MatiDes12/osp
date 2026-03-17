@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import type { User, Camera, ApiResponse, UserRole } from "@osp/shared";
 import { transformCameras, transformUsers } from "@/lib/transforms";
 import { showToast } from "@/stores/toast";
@@ -22,6 +23,7 @@ import {
   X,
   Check,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -86,79 +88,39 @@ const STATUS_COLORS: Record<string, { dot: string; text: string }> = {
   disabled: { dot: "bg-zinc-700", text: "text-zinc-600" },
 };
 
-interface Extension {
+interface MarketplaceExtension {
   readonly id: string;
   readonly name: string;
-  readonly author: string;
+  readonly author_name: string;
+  readonly author_email: string;
   readonly description: string;
-  readonly iconUrl: string | null;
-  readonly installs: number;
-  readonly installed: boolean;
+  readonly icon_url: string | null;
+  readonly install_count: number;
   readonly version: string;
+  readonly categories: readonly string[];
+  readonly status: string;
+  readonly manifest: Record<string, unknown>;
 }
 
-const STUB_EXTENSIONS: readonly Extension[] = [
-  {
-    id: "1",
-    name: "License Plate Recognition",
-    author: "OSP Team",
-    description: "Automatically detect and log license plates from camera feeds using ML.",
-    iconUrl: null,
-    installs: 2_340,
-    installed: true,
-    version: "2.1.0",
-  },
-  {
-    id: "2",
-    name: "Face Recognition",
-    author: "OSP Team",
-    description: "Identify known faces and trigger alerts for unknown persons.",
-    iconUrl: null,
-    installs: 1_890,
-    installed: false,
-    version: "1.4.2",
-  },
-  {
-    id: "3",
-    name: "Slack Notifications",
-    author: "Community",
-    description: "Forward alerts and events to Slack channels in real-time.",
-    iconUrl: null,
-    installs: 3_120,
-    installed: true,
-    version: "1.0.5",
-  },
-  {
-    id: "4",
-    name: "S3 Backup",
-    author: "Community",
-    description: "Automatically archive recordings to Amazon S3 or compatible storage.",
-    iconUrl: null,
-    installs: 980,
-    installed: false,
-    version: "1.2.0",
-  },
-  {
-    id: "5",
-    name: "MQTT Bridge",
-    author: "Community",
-    description: "Publish events to MQTT brokers for smart home integration.",
-    iconUrl: null,
-    installs: 1_450,
-    installed: false,
-    version: "0.9.1",
-  },
-  {
-    id: "6",
-    name: "Heatmap Analytics",
-    author: "OSP Team",
-    description: "Generate motion heatmaps for foot traffic analysis and zone optimization.",
-    iconUrl: null,
-    installs: 760,
-    installed: false,
-    version: "1.1.0",
-  },
-];
+interface InstalledExtension {
+  readonly id: string;
+  readonly extension_id: string;
+  readonly enabled: boolean;
+  readonly installed_version: string;
+  readonly config: Record<string, unknown>;
+  readonly installed_at: string;
+  readonly extension: MarketplaceExtension;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  alerts: "bg-red-500/10 text-red-400 border-red-500/20",
+  integrations: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  analytics: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  ai: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  security: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  reports: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  storage: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+};
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton loaders                                                   */
@@ -242,7 +204,17 @@ function ConfirmDeleteModal({
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("tenant");
+  return (
+    <Suspense>
+      <SettingsPageInner />
+    </Suspense>
+  );
+}
+
+function SettingsPageInner() {
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as SettingsTab) ?? "tenant";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   // Tenant / General state
   const [tenantName, setTenantName] = useState("");
@@ -280,7 +252,11 @@ export default function SettingsPage() {
   const cameraToDelete = cameras.find((c) => c.id === deletingCameraId);
 
   // Extensions state
-  const [extTab, setExtTab] = useState<"installed" | "marketplace">("installed");
+  const [extTab, setExtTab] = useState<"installed" | "marketplace">("marketplace");
+  const [marketplaceExts, setMarketplaceExts] = useState<readonly MarketplaceExtension[]>([]);
+  const [installedExts, setInstalledExts] = useState<readonly InstalledExtension[]>([]);
+  const [extensionsLoading, setExtensionsLoading] = useState(false);
+  const [installingExtId, setInstallingExtId] = useState<string | null>(null);
 
   // Fetch tenant settings
   useEffect(() => {
@@ -350,10 +326,74 @@ export default function SettingsPage() {
     }
   }, []);
 
+  // Fetch marketplace extensions
+  const fetchMarketplace = useCallback(async () => {
+    setExtensionsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/extensions/marketplace`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json();
+      if (json.success && json.data) {
+        setMarketplaceExts(json.data as MarketplaceExtension[]);
+      }
+    } catch {
+      // Fail silently
+    } finally {
+      setExtensionsLoading(false);
+    }
+  }, []);
+
+  // Fetch installed extensions
+  const fetchInstalled = useCallback(async () => {
+    setExtensionsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/extensions`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await response.json();
+      if (json.success && json.data) {
+        setInstalledExts(json.data as InstalledExtension[]);
+      }
+    } catch {
+      // Fail silently
+    } finally {
+      setExtensionsLoading(false);
+    }
+  }, []);
+
+  // Install extension
+  const handleInstallExtension = useCallback(async (extensionId: string) => {
+    setInstallingExtId(extensionId);
+    try {
+      const response = await fetch(`${API_URL}/api/v1/extensions`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ extensionId }),
+      });
+      const json = await response.json();
+      if (json.success) {
+        showToast("Extension installed successfully", "success");
+        fetchInstalled();
+        fetchMarketplace();
+      } else {
+        showToast(json.error?.message ?? "Failed to install extension", "error");
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Network error", "error");
+    } finally {
+      setInstallingExtId(null);
+    }
+  }, [fetchInstalled, fetchMarketplace]);
+
   useEffect(() => {
     if (activeTab === "users") fetchUsers();
     if (activeTab === "cameras") fetchCameras();
-  }, [activeTab, fetchUsers, fetchCameras]);
+    if (activeTab === "extensions") {
+      fetchMarketplace();
+      fetchInstalled();
+    }
+  }, [activeTab, fetchUsers, fetchCameras, fetchMarketplace, fetchInstalled]);
 
   const handleSaveGeneral = useCallback(async () => {
     setGeneralSaving(true);
@@ -440,10 +480,7 @@ export default function SettingsPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  const filteredExtensions =
-    extTab === "installed"
-      ? STUB_EXTENSIONS.filter((e) => e.installed)
-      : STUB_EXTENSIONS;
+  const installedExtIds = new Set(installedExts.map((e) => e.extension_id));
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] -m-6">
@@ -944,44 +981,153 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredExtensions.map((ext) => (
-                <div
-                  key={ext.id}
-                  className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors duration-200"
-                >
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
-                      <Puzzle className="h-6 w-6 text-zinc-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-zinc-50 truncate">
-                        {ext.name}
-                      </p>
-                      <p className="text-xs text-zinc-500">{ext.author}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-zinc-400 mb-3 line-clamp-2">
-                    {ext.description}
+            {extensionsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <ExtensionCardSkeleton />
+                <ExtensionCardSkeleton />
+                <ExtensionCardSkeleton />
+                <ExtensionCardSkeleton />
+                <ExtensionCardSkeleton />
+                <ExtensionCardSkeleton />
+              </div>
+            ) : extTab === "installed" ? (
+              installedExts.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500">
+                  <Puzzle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No extensions installed yet.</p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Browse the marketplace to find extensions.
                   </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">
-                      {ext.installs.toLocaleString()} installs
-                    </span>
-                    {ext.installed ? (
-                      <button className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-3 py-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors duration-150 cursor-pointer">
-                        Configure
-                      </button>
-                    ) : (
-                      <button className="inline-flex items-center gap-1 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors duration-150 cursor-pointer">
-                        <Download className="h-3 w-3" />
-                        Install
-                      </button>
-                    )}
-                  </div>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {installedExts.map((inst) => {
+                    const ext = inst.extension;
+                    if (!ext) return null;
+                    return (
+                      <div
+                        key={inst.id}
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors duration-200"
+                      >
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                            <Puzzle className="h-6 w-6 text-zinc-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-zinc-50 truncate">
+                              {ext.name}
+                            </p>
+                            <p className="text-xs text-zinc-500">{ext.author_name}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
+                          {ext.description}
+                        </p>
+                        {ext.categories && ext.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {ext.categories.map((cat) => (
+                              <span
+                                key={cat}
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                  CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                                }`}
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">
+                            v{inst.installed_version}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            inst.enabled
+                              ? "bg-green-500/10 text-green-400"
+                              : "bg-zinc-500/10 text-zinc-500"
+                          }`}>
+                            {inst.enabled ? "Active" : "Disabled"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              marketplaceExts.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500">
+                  <Puzzle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No extensions available.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {marketplaceExts.map((ext) => {
+                    const isInstalled = installedExtIds.has(ext.id);
+                    const isInstalling = installingExtId === ext.id;
+                    return (
+                      <div
+                        key={ext.id}
+                        className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors duration-200"
+                      >
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                            <Puzzle className="h-6 w-6 text-zinc-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-zinc-50 truncate">
+                              {ext.name}
+                            </p>
+                            <p className="text-xs text-zinc-500">{ext.author_name}</p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
+                          {ext.description}
+                        </p>
+                        {ext.categories && ext.categories.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {ext.categories.map((cat) => (
+                              <span
+                                key={cat}
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                  CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                                }`}
+                              >
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">
+                            {ext.install_count.toLocaleString()} installs
+                          </span>
+                          {isInstalled ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 px-3 py-1 text-xs text-green-400">
+                              <Check className="h-3 w-3" />
+                              Installed
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleInstallExtension(ext.id)}
+                              disabled={isInstalling}
+                              className="inline-flex items-center gap-1 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors duration-150 cursor-pointer disabled:opacity-50"
+                            >
+                              {isInstalling ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Download className="h-3 w-3" />
+                              )}
+                              {isInstalling ? "Installing..." : "Install"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
           </div>
         )}
 

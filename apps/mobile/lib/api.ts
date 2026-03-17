@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@osp/shared/types";
+import { router } from "expo-router";
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "./auth";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -91,6 +92,13 @@ export async function apiRequest<T>(
         body: body ? JSON.stringify(body) : undefined,
       });
     } else {
+      await clearTokens();
+      // Redirect to login on session expiry
+      try {
+        router.replace("/(auth)/login");
+      } catch {
+        // Router may not be ready during app init
+      }
       return {
         success: false,
         data: null,
@@ -112,8 +120,8 @@ export const api = {
   get: <T>(path: string, params?: Record<string, string | number | undefined>) =>
     apiRequest<T>(path, { params }),
 
-  post: <T>(path: string, body?: unknown) =>
-    apiRequest<T>(path, { method: "POST", body }),
+  post: <T>(path: string, body?: unknown, options?: { requiresAuth?: boolean }) =>
+    apiRequest<T>(path, { method: "POST", body, requiresAuth: options?.requiresAuth }),
 
   put: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: "PUT", body }),
