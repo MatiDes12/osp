@@ -47,6 +47,7 @@ export function LiveViewPlayer({
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const retryRef = useRef(false);
 
   const [state, setState] = useState<PlayerState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -162,6 +163,19 @@ export function LiveViewPlayer({
         const message =
           err instanceof Error ? err.message : "WebRTC connection failed";
         console.error("[LiveViewPlayer] WebRTC error:", message);
+
+        // Auto-retry once after 2s before falling back to HLS
+        if (!retryRef.current) {
+          retryRef.current = true;
+          setState("connecting");
+          setTimeout(() => {
+            if (!abort.signal.aborted) {
+              connectWebRTC(info);
+            }
+          }, 2000);
+          return;
+        }
+        retryRef.current = false;
         fallbackToHLS(info);
       }
     },

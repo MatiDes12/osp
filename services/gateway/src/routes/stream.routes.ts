@@ -89,23 +89,43 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
 
-  // go2rtc works best with JSON format: {type:"offer", sdp:"..."}
-  const go2rtcResponse = await fetch(whepUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
-  });
+  // go2rtc may need a moment to connect to the RTSP source on first request.
+  // Retry up to 3 times with a short delay.
+  let go2rtcResponse: Response | null = null;
+  let lastError = "";
+  const MAX_RETRIES = 3;
 
-  if (!go2rtcResponse.ok) {
-    const body = await go2rtcResponse.text().catch(() => "unknown");
-    logger.error("go2rtc WHEP failed", {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    go2rtcResponse = await fetch(whepUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
+    });
+
+    if (go2rtcResponse.ok) break;
+
+    lastError = await go2rtcResponse.text().catch(() => "unknown");
+    logger.warn("go2rtc WHEP attempt failed", {
       cameraId,
+      attempt,
       status: go2rtcResponse.status,
-      body,
+      body: lastError,
+    });
+
+    if (attempt < MAX_RETRIES) {
+      // Wait 1s before retry — gives go2rtc time to connect to RTSP source
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  if (!go2rtcResponse || !go2rtcResponse.ok) {
+    logger.error("go2rtc WHEP failed after retries", {
+      cameraId,
+      lastError,
     });
     throw new ApiError(
       "STREAM_ERROR",
-      "Camera stream not ready — it may still be connecting",
+      "Camera stream not ready — it may still be connecting. Try again in a moment.",
       502,
     );
   }

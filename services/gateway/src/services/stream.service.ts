@@ -61,6 +61,17 @@ export class StreamService {
     }
 
     logger.info("Stream added to go2rtc", { cameraId });
+
+    // Pre-warm: request a snapshot to force go2rtc to connect to the RTSP source
+    // This avoids the first WebRTC request failing with "connection refused"
+    try {
+      const snapUrl = new URL("/api/frame.jpeg", this.go2rtcUrl);
+      snapUrl.searchParams.set("src", cameraId);
+      await fetch(snapUrl.toString(), { signal: AbortSignal.timeout(5000) }).catch(() => {});
+      logger.info("Stream pre-warmed", { cameraId });
+    } catch {
+      // Non-fatal — stream will connect on first viewer request
+    }
   }
 
   async removeStream(cameraId: string): Promise<void> {

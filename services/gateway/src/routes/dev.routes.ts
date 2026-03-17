@@ -30,7 +30,7 @@ const BOLD = "\x1b[1m";
 
 devRoutes.post("/client-log", async (c) => {
   if (process.env["NODE_ENV"] !== "development") {
-    return c.text("", 204);
+    return c.body(null, 204);
   }
 
   let body: Record<string, unknown>;
@@ -42,7 +42,7 @@ devRoutes.post("/client-log", async (c) => {
       const text = await c.req.text();
       body = JSON.parse(text) as Record<string, unknown>;
     } catch {
-      return c.text("", 204);
+      return c.body(null, 204);
     }
   }
 
@@ -59,7 +59,7 @@ devRoutes.post("/client-log", async (c) => {
 
   process.stdout.write(`  [client] ${line}\n`);
 
-  return c.text("", 204);
+  return c.body(null, 204);
 });
 
 const SimulateMotionSchema = z.object({
