@@ -37,7 +37,7 @@ export function ZoneNameDialog({
   onCancel,
 }: ZoneNameDialogProps) {
   const [name, setName] = useState("");
-  const [colorHex, setColorHex] = useState(PRESET_COLORS[0].hex);
+  const [colorHex, setColorHex] = useState<string>(PRESET_COLORS[0]?.hex ?? "#EF4444");
   const [alertEnabled, setAlertEnabled] = useState(true);
   const [sensitivity, setSensitivity] = useState(5);
   const [saving, setSaving] = useState(false);

@@ -385,7 +385,7 @@ tenantRoutes.get("/current/usage", requireAuth("viewer"), async (c) => {
 
   // Installed extensions count
   const { count: extensionCount } = await supabase
-    .from("installed_extensions")
+    .from("tenant_extensions")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId);
 

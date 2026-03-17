@@ -48,10 +48,12 @@ function isPointInPolygon(
 ): boolean {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x;
-    const yi = polygon[i].y;
-    const xj = polygon[j].x;
-    const yj = polygon[j].y;
+    const pi = polygon[i]!;
+    const pj = polygon[j]!;
+    const xi = pi.x;
+    const yi = pi.y;
+    const xj = pj.x;
+    const yj = pj.y;
     const intersect =
       yi > point.y !== yj > point.y &&
       point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi;
@@ -140,7 +142,7 @@ export function ZoneDrawer({
 
       // Check if clicking near first point to close polygon
       if (currentPoints.length >= 3) {
-        const first = toPixel(currentPoints[0]);
+        const first = toPixel(currentPoints[0]!);
         const dist = Math.hypot(px - first.px, py - first.py);
         if (dist < CLOSE_THRESHOLD) {
           onZoneCreated(currentPoints);
@@ -207,10 +209,10 @@ export function ZoneDrawer({
       const strokeAlpha = isHovered || isSelected ? 0.9 : 0.6;
 
       ctx.beginPath();
-      const first = toPixel(points[0]);
+      const first = toPixel(points[0]!);
       ctx.moveTo(first.px, first.py);
       for (let i = 1; i < points.length; i++) {
-        const p = toPixel(points[i]);
+        const p = toPixel(points[i]!);
         ctx.lineTo(p.px, p.py);
       }
       ctx.closePath();
@@ -246,10 +248,10 @@ export function ZoneDrawer({
     // Draw current polygon being drawn
     if (isDrawing && currentPoints.length > 0) {
       ctx.beginPath();
-      const first = toPixel(currentPoints[0]);
+      const first = toPixel(currentPoints[0]!);
       ctx.moveTo(first.px, first.py);
       for (let i = 1; i < currentPoints.length; i++) {
-        const p = toPixel(currentPoints[i]);
+        const p = toPixel(currentPoints[i]!);
         ctx.lineTo(p.px, p.py);
       }
 
@@ -266,10 +268,10 @@ export function ZoneDrawer({
       // Semi-transparent fill preview
       if (currentPoints.length >= 3) {
         ctx.beginPath();
-        const f = toPixel(currentPoints[0]);
+        const f = toPixel(currentPoints[0]!);
         ctx.moveTo(f.px, f.py);
         for (let i = 1; i < currentPoints.length; i++) {
-          const p = toPixel(currentPoints[i]);
+          const p = toPixel(currentPoints[i]!);
           ctx.lineTo(p.px, p.py);
         }
         ctx.closePath();
@@ -291,7 +293,7 @@ export function ZoneDrawer({
 
       // Highlight first vertex when close enough to close
       if (mousePos && currentPoints.length >= 3) {
-        const firstPx = toPixel(currentPoints[0]);
+        const firstPx = toPixel(currentPoints[0]!);
         const mousePx = toPixel(mousePos);
         const dist = Math.hypot(
           mousePx.px - firstPx.px,

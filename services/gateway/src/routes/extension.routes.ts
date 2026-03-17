@@ -108,7 +108,7 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
   // Verify extension exists and is published
   const { data: extension } = await supabase
     .from("extensions")
-    .select("id, version, permissions")
+    .select("id, version, manifest")
     .eq("id", input.extensionId)
     .eq("status", "published")
     .single();
@@ -137,7 +137,6 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
       installed_version: extension.version as string,
       config: input.config ?? {},
       enabled: true,
-      installed_by: c.get("userId"),
     })
     .select("*, extension:extensions(*)")
     .single();
@@ -147,7 +146,16 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
   }
 
   // Increment install count
-  await supabase.rpc("increment_install_count", { ext_id: input.extensionId });
+  const { data: currentExt } = await supabase
+    .from("extensions")
+    .select("install_count")
+    .eq("id", input.extensionId)
+    .single();
+  const currentCount = (currentExt?.install_count as number) ?? 0;
+  await supabase
+    .from("extensions")
+    .update({ install_count: currentCount + 1 })
+    .eq("id", input.extensionId);
 
   return c.json(createSuccessResponse(installed), 201);
 });
