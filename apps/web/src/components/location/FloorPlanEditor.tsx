@@ -6,8 +6,15 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  lazy,
+  Suspense,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+
+// Lazy-load Three.js 3D view (heavy dependency, only loaded when user clicks "3D")
+const FloorPlan3DViewLazy = lazy(() =>
+  import("./FloorPlan3DView").then((m) => ({ default: m.FloorPlan3DView })),
+);
 import {
   Square,
   Minus,
@@ -1156,41 +1163,58 @@ export function FloorPlanEditor({
         </button>
       </div>
 
-      {/* ── Canvas + Side panel ─────────────────────────────────── */}
+      {/* ── Canvas / 3D View + Side panel ────────────────────────── */}
       <div className="flex flex-1 min-h-0">
-        <div ref={containerRef} className="flex-1 relative overflow-hidden">
-          <canvas
-            ref={canvasRef}
-            className={`absolute inset-0 ${cursor}`}
-            onMouseDown={onDown}
-            onMouseMove={onMove}
-            onMouseUp={onUp}
-            onMouseLeave={() => { drawingRef.current = false; dragIdRef.current = null; setHoveredId(null); }}
-          />
-
-          {/* Camera popup */}
-          {popupObj && popupObj.type === "camera" && (
-            <CameraPopup
-              obj={popupObj}
-              zoom={zoom} ox={offset.x} oy={offset.y}
-              camera={linkedCamera}
-              onClose={() => setPopupCameraId(null)}
-              onNavigate={(id) => { window.location.href = `/cameras/${id}`; }}
-            />
-          )}
-
-          {/* Empty hint */}
-          {objects.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center">
-                <Square className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
-                <p className="text-sm text-zinc-500">Select Room (R) and drag to draw</p>
-                <p className="text-xs text-zinc-600 mt-1">Place cameras (C), add furniture (F), measure (M)</p>
-                <p className="text-xs text-zinc-700 mt-1">Alt+drag to pan, scroll to zoom, [ ] to rotate</p>
+        {viewMode === "3d" ? (
+          /* ── Three.js 3D View ──────────────────────────────────── */
+          <div className="flex-1 relative overflow-hidden">
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-full bg-[#09090B]">
+                <div className="text-center">
+                  <div className="h-6 w-6 mx-auto mb-2 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-500" />
+                  <p className="text-xs text-zinc-500">Loading 3D view...</p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            }>
+              <FloorPlan3DViewLazy objects={objects} cameras={cameras} />
+            </Suspense>
+          </div>
+        ) : (
+          /* ── 2D / ISO Canvas ───────────────────────────────────── */
+          <div ref={containerRef} className="flex-1 relative overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              className={`absolute inset-0 ${cursor}`}
+              onMouseDown={onDown}
+              onMouseMove={onMove}
+              onMouseUp={onUp}
+              onMouseLeave={() => { drawingRef.current = false; dragIdRef.current = null; setHoveredId(null); }}
+            />
+
+            {/* Camera popup */}
+            {popupObj && popupObj.type === "camera" && (
+              <CameraPopup
+                obj={popupObj}
+                zoom={zoom} ox={offset.x} oy={offset.y}
+                camera={linkedCamera}
+                onClose={() => setPopupCameraId(null)}
+                onNavigate={(id) => { window.location.href = `/cameras/${id}`; }}
+              />
+            )}
+
+            {/* Empty hint */}
+            {objects.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="text-center">
+                  <Square className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-500">Select Room (R) and drag to draw</p>
+                  <p className="text-xs text-zinc-600 mt-1">Place cameras (C), add furniture (F), measure (M)</p>
+                  <p className="text-xs text-zinc-700 mt-1">Alt+drag to pan, scroll to zoom, [ ] to rotate</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Properties panel ──────────────────────────────────── */}
         {selectedObj && (
