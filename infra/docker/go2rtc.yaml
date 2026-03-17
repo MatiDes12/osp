@@ -11,9 +11,8 @@ webrtc:
 
 log:
   level: info
-
 streams:
   demo-cam-1:
-    - ffmpeg:testsrc=size=1280x720:rate=15#video=h264
+    - rtsp://localhost:8554/demo-cam-1
   demo-cam-2:
-    - ffmpeg:testsrc2=size=1920x1080:rate=25#video=h264
+    - rtsp://localhost:8554/demo-cam-2

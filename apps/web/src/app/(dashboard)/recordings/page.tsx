@@ -7,6 +7,7 @@ import type {
   ApiResponse,
   RecordingTrigger,
 } from "@osp/shared";
+import { transformRecordings, transformCameras } from "@/lib/transforms";
 import {
   Play,
   Download,
@@ -211,19 +212,18 @@ export default function RecordingsPage() {
         fetch(`${API_URL}/api/v1/cameras`, { headers: getAuthHeaders() }),
       ]);
 
-      const recordingsJson: ApiResponse<Recording[]> =
-        await recordingsRes.json();
+      const recordingsJson = await recordingsRes.json();
       if (recordingsJson.success && recordingsJson.data) {
-        setRecordings(recordingsJson.data);
+        setRecordings(transformRecordings(recordingsJson.data as Record<string, unknown>[]));
       } else {
         setError(
           recordingsJson.error?.message ?? "Failed to load recordings",
         );
       }
 
-      const camerasJson: ApiResponse<Camera[]> = await camerasRes.json();
+      const camerasJson = await camerasRes.json();
       if (camerasJson.success && camerasJson.data) {
-        setCameras(camerasJson.data);
+        setCameras(transformCameras(camerasJson.data as Record<string, unknown>[]));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");

@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { OSPEvent, EventType, EventSeverity, Camera, ApiResponse } from "@osp/shared";
+import { transformEvents, transformCameras } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -206,16 +207,16 @@ export default function EventsPage() {
         }),
       ]);
 
-      const eventsJson: ApiResponse<OSPEvent[]> = await eventsRes.json();
+      const eventsJson = await eventsRes.json();
       if (eventsJson.success && eventsJson.data) {
-        setEvents(eventsJson.data);
+        setEvents(transformEvents(eventsJson.data as Record<string, unknown>[]));
       } else {
         setError(eventsJson.error?.message ?? "Failed to load events");
       }
 
-      const camerasJson: ApiResponse<Camera[]> = await camerasRes.json();
+      const camerasJson = await camerasRes.json();
       if (camerasJson.success && camerasJson.data) {
-        setCameras(camerasJson.data);
+        setCameras(transformCameras(camerasJson.data as Record<string, unknown>[]));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
@@ -231,7 +232,7 @@ export default function EventsPage() {
   const handleAcknowledge = useCallback(async (eventId: string) => {
     try {
       const response = await fetch(`${API_URL}/api/v1/events/${eventId}/acknowledge`, {
-        method: "POST",
+        method: "PATCH",
         headers: getAuthHeaders(),
       });
       const json: ApiResponse<void> = await response.json();
@@ -251,14 +252,23 @@ export default function EventsPage() {
 
   const handleBulkAcknowledge = useCallback(async () => {
     const ids = [...selectedIds];
-    await Promise.allSettled(
-      ids.map((id) =>
-        fetch(`${API_URL}/api/v1/events/${id}/acknowledge`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-        }),
-      ),
-    );
+    try {
+      await fetch(`${API_URL}/api/v1/events/bulk-acknowledge`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ eventIds: ids }),
+      });
+    } catch {
+      // Fall back to individual requests
+      await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`${API_URL}/api/v1/events/${id}/acknowledge`, {
+            method: "PATCH",
+            headers: getAuthHeaders(),
+          }),
+        ),
+      );
+    }
     setEvents((prev) =>
       prev.map((e) =>
         selectedIds.has(e.id)

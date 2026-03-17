@@ -22,6 +22,12 @@ import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
 import { PTZControls } from "@/components/camera/PTZControls";
 import type { Camera as CameraType, CameraZone, OSPEvent, ApiResponse } from "@osp/shared";
+import {
+  transformCamera,
+  transformZones,
+  transformEvents,
+  isSnakeCaseRow,
+} from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -106,21 +112,22 @@ export default function CameraDetailPage() {
         }),
       ]);
 
-      const cameraJson: ApiResponse<CameraType> = await cameraRes.json();
+      const cameraJson = await cameraRes.json();
       if (!cameraJson.success || !cameraJson.data) {
         setError(cameraJson.error?.message ?? "Camera not found");
         return;
       }
-      setCamera(cameraJson.data);
+      const rawCamera = cameraJson.data as Record<string, unknown>;
+      setCamera(isSnakeCaseRow(rawCamera) ? transformCamera(rawCamera) : (rawCamera as unknown as CameraType));
 
-      const zonesJson: ApiResponse<CameraZone[]> = await zonesRes.json();
+      const zonesJson = await zonesRes.json();
       if (zonesJson.success && zonesJson.data) {
-        setZones(zonesJson.data);
+        setZones(transformZones(zonesJson.data as Record<string, unknown>[]));
       }
 
-      const eventsJson: ApiResponse<OSPEvent[]> = await eventsRes.json();
+      const eventsJson = await eventsRes.json();
       if (eventsJson.success && eventsJson.data) {
-        setEvents(eventsJson.data);
+        setEvents(transformEvents(eventsJson.data as Record<string, unknown>[]));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");

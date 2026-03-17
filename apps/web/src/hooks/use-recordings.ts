@@ -6,6 +6,7 @@ import type {
   TimelineResponse,
   ApiResponse,
 } from "@osp/shared";
+import { transformRecordings } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -65,9 +66,9 @@ export function useRecordings(
       const response = await fetch(`${API_URL}/api/v1/recordings${qs}`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<Recording[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setRecordings(json.data);
+        setRecordings(transformRecordings(json.data as Record<string, unknown>[]));
       } else {
         setError(json.error?.message ?? "Failed to fetch recordings");
       }
@@ -113,7 +114,7 @@ export function useTimeline(
     setLoading(true);
     try {
       const response = await fetch(
-        `${API_URL}/api/v1/cameras/${cameraId}/timeline?date=${encodeURIComponent(date)}`,
+        `${API_URL}/api/v1/recordings/timeline?cameraId=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(date)}`,
         { headers: getAuthHeaders() },
       );
       const json: ApiResponse<TimelineResponse> = await response.json();

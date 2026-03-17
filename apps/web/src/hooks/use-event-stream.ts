@@ -28,13 +28,24 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 function getWsUrl(): string {
+  // Dedicated WebSocket server URL (separate port from the HTTP API)
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+  if (wsUrl) {
+    return wsUrl;
+  }
+
+  // Fallback: derive from API URL, replacing protocol and using WS port
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
   const isSecure =
     apiUrl.startsWith("https://") ||
     (typeof window !== "undefined" && window.location.protocol === "https:");
   const protocol = isSecure ? "wss:" : "ws:";
-  const host = apiUrl.replace(/^https?:\/\//, "");
-  return `${protocol}//${host}/ws/v1/events`;
+
+  // Extract hostname (without port) and use the dedicated WS port
+  const hostWithPort = apiUrl.replace(/^https?:\/\//, "");
+  const hostname = hostWithPort.split(":")[0] ?? "localhost";
+  const wsPort = process.env.NEXT_PUBLIC_WS_PORT ?? "3002";
+  return `${protocol}//${hostname}:${wsPort}`;
 }
 
 function passesFilter(

@@ -7,6 +7,7 @@ import type {
   CreateCameraInput,
   UpdateCameraInput,
 } from "@osp/shared";
+import { transformCamera, isSnakeCaseRow } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -46,9 +47,10 @@ export function useCameras(): UseCamerasReturn {
       const response = await fetch(`${API_URL}/api/v1/cameras`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<Camera[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setCameras(json.data);
+        const raw = json.data as Record<string, unknown>[];
+        setCameras(raw.map((r) => (isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera))));
       } else {
         setError(json.error?.message ?? "Failed to fetch cameras");
       }
@@ -70,12 +72,14 @@ export function useCameras(): UseCamerasReturn {
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
       });
-      const json: ApiResponse<Camera> = await response.json();
+      const json = await response.json();
       if (!json.success || !json.data) {
         throw new Error(json.error?.message ?? "Failed to add camera");
       }
+      const raw = json.data as Record<string, unknown>;
+      const camera = isSnakeCaseRow(raw) ? transformCamera(raw) : (raw as unknown as Camera);
       await fetchCameras();
-      return json.data;
+      return camera;
     },
     [fetchCameras],
   );
@@ -87,12 +91,14 @@ export function useCameras(): UseCamerasReturn {
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
       });
-      const json: ApiResponse<Camera> = await response.json();
+      const json = await response.json();
       if (!json.success || !json.data) {
         throw new Error(json.error?.message ?? "Failed to update camera");
       }
+      const raw = json.data as Record<string, unknown>;
+      const camera = isSnakeCaseRow(raw) ? transformCamera(raw) : (raw as unknown as Camera);
       await fetchCameras();
-      return json.data;
+      return camera;
     },
     [fetchCameras],
   );

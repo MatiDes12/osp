@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebarStore } from "@/stores/sidebar";
+import { getUserFromToken } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
   Camera,
@@ -59,6 +61,12 @@ export function Sidebar() {
   const pathname = usePathname();
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggle = useSidebarStore((s) => s.toggle);
+
+  const jwtUser = useMemo(() => getUserFromToken(), []);
+  const userEmail = jwtUser?.email ?? "unknown";
+  const userInitial = userEmail.charAt(0).toUpperCase();
+  const tenantName = (jwtUser?.user_metadata?.tenant_name as string | undefined) ?? jwtUser?.tenant_id ?? "My Org";
+  const userRole = jwtUser?.role ?? "free";
 
   const isActive = (href: string): boolean => {
     if (href === "/") return pathname === "/";
@@ -154,11 +162,11 @@ export function Sidebar() {
           <div className="mb-3 flex items-center justify-between px-1">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-zinc-200">
-                Acme Corp
+                {tenantName}
               </p>
             </div>
             <span className="shrink-0 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-400">
-              Pro
+              {userRole}
             </span>
           </div>
         )}
@@ -167,10 +175,10 @@ export function Sidebar() {
         {!collapsed && (
           <div className="mb-3 flex items-center gap-2.5 rounded-md px-1">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-300">
-              M
+              {userInitial}
             </div>
             <span className="truncate text-sm text-zinc-400">
-              mati@acme.com
+              {userEmail}
             </span>
           </div>
         )}

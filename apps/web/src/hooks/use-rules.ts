@@ -7,6 +7,7 @@ import type {
   CreateRuleInput,
   UpdateRuleInput,
 } from "@osp/shared";
+import { transformRule, transformRules, isSnakeCaseRow } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -47,9 +48,9 @@ export function useRules(): UseRulesReturn {
       const response = await fetch(`${API_URL}/api/v1/rules`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<AlertRule[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setRules(json.data);
+        setRules(transformRules(json.data as Record<string, unknown>[]));
       } else {
         setError(json.error?.message ?? "Failed to fetch rules");
       }
@@ -71,12 +72,14 @@ export function useRules(): UseRulesReturn {
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
       });
-      const json: ApiResponse<AlertRule> = await response.json();
+      const json = await response.json();
       if (!json.success || !json.data) {
         throw new Error(json.error?.message ?? "Failed to create rule");
       }
-      setRules((prev) => [...prev, json.data!]);
-      return json.data;
+      const raw = json.data as Record<string, unknown>;
+      const rule = isSnakeCaseRow(raw) ? transformRule(raw) : (raw as unknown as AlertRule);
+      setRules((prev) => [...prev, rule]);
+      return rule;
     },
     [],
   );
@@ -88,14 +91,16 @@ export function useRules(): UseRulesReturn {
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
       });
-      const json: ApiResponse<AlertRule> = await response.json();
+      const json = await response.json();
       if (!json.success || !json.data) {
         throw new Error(json.error?.message ?? "Failed to update rule");
       }
+      const raw = json.data as Record<string, unknown>;
+      const rule = isSnakeCaseRow(raw) ? transformRule(raw) : (raw as unknown as AlertRule);
       setRules((prev) =>
-        prev.map((r) => (r.id === id ? json.data! : r)),
+        prev.map((r) => (r.id === id ? rule : r)),
       );
-      return json.data;
+      return rule;
     },
     [],
   );

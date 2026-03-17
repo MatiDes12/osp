@@ -14,6 +14,7 @@ import { recordingRoutes } from "./routes/recording.routes.js";
 import { ruleRoutes } from "./routes/rule.routes.js";
 import { tenantRoutes } from "./routes/tenant.routes.js";
 import { extensionRoutes } from "./routes/extension.routes.js";
+import { devRoutes } from "./routes/dev.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -77,6 +78,7 @@ app.route("/api/v1/recordings", recordingRoutes);
 app.route("/api/v1/rules", ruleRoutes);
 app.route("/api/v1/tenants", tenantRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
+app.route("/api/v1/dev", devRoutes);
 
 // 404 fallback
 app.notFound((c) => {

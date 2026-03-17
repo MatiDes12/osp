@@ -39,12 +39,12 @@ export class StreamService {
 
   async addStream(cameraId: string, rtspUrl: string): Promise<void> {
     const url = new URL("/api/streams", this.go2rtcUrl);
-    url.searchParams.set("dst", cameraId);
+    url.searchParams.set("name", cameraId);
     url.searchParams.set("src", rtspUrl);
 
-    logger.info("Adding stream to go2rtc", { cameraId });
+    logger.info("Adding stream to go2rtc", { cameraId, rtspUrl });
 
-    const response = await fetch(url.toString(), { method: "POST" });
+    const response = await fetch(url.toString(), { method: "PUT" });
 
     if (!response.ok) {
       const body = await response.text().catch(() => "unknown");
@@ -64,8 +64,9 @@ export class StreamService {
   }
 
   async removeStream(cameraId: string): Promise<void> {
+    // go2rtc DELETE uses ?src= to identify the stream by name
     const url = new URL("/api/streams", this.go2rtcUrl);
-    url.searchParams.set("dst", cameraId);
+    url.searchParams.set("src", cameraId);
 
     logger.info("Removing stream from go2rtc", { cameraId });
 
@@ -95,17 +96,18 @@ export class StreamService {
       return null;
     }
 
-    const data = (await response.json()) as Record<string, Go2rtcStreamEntry>;
-    const entry = data[cameraId];
+    // go2rtc returns the stream entry directly when ?src= is specified
+    // (not wrapped in a map like the full listing)
+    const data = (await response.json()) as Go2rtcStreamEntry;
 
-    if (!entry) {
+    if (!data || (!data.producers && !data.consumers)) {
       return null;
     }
 
     return {
       name: cameraId,
-      producers: entry.producers ?? [],
-      consumers: entry.consumers ?? [],
+      producers: data.producers ?? [],
+      consumers: data.consumers ?? [],
     };
   }
 
@@ -136,27 +138,30 @@ export class StreamService {
     token: string;
     iceServers: { urls: string[]; username?: string; credential?: string }[];
   }> {
-    // Verify stream exists
-    const status = await this.getStreamStatus(cameraId);
-    if (!status) {
-      throw new ApiError(
-        "STREAM_NOT_FOUND",
-        "Stream not registered in go2rtc",
-        404,
-      );
+    // Verify stream exists in go2rtc (best-effort: if go2rtc is unreachable we still return the URL)
+    try {
+      const status = await this.getStreamStatus(cameraId);
+      if (!status) {
+        logger.warn("Stream not found in go2rtc, returning URL anyway", { cameraId });
+      }
+    } catch (err) {
+      logger.warn("Could not verify stream in go2rtc", { cameraId, error: String(err) });
     }
 
-    // Generate a one-time token stored in Redis
+    // Generate a lightweight token (stored in Redis when available)
     const token = crypto.randomUUID();
-    const redisKey = `${STREAM_TOKEN_PREFIX}${token}`;
-    const redis = getRedis();
-
-    await redis.set(
-      redisKey,
-      JSON.stringify({ tenantId, cameraId }),
-      "EX",
-      STREAM_TOKEN_TTL_SECONDS,
-    );
+    try {
+      const redisKey = `${STREAM_TOKEN_PREFIX}${token}`;
+      const redis = getRedis();
+      await redis.set(
+        redisKey,
+        JSON.stringify({ tenantId, cameraId }),
+        "EX",
+        STREAM_TOKEN_TTL_SECONDS,
+      );
+    } catch (err) {
+      logger.warn("Could not store stream token in Redis", { cameraId, error: String(err) });
+    }
 
     logger.debug("Generated stream token", { cameraId, tenantId });
 

@@ -8,14 +8,15 @@ config({ path: resolve(process.cwd(), ".env") });
 
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
-import { startRedisSubscription, stopRedisSubscription } from "./ws/events.ws.js";
+import { startWebSocketServer, stopWebSocketServer } from "./ws/server.js";
 
 const port = parseInt(process.env["GATEWAY_PORT"] ?? "3000", 10);
+const wsPort = parseInt(process.env["WS_PORT"] ?? "3002", 10);
 
 console.log(`OSP API Gateway starting on port ${port}`);
 
-// Start Redis pub/sub for cross-instance WebSocket event distribution
-startRedisSubscription();
+// Start the dedicated WebSocket server (includes Redis pub/sub subscription)
+startWebSocketServer();
 
 serve({
   fetch: app.fetch,
@@ -23,11 +24,12 @@ serve({
 });
 
 console.log(`OSP API Gateway running at http://localhost:${port}`);
+console.log(`OSP WebSocket server running at ws://localhost:${wsPort}`);
 
 // Graceful shutdown
 function shutdown() {
   console.log("Shutting down...");
-  stopRedisSubscription();
+  stopWebSocketServer();
   process.exit(0);
 }
 

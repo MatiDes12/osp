@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { User, ApiResponse } from "@osp/shared";
 import type { LoginResponse } from "@osp/shared";
+import { decodeJWT, isTokenExpired } from "@/lib/jwt";
+import type { JWTPayload } from "@/lib/jwt";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -46,6 +48,23 @@ function getAuthHeaders(): Record<string, string> {
     headers["Authorization"] = `Bearer ${token}`;
   }
   return headers;
+}
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return getAccessToken();
+}
+
+export function isAuthenticated(): boolean {
+  const token = getToken();
+  if (!token) return false;
+  return !isTokenExpired(token);
+}
+
+export function getUserFromToken(): JWTPayload | null {
+  const token = getToken();
+  if (!token) return null;
+  return decodeJWT(token);
 }
 
 export function useAuth(): UseAuthReturn {
@@ -139,6 +158,7 @@ export function useAuth(): UseAuthReturn {
     } finally {
       clearTokens();
       setUser(null);
+      window.location.href = "/login";
     }
   }, []);
 

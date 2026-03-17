@@ -1,12 +1,112 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
-import { ListEventsSchema, BulkAcknowledgeSchema } from "@osp/shared";
+import { publishEvent } from "../lib/event-publisher.js";
+import {
+  ListEventsSchema,
+  BulkAcknowledgeSchema,
+  EventTypeSchema,
+  EventSeveritySchema,
+} from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
 
 export const eventRoutes = new Hono<Env>();
+
+// ---------- Create event ----------
+
+const CreateEventSchema = z.object({
+  cameraId: z.string().uuid(),
+  type: EventTypeSchema,
+  severity: EventSeveritySchema,
+  metadata: z.record(z.unknown()).default({}),
+  zoneId: z.string().uuid().optional(),
+  intensity: z.number().min(0).max(100).default(50),
+});
+
+eventRoutes.post("/", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json();
+  const input = CreateEventSchema.parse(body);
+  const supabase = getSupabase();
+
+  // Look up camera name (and verify it belongs to the tenant)
+  const { data: camera, error: cameraError } = await supabase
+    .from("cameras")
+    .select("id, name")
+    .eq("id", input.cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (cameraError || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found or does not belong to tenant", 404);
+  }
+
+  // Optionally look up zone name
+  let zoneName: string | null = null;
+  if (input.zoneId) {
+    const { data: zone } = await supabase
+      .from("zones")
+      .select("name")
+      .eq("id", input.zoneId)
+      .eq("tenant_id", tenantId)
+      .single();
+    zoneName = (zone?.name as string) ?? null;
+  }
+
+  const now = new Date().toISOString();
+
+  const eventRow = {
+    camera_id: input.cameraId,
+    zone_id: input.zoneId ?? null,
+    tenant_id: tenantId,
+    type: input.type,
+    severity: input.severity,
+    detected_at: now,
+    metadata: input.metadata,
+    intensity: input.intensity,
+    acknowledged: false,
+  };
+
+  const { data: created, error: insertError } = await supabase
+    .from("events")
+    .insert(eventRow)
+    .select("*")
+    .single();
+
+  if (insertError || !created) {
+    throw new ApiError("INTERNAL_ERROR", "Failed to create event", 500);
+  }
+
+  const ospEvent = {
+    id: created.id as string,
+    cameraId: created.camera_id as string,
+    cameraName: (camera.name as string) ?? "Unknown",
+    zoneId: (created.zone_id as string | null) ?? null,
+    zoneName,
+    tenantId,
+    type: created.type as string,
+    severity: created.severity as string,
+    detectedAt: created.detected_at as string,
+    metadata: created.metadata as Record<string, unknown>,
+    snapshotUrl: null,
+    clipUrl: null,
+    intensity: created.intensity as number,
+    acknowledged: false,
+    acknowledgedBy: null,
+    acknowledgedAt: null,
+    createdAt: created.created_at as string,
+  };
+
+  // Publish to Redis so all WS clients receive the event in real-time
+  await publishEvent(tenantId, ospEvent);
+
+  return c.json(createSuccessResponse(ospEvent), 201);
+});
+
+// ---------- List events ----------
 
 // List events
 eventRoutes.get("/", requireAuth("viewer"), async (c) => {

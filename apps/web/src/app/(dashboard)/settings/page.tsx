@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { User, Camera, ApiResponse, UserRole } from "@osp/shared";
+import { transformCameras, transformUsers } from "@/lib/transforms";
 import {
   Camera as CameraIcon,
   Users,
@@ -261,14 +262,16 @@ export default function SettingsPage() {
     async function fetchSettings() {
       setLoading(true);
       try {
-        const response = await fetch(`${API_URL}/api/v1/tenant`, {
+        const response = await fetch(`${API_URL}/api/v1/tenants/current`, {
           headers: getAuthHeaders(),
         });
         const json = await response.json();
         if (json.success && json.data) {
-          const name = json.data.name ?? "";
-          const tz = json.data.settings?.timezone ?? "UTC";
-          const mode = json.data.settings?.defaultRecordingMode ?? "motion";
+          const raw = json.data as Record<string, unknown>;
+          const settings = (raw.settings ?? {}) as Record<string, unknown>;
+          const name = (raw.name as string) ?? "";
+          const tz = (settings.timezone as string) ?? "UTC";
+          const mode = ((settings.default_recording_mode as string) ?? (settings.defaultRecordingMode as string) ?? "motion") as "motion" | "continuous" | "off";
           setTenantName(name);
           setTimezone(tz);
           setDefaultRecordingMode(mode);
@@ -288,12 +291,12 @@ export default function SettingsPage() {
     setUsersLoading(true);
     setUsersError(null);
     try {
-      const response = await fetch(`${API_URL}/api/v1/users`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current/users`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<User[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setUsers(json.data);
+        setUsers(transformUsers(json.data as Record<string, unknown>[]));
       } else {
         setUsersError(json.error?.message ?? "Failed to load users");
       }
@@ -311,9 +314,9 @@ export default function SettingsPage() {
       const response = await fetch(`${API_URL}/api/v1/cameras`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<Camera[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setCameras(json.data);
+        setCameras(transformCameras(json.data as Record<string, unknown>[]));
       }
     } catch {
       // Fail silently
@@ -330,7 +333,7 @@ export default function SettingsPage() {
   const handleSaveGeneral = useCallback(async () => {
     setGeneralSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenant`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({

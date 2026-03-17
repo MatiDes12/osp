@@ -8,6 +8,7 @@ import type {
   ListEventsInput,
   PaginationParams,
 } from "@osp/shared";
+import { transformEvents } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -60,9 +61,9 @@ export function useEvents(
       const response = await fetch(`${API_URL}/api/v1/events${qs}`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<OSPEvent[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setEvents(json.data);
+        setEvents(transformEvents(json.data as Record<string, unknown>[]));
       } else {
         setError(json.error?.message ?? "Failed to fetch events");
       }
@@ -83,7 +84,7 @@ export function useEvents(
       const response = await fetch(
         `${API_URL}/api/v1/events/${id}/acknowledge`,
         {
-          method: "POST",
+          method: "PATCH",
           headers: getAuthHeaders(),
         },
       );

@@ -10,6 +10,7 @@ import type {
   ApiResponse,
   InviteUserInput,
 } from "@osp/shared";
+import { transformUser, transformUsers, isSnakeCaseRow } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -40,7 +41,7 @@ export function useTenant(): UseTenantReturn {
   const fetchTenant = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenant`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current`, {
         headers: getAuthHeaders(),
       });
       const json: ApiResponse<Tenant> = await response.json();
@@ -60,10 +61,10 @@ export function useTenant(): UseTenantReturn {
 
   const updateSettings = useCallback(
     async (data: Partial<TenantSettings>): Promise<void> => {
-      const response = await fetch(`${API_URL}/api/v1/tenant/settings`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current`, {
         method: "PATCH",
         headers: getAuthHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify({ settings: data }),
       });
       const json: ApiResponse<Tenant> = await response.json();
       if (!json.success || !json.data) {
@@ -78,7 +79,7 @@ export function useTenant(): UseTenantReturn {
 
   const updateBranding = useCallback(
     async (data: Partial<TenantBranding>): Promise<void> => {
-      const response = await fetch(`${API_URL}/api/v1/tenant/branding`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current/branding`, {
         method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
@@ -114,12 +115,12 @@ export function useTenantUsers(): UseTenantUsersReturn {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenant/users`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current/users`, {
         headers: getAuthHeaders(),
       });
-      const json: ApiResponse<User[]> = await response.json();
+      const json = await response.json();
       if (json.success && json.data) {
-        setUsers(json.data);
+        setUsers(transformUsers(json.data as Record<string, unknown>[]));
       }
     } catch {
       // Silently fail
@@ -135,19 +136,21 @@ export function useTenantUsers(): UseTenantUsersReturn {
   const inviteUser = useCallback(
     async (data: InviteUserInput): Promise<User> => {
       const response = await fetch(
-        `${API_URL}/api/v1/tenant/users/invite`,
+        `${API_URL}/api/v1/tenants/current/users/invite`,
         {
           method: "POST",
           headers: getAuthHeaders(),
           body: JSON.stringify(data),
         },
       );
-      const json: ApiResponse<User> = await response.json();
+      const json = await response.json();
       if (!json.success || !json.data) {
         throw new Error(json.error?.message ?? "Failed to invite user");
       }
-      setUsers((prev) => [...prev, json.data!]);
-      return json.data;
+      const raw = json.data as Record<string, unknown>;
+      const user = isSnakeCaseRow(raw) ? transformUser(raw) : (raw as unknown as User);
+      setUsers((prev) => [...prev, user]);
+      return user;
     },
     [],
   );
@@ -155,7 +158,7 @@ export function useTenantUsers(): UseTenantUsersReturn {
   const updateRole = useCallback(
     async (userId: string, role: string): Promise<void> => {
       const response = await fetch(
-        `${API_URL}/api/v1/tenant/users/${userId}/role`,
+        `${API_URL}/api/v1/tenants/current/users/${userId}/role`,
         {
           method: "PATCH",
           headers: getAuthHeaders(),
@@ -180,7 +183,7 @@ export function useTenantUsers(): UseTenantUsersReturn {
   const removeUser = useCallback(
     async (userId: string): Promise<void> => {
       const response = await fetch(
-        `${API_URL}/api/v1/tenant/users/${userId}`,
+        `${API_URL}/api/v1/tenants/current/users/${userId}`,
         {
           method: "DELETE",
           headers: getAuthHeaders(),
@@ -212,7 +215,7 @@ export function useTenantUsage(): UseTenantUsageReturn {
   const fetchUsage = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenant/usage`, {
+      const response = await fetch(`${API_URL}/api/v1/tenants/current/usage`, {
         headers: getAuthHeaders(),
       });
       const json: ApiResponse<TenantUsage> = await response.json();

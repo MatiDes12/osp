@@ -1,8 +1,6 @@
 import Link from "next/link";
 import {
   Shield,
-  ChevronRight,
-  Play,
   Video,
   Bell,
   HardDrive,
@@ -11,6 +9,7 @@ import {
   Puzzle,
   Check,
 } from "lucide-react";
+import { AuthAwareCTA } from "@/components/auth/AuthAwareCTA";
 
 const features = [
   {
@@ -167,22 +166,7 @@ export default function HomePage() {
           </p>
 
           {/* CTAs */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/register"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-blue-500 px-6 py-3 font-medium text-white transition-colors duration-150 hover:bg-blue-600"
-            >
-              Get Started Free
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-            <button
-              type="button"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-zinc-700 bg-transparent px-6 py-3 font-medium text-zinc-50 transition-colors duration-150 hover:bg-zinc-900"
-            >
-              <Play className="h-4 w-4" />
-              Watch Demo
-            </button>
-          </div>
+          <AuthAwareCTA />
 
           {/* Social proof */}
           <div className="mt-16 flex flex-col items-center gap-4">

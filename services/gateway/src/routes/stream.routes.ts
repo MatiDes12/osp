@@ -5,7 +5,10 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getStreamService } from "../services/stream.service.js";
 import { createSuccessResponse } from "@osp/shared";
+import { createLogger } from "../lib/logger.js";
 import type { DiscoveredCamera } from "@osp/shared";
+
+const logger = createLogger("stream-routes");
 
 export const streamRoutes = new Hono<Env>();
 
@@ -36,12 +39,17 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
   }
 
   const streamService = getStreamService();
-  const { whepUrl, token, iceServers } = await streamService.getWebRTCUrl(
+  const { token, iceServers } = await streamService.getWebRTCUrl(
     cameraId,
     tenantId,
   );
 
-  const fallbackHlsUrl = `${process.env["GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  // Return the gateway's WHEP proxy URL so the browser avoids CORS issues with go2rtc
+  const gatewayOrigin = process.env["GATEWAY_PUBLIC_URL"] ?? `${new URL(c.req.url).origin}`;
+  const whepUrl = `${gatewayOrigin}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
+
+  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const fallbackHlsUrl = `${go2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
 
   return c.json(
     createSuccessResponse({
@@ -51,6 +59,60 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
       iceServers,
     }),
   );
+});
+
+// POST /api/v1/cameras/:id/whep - Proxy WHEP SDP offer to go2rtc
+streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
+  const cameraId = c.req.param("id");
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  // Verify camera belongs to tenant
+  const { data: camera, error } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  const sdpOffer = await c.req.text();
+  if (!sdpOffer) {
+    throw new ApiError("INVALID_REQUEST", "SDP offer body is required", 400);
+  }
+
+  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const whepUrl = `${go2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
+
+  logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
+
+  const go2rtcResponse = await fetch(whepUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/sdp" },
+    body: sdpOffer,
+  });
+
+  if (!go2rtcResponse.ok) {
+    const body = await go2rtcResponse.text().catch(() => "unknown");
+    logger.error("go2rtc WHEP failed", { cameraId, status: go2rtcResponse.status, body });
+    throw new ApiError(
+      "WHEP_FAILED",
+      `go2rtc returned ${go2rtcResponse.status}`,
+      502,
+    );
+  }
+
+  const sdpAnswer = await go2rtcResponse.text();
+
+  return new Response(sdpAnswer, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/sdp",
+    },
+  });
 });
 
 // GET /api/v1/cameras/:id/snapshot - Returns current snapshot

@@ -120,8 +120,9 @@ export function LiveViewPlayer({
         };
 
         // Set timeout for WebRTC connection
+        // Use pc.iceConnectionState instead of React state to avoid stale closure
         timeoutRef.current = setTimeout(() => {
-          if (state !== "live") {
+          if (pc.iceConnectionState !== "connected" && pc.iceConnectionState !== "completed") {
             fallbackToHLS(info);
           }
         }, WEBRTC_TIMEOUT_MS);
@@ -131,13 +132,18 @@ export function LiveViewPlayer({
 
         if (abort.signal.aborted) return;
 
-        // WHEP: POST the SDP offer to the WHEP endpoint
+        // WHEP: POST the SDP offer to the gateway's WHEP proxy
+        const whepHeaders: Record<string, string> = {
+          "Content-Type": "application/sdp",
+        };
+        const authToken = localStorage.getItem("osp_access_token");
+        if (authToken) {
+          whepHeaders["Authorization"] = `Bearer ${authToken}`;
+        }
+
         const whepResponse = await fetch(info.whepUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/sdp",
-            Authorization: `Bearer ${info.token}`,
-          },
+          headers: whepHeaders,
           body: offer.sdp,
           signal: abort.signal,
         });
@@ -159,7 +165,7 @@ export function LiveViewPlayer({
         fallbackToHLS(info);
       }
     },
-    [cleanup, fallbackToHLS, state],
+    [cleanup, fallbackToHLS],
   );
 
   const fetchStreamAndConnect = useCallback(async () => {
