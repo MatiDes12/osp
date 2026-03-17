@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../app.js";
-import { getSupabase } from "../lib/supabase.js";
+import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { RegisterSchema, LoginSchema, RefreshTokenSchema } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
@@ -60,7 +60,8 @@ authRoutes.post("/register", async (c) => {
     .single();
 
   if (tenantError) {
-    throw new ApiError("INTERNAL_ERROR", "Failed to create tenant", 500);
+    console.error("Tenant creation failed:", tenantError);
+    throw new ApiError("INTERNAL_ERROR", `Failed to create tenant: ${tenantError.message}`, 500);
   }
 
   // Create user record
@@ -89,9 +90,10 @@ authRoutes.post("/register", async (c) => {
     },
   });
 
-  // Sign in to get tokens
+  // Sign in to get tokens (use auth client, not admin, to avoid session contamination)
+  const authSupabase = getAuthSupabase();
   const { data: session, error: signInError } =
-    await supabase.auth.signInWithPassword({
+    await authSupabase.auth.signInWithPassword({
       email: input.email,
       password: input.password,
     });
@@ -128,8 +130,9 @@ authRoutes.post("/login", async (c) => {
   const body = await c.req.json();
   const input = LoginSchema.parse(body);
   const supabase = getSupabase();
+  const authSupabase = getAuthSupabase();
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await authSupabase.auth.signInWithPassword({
     email: input.email,
     password: input.password,
   });
@@ -175,9 +178,9 @@ authRoutes.post("/login", async (c) => {
 authRoutes.post("/refresh", async (c) => {
   const body = await c.req.json();
   const input = RefreshTokenSchema.parse(body);
-  const supabase = getSupabase();
+  const authSupabase = getAuthSupabase();
 
-  const { data, error } = await supabase.auth.refreshSession({
+  const { data, error } = await authSupabase.auth.refreshSession({
     refresh_token: input.refreshToken,
   });
 
@@ -197,7 +200,7 @@ authRoutes.post("/refresh", async (c) => {
 });
 
 authRoutes.post("/logout", async (c) => {
-  const supabase = getSupabase();
-  await supabase.auth.signOut();
+  const authSupabase = getAuthSupabase();
+  await authSupabase.auth.signOut();
   return c.json(createSuccessResponse({ message: "Logged out" }));
 });
