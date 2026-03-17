@@ -191,12 +191,12 @@ export default function LoginPage() {
                 </button>
               </div>
               <div className="mt-1.5 flex justify-end">
-                <a
-                  href="#"
+                <Link
+                  href="/forgot-password"
                   className="cursor-pointer text-xs text-blue-400 transition-colors duration-150 hover:text-blue-300"
                 >
                   Forgot password?
-                </a>
+                </Link>
               </div>
             </div>
 

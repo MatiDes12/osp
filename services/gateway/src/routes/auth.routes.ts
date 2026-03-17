@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from "../app.js";
 import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
-import { RegisterSchema, LoginSchema, RefreshTokenSchema } from "@osp/shared";
+import { RegisterSchema, LoginSchema, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
 
 export const authRoutes = new Hono<Env>();
@@ -197,6 +197,46 @@ authRoutes.post("/refresh", async (c) => {
       ).toISOString(),
     }),
   );
+});
+
+authRoutes.post("/forgot-password", async (c) => {
+  const { email } = ForgotPasswordSchema.parse(await c.req.json());
+  const authSupabase = getAuthSupabase();
+
+  // Supabase handles sending the reset email
+  await authSupabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.WEB_URL ?? "http://localhost:3001"}/reset-password`,
+  });
+
+  // Always return success (don't leak whether email exists)
+  return c.json(
+    createSuccessResponse({
+      message: "If an account with that email exists, a reset link has been sent.",
+    }),
+  );
+});
+
+authRoutes.post("/reset-password", async (c) => {
+  const { token, password } = ResetPasswordSchema.parse(await c.req.json());
+  const authSupabase = getAuthSupabase();
+
+  // Exchange the recovery token for a session, then update password
+  const { error: verifyError } = await authSupabase.auth.verifyOtp({
+    token_hash: token,
+    type: "recovery",
+  });
+
+  if (verifyError) {
+    throw new ApiError("AUTH_RESET_FAILED", "Invalid or expired reset token", 400);
+  }
+
+  const { error: updateError } = await authSupabase.auth.updateUser({ password });
+
+  if (updateError) {
+    throw new ApiError("AUTH_RESET_FAILED", "Failed to update password", 400);
+  }
+
+  return c.json(createSuccessResponse({ message: "Password has been reset" }));
 });
 
 authRoutes.post("/logout", async (c) => {

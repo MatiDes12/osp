@@ -8,8 +8,6 @@ import {
   Download,
   Eye,
   X,
-  ChevronLeft,
-  ChevronRight,
   Zap,
   AlertTriangle,
   Info,

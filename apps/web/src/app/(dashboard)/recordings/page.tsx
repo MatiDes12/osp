@@ -21,6 +21,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { PageError } from "@/components/PageError";
+import { VirtualList } from "@/components/ui/VirtualList";
 import { exportRecordingsCSV } from "@/lib/export";
 import { showToast } from "@/stores/toast";
 
@@ -190,6 +191,9 @@ export default function RecordingsPage() {
   const [selectedRecording, setSelectedRecording] = useState<Recording | null>(
     null,
   );
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
@@ -206,10 +210,15 @@ export default function RecordingsPage() {
     return `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchData = useCallback(async (append = false) => {
+    if (!append) {
+      setLoading(true);
+      setError(null);
+    } else {
+      setLoadingMore(true);
+    }
     try {
+      const targetPage = append ? page : 1;
       const params = new URLSearchParams();
       if (cameraFilter) params.set("cameraId", cameraFilter);
       if (dateFilter) {
@@ -220,38 +229,70 @@ export default function RecordingsPage() {
         params.set("to", dayEnd.toISOString());
       }
       if (triggerFilter) params.set("trigger", triggerFilter);
+      params.set("page", String(targetPage));
       params.set("limit", "50");
 
-      const [recordingsRes, camerasRes] = await Promise.all([
+      const fetches: Promise<Response>[] = [
         fetch(`${API_URL}/api/v1/recordings?${params.toString()}`, {
           headers: getAuthHeaders(),
         }),
-        fetch(`${API_URL}/api/v1/cameras`, { headers: getAuthHeaders() }),
-      ]);
+      ];
 
-      const recordingsJson = await recordingsRes.json();
+      // Only fetch cameras on initial load
+      if (!append) {
+        fetches.push(
+          fetch(`${API_URL}/api/v1/cameras`, { headers: getAuthHeaders() }),
+        );
+      }
+
+      const responses = await Promise.all(fetches);
+
+      const recordingsJson = await responses[0]!.json();
       if (recordingsJson.success && recordingsJson.data) {
-        setRecordings(transformRecordings(recordingsJson.data as Record<string, unknown>[]));
+        const newRecordings = transformRecordings(recordingsJson.data as Record<string, unknown>[]);
+        if (append) {
+          setRecordings((prev) => [...prev, ...newRecordings]);
+        } else {
+          setRecordings(newRecordings);
+        }
+        if (recordingsJson.meta) {
+          setHasMore(recordingsJson.meta.hasMore as boolean);
+        }
       } else {
         setError(
           recordingsJson.error?.message ?? "Failed to load recordings",
         );
       }
 
-      const camerasJson = await camerasRes.json();
-      if (camerasJson.success && camerasJson.data) {
-        setCameras(transformCameras(camerasJson.data as Record<string, unknown>[]));
+      if (!append && responses[1]) {
+        const camerasJson = await responses[1].json();
+        if (camerasJson.success && camerasJson.data) {
+          setCameras(transformCameras(camerasJson.data as Record<string, unknown>[]));
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [cameraFilter, dateFilter, triggerFilter]);
+  }, [cameraFilter, dateFilter, triggerFilter, page]);
+
+  // Load more recordings for infinite scroll
+  const loadMoreRecordings = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      setPage((prev) => prev + 1);
+    }
+  }, [hasMore, loadingMore, loading]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (page === 1) {
+      fetchData(false);
+    } else {
+      fetchData(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraFilter, dateFilter, triggerFilter, page]);
 
   // Fetch the video file with auth headers and create a blob URL for playback
   useEffect(() => {
@@ -287,7 +328,7 @@ export default function RecordingsPage() {
   }, [selectedRecording, getPlaybackUrl]);
 
   const hasFilters = cameraFilter || dateFilter || triggerFilter;
-  const groupedRecordings = groupByDate(recordings);
+
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] -m-6">
@@ -297,7 +338,7 @@ export default function RecordingsPage() {
         <div className="relative">
           <select
             value={cameraFilter}
-            onChange={(e) => setCameraFilter(e.target.value)}
+            onChange={(e) => { setCameraFilter(e.target.value); setPage(1); setHasMore(true); }}
             className="appearance-none rounded-lg border border-zinc-800 bg-zinc-900 pl-3 pr-8 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-150 cursor-pointer"
           >
             <option value="">All Cameras</option>
@@ -316,7 +357,7 @@ export default function RecordingsPage() {
           <input
             type="date"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => { setDateFilter(e.target.value); setPage(1); setHasMore(true); }}
             className="rounded-lg border border-zinc-800 bg-zinc-900 pl-9 pr-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-150 cursor-pointer"
           />
         </div>
@@ -326,9 +367,11 @@ export default function RecordingsPage() {
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
           <select
             value={triggerFilter}
-            onChange={(e) =>
-              setTriggerFilter(e.target.value as RecordingTrigger | "")
-            }
+            onChange={(e) => {
+              setTriggerFilter(e.target.value as RecordingTrigger | "");
+              setPage(1);
+              setHasMore(true);
+            }}
             className="appearance-none rounded-lg border border-zinc-800 bg-zinc-900 pl-9 pr-8 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors duration-150 cursor-pointer"
           >
             {TRIGGER_FILTER_OPTIONS.map((opt) => (
@@ -347,6 +390,8 @@ export default function RecordingsPage() {
               setCameraFilter("");
               setDateFilter("");
               setTriggerFilter("");
+              setPage(1);
+              setHasMore(true);
             }}
             className="inline-flex items-center gap-1 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
           >
@@ -380,8 +425,8 @@ export default function RecordingsPage() {
 
       {/* ── Split view ────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
-        {/* ── Left: Recording list ────────────────────────────── */}
-        <div className="w-[40%] min-w-[320px] border-r border-zinc-800 overflow-y-auto px-3 py-3">
+        {/* ── Left: Recording list with virtual scrolling + infinite scroll ── */}
+        <div className="w-[40%] min-w-[320px] border-r border-zinc-800 flex flex-col px-3 py-3">
           {loading && (
             <>
               <RecordingCardSkeleton />
@@ -393,97 +438,92 @@ export default function RecordingsPage() {
           )}
 
           {error && !loading && (
-            <PageError message={error} onRetry={fetchData} />
+            <PageError message={error} onRetry={() => fetchData(false)} />
           )}
 
-          {!loading && !error && recordings.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
-              <Play className="h-12 w-12 mb-3 opacity-20" />
-              <p className="text-sm font-medium text-zinc-400">
-                No recordings found
-              </p>
-              <p className="text-xs text-zinc-600 mt-1">
-                {hasFilters
-                  ? "Try adjusting your filters"
-                  : "Recordings will appear here when cameras start recording"}
-              </p>
-            </div>
-          )}
-
-          {!loading &&
-            !error &&
-            Array.from(groupedRecordings.entries()).map(([dateKey, recs]) => (
-              <div key={dateKey} className="mb-4">
-                {/* Date header */}
-                <div className="px-1 pb-2 pt-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                    {formatDateHeader(recs[0]?.startTime ?? "")}
-                  </span>
+          {!loading && !error && (
+            <VirtualList
+              items={recordings}
+              itemHeight={80}
+              overscan={6}
+              onLoadMore={loadMoreRecordings}
+              loadMoreThreshold={100}
+              isLoadingMore={loadingMore}
+              className="flex-1"
+              emptyState={
+                <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
+                  <Play className="h-12 w-12 mb-3 opacity-20" />
+                  <p className="text-sm font-medium text-zinc-400">
+                    No recordings found
+                  </p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    {hasFilters
+                      ? "Try adjusting your filters"
+                      : "Recordings will appear here when cameras start recording"}
+                  </p>
                 </div>
+              }
+              renderItem={(rec) => {
+                const triggerStyle = TRIGGER_STYLES[rec.trigger] ?? {
+                  bg: "bg-zinc-500/10",
+                  text: "text-zinc-400",
+                  label: rec.trigger,
+                };
+                const isSelected = selectedRecording?.id === rec.id;
 
-                {/* Recording cards */}
-                {recs.map((rec) => {
-                  const triggerStyle = TRIGGER_STYLES[rec.trigger] ?? {
-                    bg: "bg-zinc-500/10",
-                    text: "text-zinc-400",
-                    label: rec.trigger,
-                  };
-                  const isSelected = selectedRecording?.id === rec.id;
+                return (
+                  <button
+                    onClick={() => setSelectedRecording(rec)}
+                    className={`w-full text-left rounded-lg border p-3 mb-2 cursor-pointer transition-all duration-150 hover:bg-zinc-800/50 ${
+                      isSelected
+                        ? "ring-1 ring-blue-500/50 border-zinc-700 bg-zinc-800/30"
+                        : "border-zinc-800 bg-zinc-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* Thumbnail */}
+                      <div className="w-16 h-12 shrink-0 rounded bg-zinc-800 flex items-center justify-center overflow-hidden">
+                        {rec.thumbnailUrl ? (
+                          <img
+                            src={rec.thumbnailUrl}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Video className="h-5 w-5 text-zinc-600" />
+                        )}
+                      </div>
 
-                  return (
-                    <button
-                      key={rec.id}
-                      onClick={() => setSelectedRecording(rec)}
-                      className={`w-full text-left rounded-lg border p-3 mb-2 cursor-pointer transition-all duration-150 hover:bg-zinc-800/50 ${
-                        isSelected
-                          ? "ring-1 ring-blue-500/50 border-zinc-700 bg-zinc-800/30"
-                          : "border-zinc-800 bg-zinc-900"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Thumbnail */}
-                        <div className="w-16 h-12 shrink-0 rounded bg-zinc-800 flex items-center justify-center overflow-hidden">
-                          {rec.thumbnailUrl ? (
-                            <img
-                              src={rec.thumbnailUrl}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Video className="h-5 w-5 text-zinc-600" />
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-sm font-semibold text-zinc-50 truncate">
-                              {rec.cameraName}
-                            </span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded ${triggerStyle.bg} ${triggerStyle.text}`}
-                            >
-                              {triggerStyle.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-zinc-500">
-                              {formatTimeRange(rec.startTime, rec.endTime)}
-                            </span>
-                            <span className="text-xs text-zinc-600">
-                              {formatDuration(rec.durationSec)}
-                            </span>
-                          </div>
-                          <span className="text-xs text-zinc-500">
-                            {formatBytes(rec.sizeBytes)}
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-semibold text-zinc-50 truncate">
+                            {rec.cameraName}
+                          </span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${triggerStyle.bg} ${triggerStyle.text}`}
+                          >
+                            {triggerStyle.label}
                           </span>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-zinc-500">
+                            {formatTimeRange(rec.startTime, rec.endTime)}
+                          </span>
+                          <span className="text-xs text-zinc-600">
+                            {formatDuration(rec.durationSec)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-zinc-500">
+                          {formatBytes(rec.sizeBytes)}
+                        </span>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+                    </div>
+                  </button>
+                );
+              }}
+            />
+          )}
         </div>
 
         {/* ── Right: Player panel ─────────────────────────────── */}
