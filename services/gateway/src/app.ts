@@ -43,6 +43,15 @@ app.use("*", requestLogger());
 app.use("*", metricsMiddleware());
 app.use("*", errorHandler());
 app.use(
+  "/health/*",
+  cors({
+    origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
+    allowMethods: ["GET"],
+    allowHeaders: ["Content-Type"],
+    maxAge: 86400,
+  }),
+);
+app.use(
   "/api/*",
   cors({
     origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
