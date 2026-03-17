@@ -1,3 +1,6 @@
+import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "fs";
+import { join } from "path";
+import { Readable } from "stream";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../app.js";
@@ -182,6 +185,59 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     })();
   }
 
+  // --- Save a 10-second event clip for detection events (fire-and-forget) ---
+  const clipEventTypes = ["motion", "person", "vehicle"];
+  if (clipEventTypes.includes(input.type)) {
+    const eventId = ospEvent.id;
+    const cameraId = input.cameraId;
+    (async () => {
+      try {
+        const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+        const recordingsDir = process.env["RECORDINGS_DIR"] ?? "./recordings";
+        const clipDir = join(recordingsDir, tenantId, "clips");
+        mkdirSync(clipDir, { recursive: true });
+
+        const clipPath = join(clipDir, `${eventId}.mp4`);
+        const clipUrl = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}&duration=10`;
+
+        const res = await fetch(clipUrl, {
+          signal: AbortSignal.timeout(20_000),
+        });
+
+        if (res.ok && res.body) {
+          const fileStream = createWriteStream(clipPath);
+          const reader = res.body.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              fileStream.write(value);
+            }
+          } finally {
+            fileStream.end();
+          }
+
+          // Update event with clip path
+          await supabase
+            .from("events")
+            .update({ clip_path: clipPath })
+            .eq("id", eventId);
+
+          ruleLogger.info("Event clip saved", {
+            eventId,
+            cameraId,
+            clipPath,
+          });
+        }
+      } catch (err) {
+        ruleLogger.warn("Failed to save event clip", {
+          eventId,
+          error: String(err),
+        });
+      }
+    })();
+  }
+
   return c.json(createSuccessResponse(ospEvent), 201);
 });
 
@@ -353,6 +409,67 @@ eventRoutes.patch("/:id/acknowledge", requireAuth("operator"), async (c) => {
   }
 
   return c.json(createSuccessResponse(event));
+});
+
+// Stream event clip
+eventRoutes.get("/:id/clip", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const eventId = c.req.param("id");
+  const supabase = getSupabase();
+
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("id, tenant_id, clip_path")
+    .eq("id", eventId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !event) {
+    throw new ApiError("EVENT_NOT_FOUND", "Event not found", 404);
+  }
+
+  const filePath = event.clip_path as string | null;
+  if (!filePath || !existsSync(filePath)) {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+
+  const stats = statSync(filePath);
+  const fileSize = stats.size;
+  const rangeHeader = c.req.header("Range");
+
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0] ?? "0", 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+
+    const nodeStream = createReadStream(filePath, { start, end });
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+    return new Response(webStream, {
+      status: 206,
+      headers: {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(chunkSize),
+        "Content-Type": "video/mp4",
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  }
+
+  const nodeStream = createReadStream(filePath);
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+  return new Response(webStream, {
+    status: 200,
+    headers: {
+      "Content-Length": String(fileSize),
+      "Accept-Ranges": "bytes",
+      "Content-Type": "video/mp4",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
 });
 
 // Bulk acknowledge events

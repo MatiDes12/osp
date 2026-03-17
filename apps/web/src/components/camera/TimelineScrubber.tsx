@@ -1,58 +1,140 @@
 "use client";
 
-import { useState, useRef, useCallback, useMemo } from "react";
-
-type TimeRange = "1h" | "6h" | "12h" | "24h";
-
-interface TimelineSegment {
-  readonly startPercent: number;
-  readonly endPercent: number;
-  readonly type: "recording" | "motion" | "ai";
-}
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTimeline } from "@/hooks/use-recordings";
+import type { TimelineSegment as APITimelineSegment } from "@osp/shared";
 
 interface TimelineScrubberProps {
-  readonly currentTime?: number;
-  readonly segments?: readonly TimelineSegment[];
-  readonly range?: TimeRange;
-  readonly onSeek?: (percent: number) => void;
-  readonly onRangeChange?: (range: TimeRange) => void;
+  readonly cameraId: string;
+  readonly date?: string;
+  readonly onSeek?: (timestamp: string) => void;
   readonly className?: string;
 }
 
-const RANGE_OPTIONS: readonly TimeRange[] = ["1h", "6h", "12h", "24h"];
-
-function formatTimeFromPercent(percent: number, range: TimeRange): string {
-  const totalHours = parseInt(range);
-  const totalMinutes = totalHours * 60;
-  const minutes = Math.round((percent / 100) * totalMinutes);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+function formatDateLabel(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
-function getSegmentColor(type: TimelineSegment["type"]): string {
-  switch (type) {
-    case "recording":
-      return "bg-green-500/60";
+function getTodayStr(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function timeToPercent(timeStr: string, dayStart: number): number {
+  const ms = new Date(timeStr).getTime();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.min(100, ((ms - dayStart) / DAY_MS) * 100));
+}
+
+function percentToTime(percent: number, dayStart: number): Date {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return new Date(dayStart + (percent / 100) * DAY_MS);
+}
+
+function formatHourMinute(date: Date): string {
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function getSegmentColor(trigger: string): string {
+  switch (trigger) {
     case "motion":
-      return "bg-red-500/80";
-    case "ai":
-      return "bg-purple-500/80";
+      return "bg-amber-500/70";
+    case "ai_detection":
+      return "bg-purple-500/70";
+    case "manual":
+      return "bg-blue-500/70";
+    default:
+      return "bg-green-500/60";
   }
 }
 
+interface RenderedSegment {
+  readonly left: number;
+  readonly width: number;
+  readonly trigger: string;
+  readonly recordingId: string;
+  readonly startTime: string;
+  readonly endTime: string;
+}
+
+interface RenderedEvent {
+  readonly left: number;
+  readonly type: string;
+  readonly severity: string;
+  readonly timestamp: string;
+  readonly eventId: string;
+}
+
 export function TimelineScrubber({
-  currentTime = 0,
-  segments = [],
-  range = "24h",
+  cameraId,
+  date,
   onSeek,
-  onRangeChange,
   className,
 }: TimelineScrubberProps) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [hoverPercent, setHoverPercent] = useState<number | null>(null);
-  const [isLoaded, setIsLoaded] = useState(true);
+  const [currentDate, setCurrentDate] = useState(date ?? getTodayStr());
+
+  // Sync if parent changes date prop
+  useEffect(() => {
+    if (date) {
+      setCurrentDate(date);
+    }
+  }, [date]);
+
+  const { timeline, loading } = useTimeline(cameraId, currentDate);
+
+  const dayStart = useMemo(
+    () => new Date(currentDate + "T00:00:00").getTime(),
+    [currentDate],
+  );
+
+  const renderedSegments: readonly RenderedSegment[] = useMemo(() => {
+    if (!timeline?.segments) return [];
+    return timeline.segments.map((seg: APITimelineSegment) => {
+      const left = timeToPercent(seg.startTime, dayStart);
+      const right = timeToPercent(seg.endTime, dayStart);
+      return {
+        left,
+        width: Math.max(right - left, 0.15),
+        trigger: seg.trigger,
+        recordingId: seg.recordingId,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+      };
+    });
+  }, [timeline, dayStart]);
+
+  const renderedEvents: readonly RenderedEvent[] = useMemo(() => {
+    if (!timeline?.events) return [];
+    return timeline.events.map((evt) => ({
+      left: timeToPercent(evt.timestamp, dayStart),
+      type: evt.type,
+      severity: evt.severity,
+      timestamp: evt.timestamp,
+      eventId: evt.eventId,
+    }));
+  }, [timeline, dayStart]);
 
   const getPercentFromEvent = useCallback(
     (clientX: number): number => {
@@ -65,47 +147,61 @@ export function TimelineScrubber({
     [],
   );
 
-  const handleMouseDown = useCallback(
+  const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      setIsDragging(true);
       const percent = getPercentFromEvent(e.clientX);
-      onSeek?.(percent);
+      const clickedTime = percentToTime(percent, dayStart);
+      onSeek?.(clickedTime.toISOString());
     },
-    [getPercentFromEvent, onSeek],
+    [getPercentFromEvent, dayStart, onSeek],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      const percent = getPercentFromEvent(e.clientX);
-      setHoverPercent(percent);
-      if (isDragging) {
-        onSeek?.(percent);
-      }
+      setHoverPercent(getPercentFromEvent(e.clientX));
     },
-    [getPercentFromEvent, isDragging, onSeek],
+    [getPercentFromEvent],
   );
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
 
   const handleMouseLeave = useCallback(() => {
     setHoverPercent(null);
-    setIsDragging(false);
   }, []);
 
-  const startLabel = useMemo(() => formatTimeFromPercent(0, range), [range]);
-  const endLabel = useMemo(() => formatTimeFromPercent(100, range), [range]);
+  const handlePrevDay = useCallback(() => {
+    setCurrentDate((prev) => shiftDate(prev, -1));
+  }, []);
 
-  if (!isLoaded) {
+  const handleNextDay = useCallback(() => {
+    const today = getTodayStr();
+    setCurrentDate((prev) => {
+      const next = shiftDate(prev, 1);
+      return next > today ? prev : next;
+    });
+  }, []);
+
+  const isToday = currentDate === getTodayStr();
+
+  // Hour markers for the 24h track
+  const hourMarkers = useMemo(() => {
+    const markers: { left: number; label: string }[] = [];
+    for (let h = 0; h <= 24; h += 4) {
+      markers.push({
+        left: (h / 24) * 100,
+        label: `${String(h).padStart(2, "0")}:00`,
+      });
+    }
+    return markers;
+  }, []);
+
+  if (loading) {
     return (
-      <div className={`h-12 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse ${className ?? ""}`} />
+      <div className={`h-16 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse ${className ?? ""}`} />
     );
   }
 
   return (
     <div className={`bg-zinc-900 rounded-lg border border-zinc-800 ${className ?? ""}`}>
-      {/* Range selectors */}
+      {/* Top bar: legend + date navigation */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-3 text-[10px] text-zinc-500">
           <span className="flex items-center gap-1">
@@ -113,62 +209,82 @@ export function TimelineScrubber({
             Recording
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-red-500/80" />
+            <span className="w-2 h-2 rounded-sm bg-amber-500/70" />
             Motion
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-sm bg-purple-500/80" />
+            <span className="w-2 h-2 rounded-sm bg-purple-500/70" />
             AI
           </span>
+          <span className="flex items-center gap-1">
+            <span className="w-0.5 h-2 rounded-sm bg-red-500/80" />
+            Event
+          </span>
         </div>
+
+        {/* Date navigation */}
         <div className="flex items-center gap-1">
-          {RANGE_OPTIONS.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => onRangeChange?.(opt)}
-              className={`px-2 py-0.5 text-[10px] font-medium rounded transition-colors duration-150 cursor-pointer
-                ${
-                  range === opt
-                    ? "bg-zinc-700 text-zinc-50"
-                    : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
-                }`}
-            >
-              {opt}
-            </button>
-          ))}
+          <button
+            onClick={handlePrevDay}
+            className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer rounded hover:bg-zinc-800"
+            aria-label="Previous day"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-[10px] font-medium text-zinc-400 min-w-[90px] text-center select-none">
+            {formatDateLabel(currentDate)}
+          </span>
+          <button
+            onClick={handleNextDay}
+            disabled={isToday}
+            className="p-0.5 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-default"
+            aria-label="Next day"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
       {/* Timeline track */}
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-1">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-zinc-500 w-10 text-right shrink-0"
+          <span
+            className="text-[10px] font-mono text-zinc-500 w-10 text-right shrink-0"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
-            {startLabel}
+            00:00
           </span>
 
           <div
             ref={trackRef}
             className="relative flex-1 h-6 rounded cursor-pointer bg-zinc-800"
-            onMouseDown={handleMouseDown}
+            onClick={handleClick}
             onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
           >
-            {/* Segments */}
-            {segments.map((seg, i) => (
+            {/* Recording segments */}
+            {renderedSegments.map((seg) => (
               <div
-                key={i}
-                className={`absolute top-0 h-full rounded-sm ${getSegmentColor(seg.type)}`}
+                key={seg.recordingId}
+                className={`absolute top-0 h-full rounded-sm ${getSegmentColor(seg.trigger)} transition-opacity hover:opacity-100 opacity-80`}
                 style={{
-                  left: `${seg.startPercent}%`,
-                  width: `${seg.endPercent - seg.startPercent}%`,
+                  left: `${seg.left}%`,
+                  width: `${seg.width}%`,
                 }}
+                title={`${seg.trigger} recording`}
               />
             ))}
 
-            {/* Hover indicator */}
+            {/* Event markers (thin red vertical lines) */}
+            {renderedEvents.map((evt) => (
+              <div
+                key={evt.eventId}
+                className="absolute top-0 h-full w-[2px] bg-red-500/80 pointer-events-none"
+                style={{ left: `${evt.left}%` }}
+              />
+            ))}
+
+            {/* Hover indicator with tooltip */}
             {hoverPercent !== null && (
               <>
                 <div
@@ -176,31 +292,46 @@ export function TimelineScrubber({
                   style={{ left: `${hoverPercent}%` }}
                 />
                 <div
-                  className="absolute -top-6 -translate-x-1/2 px-1.5 py-0.5 rounded bg-zinc-700 text-[10px] text-zinc-200 pointer-events-none whitespace-nowrap"
+                  className="absolute -top-6 -translate-x-1/2 px-1.5 py-0.5 rounded bg-zinc-700 text-[10px] text-zinc-200 pointer-events-none whitespace-nowrap z-10"
                   style={{
                     left: `${hoverPercent}%`,
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
-                  {formatTimeFromPercent(hoverPercent, range)}
+                  {formatHourMinute(percentToTime(hoverPercent, dayStart))}
                 </div>
               </>
             )}
-
-            {/* Playhead */}
-            <div
-              className="absolute top-0 h-full w-0.5 bg-white rounded-full shadow-[0_0_4px_rgba(255,255,255,0.4)] pointer-events-none"
-              style={{ left: `${currentTime}%` }}
-            >
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white" />
-            </div>
           </div>
 
-          <span className="text-[10px] font-mono text-zinc-500 w-10 shrink-0"
+          <span
+            className="text-[10px] font-mono text-zinc-500 w-10 shrink-0"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
-            {endLabel}
+            24:00
           </span>
+        </div>
+      </div>
+
+      {/* Hour markers */}
+      <div className="px-3 pb-2">
+        <div className="flex items-center gap-2">
+          <span className="w-10 shrink-0" />
+          <div className="relative flex-1 h-3">
+            {hourMarkers.map((marker) => (
+              <span
+                key={marker.label}
+                className="absolute text-[8px] text-zinc-600 -translate-x-1/2 select-none"
+                style={{
+                  left: `${marker.left}%`,
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                {marker.label}
+              </span>
+            ))}
+          </div>
+          <span className="w-10 shrink-0" />
         </div>
       </div>
     </div>

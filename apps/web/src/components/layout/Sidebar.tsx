@@ -94,7 +94,12 @@ function useSidebarCameras(): { cameras: readonly SidebarCamera[]; loading: bool
 /* ------------------------------------------------------------------ */
 /*  Sidebar                                                            */
 /* ------------------------------------------------------------------ */
-export function Sidebar() {
+interface SidebarProps {
+  /** When true, sidebar is rendered inside the mobile drawer (no fixed positioning, always expanded) */
+  readonly isMobileDrawer?: boolean;
+}
+
+export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
   const pathname = usePathname();
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggle = useSidebarStore((s) => s.toggle);
@@ -112,10 +117,17 @@ export function Sidebar() {
     return pathname.startsWith(href);
   };
 
+  // In mobile drawer mode, always show expanded and don't use fixed positioning
+  const effectiveCollapsed = isMobileDrawer ? false : collapsed;
+
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-10 flex flex-col border-r border-zinc-800 bg-zinc-950 transition-[width] duration-200 ease-in-out ${
-        collapsed ? "w-16" : "w-64"
+      className={`${
+        isMobileDrawer
+          ? "flex h-full w-64 flex-col border-r border-zinc-800 bg-zinc-950"
+          : `hidden lg:flex fixed inset-y-0 left-0 z-10 flex-col border-r border-zinc-800 bg-zinc-950 transition-[width] duration-200 ease-in-out ${
+              effectiveCollapsed ? "w-16" : "w-64"
+            }`
       }`}
     >
       {/* ── Logo ──────────────────────────────────────────────── */}
@@ -127,7 +139,7 @@ export function Sidebar() {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
             <Camera className="h-5 w-5 text-blue-500" />
           </div>
-          {!collapsed && (
+          {!effectiveCollapsed && (
             <span className="text-lg font-bold tracking-tight text-zinc-50">
               OSP
             </span>
@@ -146,7 +158,7 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  title={collapsed ? item.label : undefined}
+                  title={effectiveCollapsed ? item.label : undefined}
                   className={`group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 cursor-pointer ${
                     active
                       ? "bg-blue-500/10 text-blue-500"
@@ -160,7 +172,7 @@ export function Sidebar() {
 
                   <Icon className="h-5 w-5 shrink-0" />
 
-                  {!collapsed && <span>{item.label}</span>}
+                  {!effectiveCollapsed && <span>{item.label}</span>}
                 </Link>
               </li>
             );
@@ -168,7 +180,7 @@ export function Sidebar() {
         </ul>
 
         {/* ── Camera quick-status ─────────────────────────────── */}
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="mt-6">
             <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
               Cameras
@@ -204,7 +216,7 @@ export function Sidebar() {
       {/* ── Bottom section ────────────────────────────────────── */}
       <div className="shrink-0 border-t border-zinc-800 p-3">
         {/* Tenant info */}
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="mb-3 flex items-center justify-between px-1">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-zinc-200">
@@ -218,7 +230,7 @@ export function Sidebar() {
         )}
 
         {/* User row */}
-        {!collapsed && (
+        {!effectiveCollapsed && (
           <div className="mb-3 flex items-center gap-2.5 rounded-md px-1">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-300">
               {userInitial}
@@ -229,22 +241,24 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Collapse toggle */}
-        <button
-          type="button"
-          onClick={toggle}
-          className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <>
-              <ChevronLeft className="h-4 w-4" />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
+        {/* Collapse toggle — hidden in mobile drawer */}
+        {!isMobileDrawer && (
+          <button
+            type="button"
+            onClick={toggle}
+            className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
+            aria-label={effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {effectiveCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <>
+                <ChevronLeft className="h-4 w-4" />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* Sign out */}
         <button
@@ -254,11 +268,11 @@ export function Sidebar() {
             localStorage.removeItem("osp_refresh_token");
             window.location.href = "/login";
           }}
-          title={collapsed ? "Sign Out" : undefined}
+          title={effectiveCollapsed ? "Sign Out" : undefined}
           className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:text-red-400 cursor-pointer"
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
+          {!effectiveCollapsed && <span>Sign Out</span>}
         </button>
       </div>
     </aside>

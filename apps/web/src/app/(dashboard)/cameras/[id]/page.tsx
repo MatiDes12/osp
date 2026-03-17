@@ -15,16 +15,20 @@ import {
   Square,
   Trash2,
   Loader2,
+  Play,
+  X,
 } from "lucide-react";
 import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import { PTZControls } from "@/components/camera/PTZControls";
 import { ZoneDrawer } from "@/components/camera/ZoneDrawer";
 import { ZoneNameDialog } from "@/components/camera/ZoneNameDialog";
+import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
 import type { Camera as CameraType, CameraZone, OSPEvent } from "@osp/shared";
 import {
   transformCamera,
   transformZones,
   transformEvents,
+  transformRecordings,
   isSnakeCaseRow,
 } from "@/lib/transforms";
 
@@ -125,6 +129,9 @@ export default function CameraDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Clip playback state
+  const [clipModalUrl, setClipModalUrl] = useState<string | null>(null);
+
   // Zone drawing state
   const [isDrawingZone, setIsDrawingZone] = useState(false);
   const [pendingPolygon, setPendingPolygon] = useState<readonly { x: number; y: number }[] | null>(null);
@@ -136,6 +143,11 @@ export default function CameraDetailPage() {
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Playback state (for timeline seek → recording playback)
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackOffset, setPlaybackOffset] = useState(0);
+  const playbackVideoRef = useRef<HTMLVideoElement>(null);
 
   const fetchCamera = useCallback(async () => {
     setLoading(true);
@@ -296,6 +308,100 @@ export default function CameraDetailPage() {
     }
   }, [cameraId, isRecording]);
 
+  // Timeline seek handler — find recording containing the timestamp and play from offset
+  const handleTimelineSeek = useCallback(
+    async (timestamp: string) => {
+      try {
+        const seekDate = timestamp.split("T")[0] ?? "";
+        const res = await fetch(
+          `${API_URL}/api/v1/recordings/timeline?cameraId=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(seekDate)}`,
+          { headers: getAuthHeaders() },
+        );
+        const json = await res.json();
+        if (!json.success || !json.data?.segments) return;
+
+        const seekMs = new Date(timestamp).getTime();
+        const segments = json.data.segments as {
+          startTime: string;
+          endTime: string;
+          recordingId: string;
+        }[];
+
+        // Find the segment that contains the seeked timestamp
+        const match = segments.find((seg) => {
+          const start = new Date(seg.startTime).getTime();
+          const end = new Date(seg.endTime).getTime();
+          return seekMs >= start && seekMs <= end;
+        });
+
+        if (!match) {
+          // No recording at this time; find the nearest recording after
+          const after = segments
+            .filter((seg) => new Date(seg.startTime).getTime() > seekMs)
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+          if (after.length > 0) {
+            const nearest = after[0]!;
+            // Fetch recording details to get playback URL
+            const recRes = await fetch(
+              `${API_URL}/api/v1/recordings/${nearest.recordingId}`,
+              { headers: getAuthHeaders() },
+            );
+            const recJson = await recRes.json();
+            if (recJson.success && recJson.data) {
+              const rows = Array.isArray(recJson.data) ? recJson.data : [recJson.data];
+              const recs = transformRecordings(rows as Record<string, unknown>[]);
+              if (recs.length > 0 && recs[0]!.playbackUrl) {
+                setPlaybackUrl(recs[0]!.playbackUrl);
+                setPlaybackOffset(0);
+              }
+            }
+          }
+          return;
+        }
+
+        // Fetch the matched recording details
+        const recRes = await fetch(
+          `${API_URL}/api/v1/recordings/${match.recordingId}`,
+          { headers: getAuthHeaders() },
+        );
+        const recJson = await recRes.json();
+        if (recJson.success && recJson.data) {
+          const rows = Array.isArray(recJson.data) ? recJson.data : [recJson.data];
+          const recs = transformRecordings(rows as Record<string, unknown>[]);
+          if (recs.length > 0 && recs[0]!.playbackUrl) {
+            const offsetSec = (seekMs - new Date(match.startTime).getTime()) / 1000;
+            setPlaybackUrl(recs[0]!.playbackUrl);
+            setPlaybackOffset(Math.max(0, offsetSec));
+          }
+        }
+      } catch {
+        // Non-critical — ignore seek errors
+      }
+    },
+    [cameraId],
+  );
+
+  // When playback URL/offset changes, seek the playback video
+  useEffect(() => {
+    if (!playbackUrl || !playbackVideoRef.current) return;
+    const video = playbackVideoRef.current;
+    const handleCanPlay = () => {
+      if (playbackOffset > 0) {
+        video.currentTime = playbackOffset;
+      }
+      video.play().catch(() => {
+        // Autoplay blocked — user can click to play
+      });
+    };
+    video.addEventListener("canplay", handleCanPlay, { once: true });
+    return () => video.removeEventListener("canplay", handleCanPlay);
+  }, [playbackUrl, playbackOffset]);
+
+  const handleClosePlayback = useCallback(() => {
+    setPlaybackUrl(null);
+    setPlaybackOffset(0);
+  }, []);
+
   // Zone drawing handlers
   const handleZonePolygonCreated = useCallback(
     (polygon: readonly { x: number; y: number }[]) => {
@@ -431,8 +537,8 @@ export default function CameraDetailPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="aspect-video bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="aspect-video bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse -mx-4 lg:mx-0" />
+        <div className="grid grid-cols-1 gap-4">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -478,31 +584,31 @@ export default function CameraDetailPage() {
       : "bg-red-400";
 
   return (
-    <div className="flex flex-col gap-4 -m-6 p-6">
+    <div className="flex flex-col gap-4 -m-4 p-4 lg:-m-6 lg:p-6">
       {/* Video area with overlay header */}
-      <div ref={videoContainerRef} className="relative rounded-lg overflow-hidden bg-black">
+      <div ref={videoContainerRef} className="relative rounded-lg overflow-hidden bg-black -mx-4 lg:mx-0">
         {/* Overlay top bar — sits on top of the video */}
-        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 py-2.5 bg-gradient-to-b from-black/70 to-transparent">
-          <div className="flex items-center gap-3">
+        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-2 py-2 lg:px-4 lg:py-2.5 bg-gradient-to-b from-black/70 to-transparent">
+          <div className="flex items-center gap-2 lg:gap-3 min-w-0">
             <button
               onClick={() => router.push("/cameras")}
-              className="p-1.5 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Back to cameras"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-lg font-semibold text-white drop-shadow-sm">{camera.name}</h1>
+            <h1 className="text-base font-semibold text-white drop-shadow-sm truncate lg:text-lg">{camera.name}</h1>
             <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusBg} ${statusColor} backdrop-blur-sm`}>
               <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
               {camera.status}
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* Draw zone button */}
+          <div className="flex items-center gap-0.5 lg:gap-1">
+            {/* Draw zone button (hidden on mobile — available in zone panel below) */}
             <button
               onClick={() => setIsDrawingZone((prev) => !prev)}
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
+              className={`hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
                 isDrawingZone
                   ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
                   : "text-zinc-300 hover:text-white hover:bg-white/10"
@@ -560,7 +666,7 @@ export default function CameraDetailPage() {
             <button
               onClick={handleReconnect}
               disabled={reconnecting}
-              className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 disabled:opacity-50"
+              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 disabled:opacity-50"
               aria-label="Reconnect stream"
               title="Reconnect stream"
             >
@@ -572,7 +678,7 @@ export default function CameraDetailPage() {
             </button>
             <button
               onClick={() => router.push(`/cameras/${cameraId}/settings`)}
-              className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
               aria-label="Settings"
               title="Camera settings"
             >
@@ -580,7 +686,7 @@ export default function CameraDetailPage() {
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="p-2 rounded-md text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
               aria-label="Delete camera"
               title="Delete camera"
             >
@@ -611,7 +717,7 @@ export default function CameraDetailPage() {
 
         {/* PTZ overlay — only if camera is PTZ-capable */}
         {camera.ptzCapable && (
-          <div className="absolute bottom-4 right-4 z-10">
+          <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 lg:left-auto lg:right-4 lg:translate-x-0">
             <PTZControls
               cameraId={camera.id}
             />
@@ -660,7 +766,7 @@ export default function CameraDetailPage() {
             tabIndex={-1}
             aria-label="Close dialog"
           />
-          <div className="relative z-50 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg shadow-black/40">
+          <div className="relative z-50 mx-4 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg shadow-black/40 sm:mx-auto">
             <h3 className="text-base font-semibold text-zinc-50 mb-2">Delete Camera</h3>
             <p className="text-sm text-zinc-400 mb-1">
               Are you sure you want to delete <span className="font-medium text-zinc-200">{camera.name}</span>?
@@ -686,6 +792,35 @@ export default function CameraDetailPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Timeline Scrubber */}
+      <TimelineScrubber
+        cameraId={camera.id}
+        onSeek={handleTimelineSeek}
+      />
+
+      {/* Recording playback overlay */}
+      {playbackUrl && (
+        <div className="relative rounded-lg overflow-hidden bg-black border border-zinc-700">
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/20 text-blue-400">
+              Playback
+            </span>
+            <button
+              onClick={handleClosePlayback}
+              className="px-2 py-1 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+          <video
+            ref={playbackVideoRef}
+            src={playbackUrl}
+            controls
+            className="w-full aspect-video"
+          />
         </div>
       )}
 
@@ -837,6 +972,19 @@ export default function CameraDetailPage() {
                       )}
                     </div>
                   </div>
+                  {event.clipUrl && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClipModalUrl(event.clipUrl);
+                      }}
+                      className="p-1 text-zinc-500 hover:text-blue-400 transition-colors duration-150 cursor-pointer shrink-0"
+                      aria-label="Play event clip"
+                      title="Play event clip"
+                    >
+                      <Play className="w-3 h-3" />
+                    </button>
+                  )}
                   <span
                     className="text-[10px] text-zinc-500 shrink-0"
                     style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -849,6 +997,42 @@ export default function CameraDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Clip playback modal */}
+      {clipModalUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-[fadeIn_150ms_ease-out]">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setClipModalUrl(null)}
+            onKeyDown={(e) => { if (e.key === "Escape") setClipModalUrl(null); }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close clip player"
+          />
+          <div className="relative z-50 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-lg shadow-black/40 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+              <span className="text-sm font-medium text-zinc-200">Event Clip</span>
+              <button
+                onClick={() => setClipModalUrl(null)}
+                className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="bg-black">
+              <video
+                src={clipModalUrl}
+                controls
+                autoPlay
+                className="w-full max-h-[60vh]"
+              >
+                <track kind="captions" />
+              </video>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { MobileNav } from "@/components/layout/MobileNav";
+import { MobileSidebarDrawer } from "@/components/layout/MobileSidebarDrawer";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ToastContainer } from "@/components/ui/Toast";
 import { ShortcutsModal } from "@/components/ui/ShortcutsModal";
@@ -21,6 +23,7 @@ export default function DashboardLayout({
   useRouteLogger();
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const shortcuts = useMemo(
     () => ({
@@ -34,21 +37,34 @@ export default function DashboardLayout({
   return (
     <AuthGuard>
       <div className="flex h-screen overflow-hidden">
+        {/* Desktop sidebar (hidden on mobile via internal lg:flex) */}
         <Sidebar />
 
-        {/* Main content area – offset by sidebar width */}
+        {/* Mobile sidebar drawer */}
+        <MobileSidebarDrawer
+          open={mobileDrawerOpen}
+          onClose={() => setMobileDrawerOpen(false)}
+        />
+
+        {/* Main content area */}
         <div
-          className={`flex flex-1 flex-col transition-[padding] duration-200 ease-in-out ${
-            collapsed ? "pl-16" : "pl-64"
+          className={`flex flex-1 flex-col transition-[padding] duration-200 ease-in-out pl-0 ${
+            collapsed ? "lg:pl-16" : "lg:pl-64"
           }`}
         >
-          <TopBar />
+          <TopBar onMenuToggle={() => setMobileDrawerOpen((prev) => !prev)} />
 
           <ErrorBoundary>
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">
+              {children}
+            </main>
           </ErrorBoundary>
         </div>
       </div>
+
+      {/* Mobile bottom navigation */}
+      <MobileNav />
+
       <ToastContainer />
       <ShortcutsModal
         open={shortcutsOpen}

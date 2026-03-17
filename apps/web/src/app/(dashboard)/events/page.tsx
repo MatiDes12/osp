@@ -16,11 +16,13 @@ import {
   ArrowDown,
   Wifi,
   WifiOff,
+  Play,
 } from "lucide-react";
 import type { OSPEvent, EventType, EventSeverity, Camera } from "@osp/shared";
 import { transformEvents, transformCameras } from "@/lib/transforms";
 import { useEventStream } from "@/hooks/use-event-stream";
 import { PageError } from "@/components/PageError";
+import { VirtualList } from "@/components/ui/VirtualList";
 import { exportEventsCSV, exportEventsJSON } from "@/lib/export";
 import { showToast } from "@/stores/toast";
 
@@ -199,6 +201,8 @@ export default function EventsPage() {
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [selectedEvent, setSelectedEvent] = useState<OSPEvent | null>(null);
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [summary, setSummary] = useState<EventSummaryData | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -209,6 +213,7 @@ export default function EventsPage() {
   const isScrolledRef = useRef(false);
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const [clipModalUrl, setClipModalUrl] = useState<string | null>(null);
 
   // Real-time WebSocket events
   const { events: wsEvents, connected: wsConnected } = useEventStream({
@@ -245,7 +250,8 @@ export default function EventsPage() {
   const updateFilter = useCallback(
     <K extends keyof Filters>(key: K, value: Filters[K]) => {
       setFilters((prev) => ({ ...prev, [key]: value }));
-      setPage(1); // Reset to first page on filter change
+      setPage(1);
+      setHasMore(true);
     },
     [],
   );
@@ -266,14 +272,20 @@ export default function EventsPage() {
   const clearAllFilters = useCallback(() => {
     setFilters(INITIAL_FILTERS);
     setPage(1);
+    setHasMore(true);
   }, []);
 
-  // Fetch events
-  const fetchEvents = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Fetch events (supports both initial load and infinite scroll append)
+  const fetchEvents = useCallback(async (append = false) => {
+    if (!append) {
+      setLoading(true);
+      setError(null);
+    } else {
+      setLoadingMore(true);
+    }
     try {
-      const params = buildQueryParams(filters, page);
+      const targetPage = append ? page : 1;
+      const params = buildQueryParams(filters, targetPage);
 
       const response = await fetch(`${API_URL}/api/v1/events?${params.toString()}`, {
         headers: getAuthHeaders(),
@@ -281,9 +293,16 @@ export default function EventsPage() {
 
       const json = await response.json();
       if (json.success && json.data) {
-        setEvents(transformEvents(json.data as Record<string, unknown>[]));
+        const newEvents = transformEvents(json.data as Record<string, unknown>[]);
+        if (append) {
+          setEvents((prev) => [...prev, ...newEvents]);
+        } else {
+          setEvents(newEvents);
+        }
         if (json.meta) {
-          setPagination(json.meta as PaginationMeta);
+          const meta = json.meta as PaginationMeta;
+          setPagination(meta);
+          setHasMore(meta.hasMore);
         }
       } else {
         setError(json.error?.message ?? "Failed to load events");
@@ -292,8 +311,16 @@ export default function EventsPage() {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, [filters, page]);
+
+  // Load more events for infinite scroll
+  const loadMore = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      setPage((prev) => prev + 1);
+    }
+  }, [hasMore, loadingMore, loading]);
 
   // Fetch cameras (once)
   const fetchCameras = useCallback(async () => {
@@ -343,10 +370,15 @@ export default function EventsPage() {
     fetchCameras();
   }, [fetchCameras]);
 
-  // Refetch events when filters or page change
+  // Refetch events when filters change (reset) or page changes (append)
   useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+    if (page === 1) {
+      fetchEvents(false);
+    } else {
+      fetchEvents(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, page]);
 
   // Refetch summary when date filters change
   useEffect(() => {
@@ -487,7 +519,7 @@ export default function EventsPage() {
     });
   }, [mergedEvents, filters.cameraIds, filters.eventTypes, filters.severities]);
 
-  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.limit)) : 1;
+
 
   // Export dropdown outside-click handler
   useEffect(() => {
@@ -516,8 +548,56 @@ export default function EventsPage() {
   const isDev = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] -m-6">
-      {/* Filter sidebar */}
+    <div className="flex flex-col h-[calc(100vh-3rem)] -m-4 lg:-m-6 lg:flex-row">
+      {/* Mobile horizontal filter bar */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800 bg-zinc-900/50 overflow-x-auto md:hidden shrink-0">
+        {/* Date presets */}
+        {(["today", "yesterday", "7d", "30d"] as const).map((preset) => (
+          <button
+            key={preset}
+            onClick={() => updateFilter("datePreset", preset)}
+            className={`min-h-[36px] whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-full transition-colors duration-150 cursor-pointer ${
+              filters.datePreset === preset
+                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+            }`}
+          >
+            {preset === "today"
+              ? "Today"
+              : preset === "yesterday"
+                ? "Yesterday"
+                : preset === "7d"
+                  ? "7 Days"
+                  : "30 Days"}
+          </button>
+        ))}
+        {/* Severity quick filters */}
+        {SEVERITY_CONFIG.map(({ level, label, color }) => (
+          <button
+            key={level}
+            onClick={() =>
+              updateFilter("severities", toggleSetItem(filters.severities, level))
+            }
+            className={`min-h-[36px] whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-full transition-colors duration-150 cursor-pointer ${
+              filters.severities.has(level)
+                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+            }`}
+          >
+            <span className={color}>{label}</span>
+          </button>
+        ))}
+        {hasActiveFilters(filters) && (
+          <button
+            onClick={clearAllFilters}
+            className="min-h-[36px] whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-pointer"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Filter sidebar (desktop) */}
       <aside className="w-60 shrink-0 bg-zinc-900 border-r border-zinc-800 p-4 overflow-y-auto hidden md:block">
         <div className="flex items-center gap-2 mb-5">
           <Filter className="w-4 h-4 text-zinc-400" />
@@ -770,27 +850,28 @@ export default function EventsPage() {
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900 border-b border-zinc-700 shrink-0 animate-[slideDown_300ms_ease-out]">
-            <span className="text-xs text-zinc-300 font-medium">
+          <div className="flex items-center gap-2 px-3 py-2.5 bg-zinc-900 border-b border-zinc-700 shrink-0 animate-[slideDown_300ms_ease-out] lg:gap-3 lg:px-4">
+            <span className="text-xs text-zinc-300 font-medium whitespace-nowrap">
               {selectedIds.size} selected
             </span>
             <button
               onClick={handleBulkAcknowledge}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors duration-150 cursor-pointer"
+              className="inline-flex min-h-[36px] items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors duration-150 cursor-pointer"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Acknowledge All
+              <span className="hidden sm:inline">Acknowledge All</span>
+              <span className="sm:hidden">Ack All</span>
             </button>
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer">
+            <button className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer">
               <Download className="w-3.5 h-3.5" />
               Export
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="ml-auto p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
+              className="ml-auto min-h-[36px] min-w-[36px] flex items-center justify-center text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
               aria-label="Clear selection"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -806,39 +887,45 @@ export default function EventsPage() {
           </button>
         )}
 
-        {/* Event list */}
-        <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
+        {/* Event list with virtual scrolling + infinite scroll */}
+        <div ref={listRef} className="flex-1 overflow-hidden px-4 py-3 flex flex-col">
           {loading && (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-16 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse"
+                  className="h-[72px] bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse"
                 />
               ))}
             </div>
           )}
 
           {error && !loading && (
-            <PageError message={error} onRetry={fetchEvents} />
+            <PageError message={error} onRetry={() => fetchEvents(false)} />
           )}
 
-          {!loading && !error && filteredEvents.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
-              <Bell className="w-8 h-8 mb-3 opacity-50" />
-              <p className="text-sm font-medium mb-1">No events match your filters</p>
-              <button
-                onClick={clearAllFilters}
-                className="text-xs text-blue-400 hover:text-blue-300 transition-colors duration-150 cursor-pointer"
-              >
-                Adjust Filters
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && filteredEvents.length > 0 && (
-            <div className="space-y-2">
-              {filteredEvents.map((event) => {
+          {!loading && !error && (
+            <VirtualList
+              items={filteredEvents}
+              itemHeight={72}
+              overscan={8}
+              onLoadMore={loadMore}
+              loadMoreThreshold={100}
+              isLoadingMore={loadingMore}
+              className="flex-1"
+              emptyState={
+                <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
+                  <Bell className="w-8 h-8 mb-3 opacity-50" />
+                  <p className="text-sm font-medium mb-1">No events match your filters</p>
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors duration-150 cursor-pointer"
+                  >
+                    Adjust Filters
+                  </button>
+                </div>
+              }
+              renderItem={(event) => {
                 const isSelected = selectedIds.has(event.id);
                 const borderClass = getEventBorderColor(event);
                 // WS events that aren't in the fetched set get a slide-in animation
@@ -871,15 +958,15 @@ export default function EventsPage() {
                       className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 cursor-pointer shrink-0"
                     />
 
-                    {/* Thumbnail */}
+                    {/* Thumbnail (hidden on mobile for compact layout) */}
                     {event.snapshotUrl ? (
                       <img
                         src={event.snapshotUrl}
                         alt=""
-                        className="w-12 h-12 rounded bg-zinc-800 object-cover shrink-0"
+                        className="hidden w-12 h-12 rounded bg-zinc-800 object-cover shrink-0 sm:block"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded bg-zinc-800 flex items-center justify-center shrink-0">
+                      <div className="hidden w-12 h-12 rounded bg-zinc-800 items-center justify-center shrink-0 sm:flex">
                         <div className="w-6 h-6 rounded-full bg-zinc-700" />
                       </div>
                     )}
@@ -928,17 +1015,17 @@ export default function EventsPage() {
                     </span>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-0.5 shrink-0 lg:gap-1">
                       {event.clipUrl && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(event.clipUrl!, "_blank");
+                            setClipModalUrl(event.clipUrl);
                           }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer"
+                          className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center gap-1 px-2 py-1 text-[10px] rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer"
                         >
-                          <Eye className="w-3 h-3" />
-                          View Clip
+                          <Play className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Clip</span>
                         </button>
                       )}
                       {!event.acknowledged && (
@@ -947,73 +1034,56 @@ export default function EventsPage() {
                             e.stopPropagation();
                             handleAcknowledge(event.id);
                           }}
-                          className="p-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 rounded-md transition-colors duration-150 cursor-pointer"
+                          className="min-h-[36px] min-w-[36px] flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700 rounded-md transition-colors duration-150 cursor-pointer"
                           aria-label="Acknowledge event"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <CheckCircle2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </div>
+      </main>
 
-        {/* Pagination */}
-        {pagination && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-800 bg-zinc-950/80 shrink-0">
-            <span className="text-xs text-zinc-500">
-              Page {page} of {totalPages} ({pagination.total} events)
-            </span>
-            <div className="flex items-center gap-1.5">
+      {/* Clip playback modal */}
+      {clipModalUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-[fadeIn_150ms_ease-out]">
+          <div
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setClipModalUrl(null)}
+            onKeyDown={(e) => { if (e.key === "Escape") setClipModalUrl(null); }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close clip player"
+          />
+          <div className="relative z-50 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-lg shadow-black/40 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+              <span className="text-sm font-medium text-zinc-200">Event Clip</span>
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
+                onClick={() => setClipModalUrl(null)}
+                className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                aria-label="Close"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Previous
-              </button>
-              {/* Page number buttons */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum: number;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (page <= 3) {
-                  pageNum = i + 1;
-                } else if (page >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = page - 2 + i;
-                }
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`w-7 h-7 text-xs rounded-md transition-colors duration-150 cursor-pointer ${
-                      pageNum === page
-                        ? "bg-blue-500/20 text-blue-400 font-medium"
-                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={!pagination.hasMore}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 cursor-pointer"
-              >
-                Next
-                <ChevronRight className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
+            <div className="bg-black">
+              <video
+                src={clipModalUrl}
+                controls
+                autoPlay
+                className="w-full max-h-[60vh]"
+              >
+                <track kind="captions" />
+              </video>
+            </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }

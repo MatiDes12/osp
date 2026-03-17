@@ -16,6 +16,7 @@ import {
   logConnectionStatus,
 } from "./lib/logger.js";
 import { closeAllClients as closeGrpcClients } from "./grpc/client.js";
+import { CameraHealthChecker } from "./services/health-checker.js";
 
 const logger = createLogger("gateway");
 const startTime = performance.now();
@@ -46,11 +47,16 @@ async function checkDependencies(): Promise<void> {
   logConnectionStatus(logger, "go2rtc", true, go2rtcUrl);
 }
 
+const healthChecker = new CameraHealthChecker();
+
 async function start(): Promise<void> {
   await checkDependencies();
 
   // Start the dedicated WebSocket server (includes Redis pub/sub subscription)
   startWebSocketServer();
+
+  // Start periodic camera health checks (every 30s)
+  healthChecker.start();
 
   serve({
     fetch: app.fetch,
@@ -75,6 +81,7 @@ start().catch((err) => {
 // Graceful shutdown
 function shutdown(): void {
   logShutdownBanner("OSP API Gateway");
+  healthChecker.stop();
   closeGrpcClients();
   stopWebSocketServer();
   process.exit(0);

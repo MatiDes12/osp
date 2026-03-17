@@ -10,7 +10,9 @@ import { BulkActionBar } from "@/components/camera/BulkActionBar";
 import { AddCameraDialog } from "@/components/camera/AddCameraDialog";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/StatCard";
+import { ActivityTicker } from "@/components/dashboard/ActivityTicker";
 import { PageError } from "@/components/PageError";
+import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { Camera, Wifi, Bell, Circle, MapPin, Tag, Check } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -26,23 +28,15 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-interface DashboardStats {
-  readonly totalCameras: number;
-  readonly onlineCameras: number;
-  readonly eventsToday: number;
-  readonly activeRecordings: number;
-}
-
 export default function CamerasPage() {
   const { cameras, loading, error, refetch, addCamera } = useCameras();
   const { locations, loading: locationsLoading } = useLocations();
   const { tags, loading: tagsLoading } = useTags();
+  const { stats: dashboardStats, loading: dashboardStatsLoading, changed } = useDashboardStats();
   const [search, setSearch] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState(true);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Selection state
@@ -53,6 +47,32 @@ export default function CamerasPage() {
 
   // Camera tag assignments (camera_id -> tag[])
   const [cameraTagsMap, setCameraTagsMap] = useState<Map<string, CameraTag[]>>(new Map());
+
+  // Fetch active recording camera IDs
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    async function fetchActiveRecordings() {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, {
+          headers: getAuthHeaders(),
+        });
+        const json = await res.json();
+        if (!cancelled && json.success && Array.isArray(json.data)) {
+          const ids = new Set<string>();
+          for (const rec of json.data) {
+            const camId = (rec as Record<string, unknown>).camera_id ?? (rec as Record<string, unknown>).cameraId;
+            if (camId) ids.add(camId as string);
+          }
+          setActiveRecordingCameraIds(ids);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    fetchActiveRecordings();
+    return () => { cancelled = true; };
+  }, [loading]);
 
   // Check if onboarding is complete on mount
   useEffect(() => {
@@ -193,102 +213,17 @@ export default function CamerasPage() {
     [addCamera],
   );
 
-  // Fetch dashboard stats
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchStats() {
-      setStatsLoading(true);
-      try {
-        const [eventSummaryRes, recordingsRes] = await Promise.all([
-          fetch(`${API_URL}/api/v1/events/summary`, {
-            headers: getAuthHeaders(),
-          }).catch(() => null),
-          fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, {
-            headers: getAuthHeaders(),
-          }).catch(() => null),
-        ]);
-
-        let eventsToday = 0;
-        let activeRecordings = 0;
-
-        if (eventSummaryRes) {
-          try {
-            const json = await eventSummaryRes.json();
-            if (json.success && json.data) {
-              eventsToday = json.data.total ?? 0;
-            }
-          } catch {
-            // Non-critical
-          }
-        }
-
-        const recordingCameraIds = new Set<string>();
-        if (recordingsRes) {
-          try {
-            const json = await recordingsRes.json();
-            if (json.success && json.meta) {
-              activeRecordings = json.meta.total ?? 0;
-            } else if (json.success && json.data) {
-              activeRecordings = Array.isArray(json.data)
-                ? json.data.length
-                : 0;
-            }
-            // Extract camera IDs from active recordings
-            if (json.success && Array.isArray(json.data)) {
-              for (const rec of json.data) {
-                const camId = rec.camera_id ?? rec.cameraId;
-                if (camId) recordingCameraIds.add(camId as string);
-              }
-            }
-          } catch {
-            // Non-critical
-          }
-        }
-
-        if (!cancelled) {
-          setStats({
-            totalCameras: cameras.length,
-            onlineCameras: cameras.filter((c) => c.status === "online").length,
-            eventsToday,
-            activeRecordings,
-          });
-          setActiveRecordingCameraIds(recordingCameraIds);
-        }
-      } catch {
-        // Stats are non-critical; fall back to camera-only stats
-        if (!cancelled) {
-          setStats({
-            totalCameras: cameras.length,
-            onlineCameras: cameras.filter((c) => c.status === "online").length,
-            eventsToday: 0,
-            activeRecordings: 0,
-          });
-          setActiveRecordingCameraIds(new Set());
-        }
-      } finally {
-        if (!cancelled) {
-          setStatsLoading(false);
-        }
-      }
-    }
-
-    if (!loading && cameras.length >= 0) {
-      fetchStats();
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cameras, loading]);
-
   const allSelected = filteredCameras.length > 0 && selectedCameraIds.size === filteredCameras.length;
+
+  // Derive total/online from cameras list to keep in sync, use dashboard hook for events/recordings
+  const totalCameras = cameras.length;
+  const camerasOnline = cameras.filter((c) => c.status === "online").length;
 
   return (
     <div>
       {/* Stats overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {statsLoading || loading ? (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        {dashboardStatsLoading || loading ? (
           <>
             <StatCardSkeleton />
             <StatCardSkeleton />
@@ -299,34 +234,41 @@ export default function CamerasPage() {
           <>
             <StatCard
               label="Total Cameras"
-              value={stats?.totalCameras ?? cameras.length}
+              value={totalCameras}
               icon={Camera}
+              flash={changed.totalCameras}
             />
             <StatCard
               label="Online"
-              value={`${stats?.onlineCameras ?? 0}/${stats?.totalCameras ?? cameras.length}`}
+              value={`${camerasOnline}/${totalCameras}`}
               icon={Wifi}
               color="text-green-400"
+              flash={changed.camerasOnline}
             />
             <StatCard
               label="Events Today"
-              value={stats?.eventsToday ?? 0}
+              value={dashboardStats.eventsToday}
               icon={Bell}
+              flash={changed.eventsToday}
             />
             <StatCard
               label="Active Recordings"
-              value={stats?.activeRecordings ?? 0}
+              value={dashboardStats.activeRecordings}
               icon={Circle}
               color="text-red-400"
+              flash={changed.activeRecordings}
             />
           </>
         )}
       </div>
 
+      {/* Activity ticker */}
+      <ActivityTicker className="mb-6" />
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">Cameras</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">Cameras</h1>
           {/* Select All checkbox */}
           {!loading && !error && filteredCameras.length > 0 && (
             <button
@@ -353,20 +295,20 @@ export default function CamerasPage() {
         </div>
         <button
           onClick={() => setDialogOpen(true)}
-          className="px-4 py-2 text-sm rounded-md bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 transition-colors"
+          className="w-full px-4 py-2.5 text-sm rounded-md bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 transition-colors sm:w-auto sm:py-2"
         >
           Add Camera
         </button>
       </div>
 
       {/* Search + Location filter + Tag filter */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:flex-wrap sm:items-center">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search cameras by name..."
-          className="w-full max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+          className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] sm:max-w-sm sm:py-2"
         />
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-[var(--color-muted)]" />

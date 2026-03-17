@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  Menu,
 } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 import { getUserFromToken } from "@/hooks/use-auth";
@@ -87,7 +88,12 @@ function eventTypeIcon(type: OSPEvent["type"]) {
 /*  TopBar                                                             */
 /* ------------------------------------------------------------------ */
 
-export function TopBar() {
+interface TopBarProps {
+  /** Callback to toggle the mobile sidebar drawer */
+  readonly onMenuToggle?: () => void;
+}
+
+export function TopBar({ onMenuToggle }: TopBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -279,11 +285,25 @@ export function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-950/80 px-6 backdrop-blur-sm">
-        {/* -- Breadcrumb (left) ---------------------------------------- */}
+      <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-zinc-800 bg-zinc-950/80 px-4 lg:gap-4 lg:px-6 backdrop-blur-sm">
+        {/* -- Hamburger menu (mobile only) ------------------------------ */}
+        {onMenuToggle && (
+          <button
+            type="button"
+            onClick={onMenuToggle}
+            className="flex h-10 w-10 items-center justify-center rounded-md text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200 transition-colors duration-150 cursor-pointer lg:hidden"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* -- Breadcrumb / Page title ----------------------------------- */}
         <div className="flex min-w-0 items-center gap-2">
+          {/* Mobile: show OSP logo centered concept; Desktop: show page title */}
           <h1 className="truncate text-sm font-semibold text-zinc-100">
-            {pageTitle}
+            <span className="hidden lg:inline">{pageTitle}</span>
+            <span className="lg:hidden">OSP</span>
           </h1>
         </div>
 
@@ -310,11 +330,11 @@ export function TopBar() {
 
         {/* -- Actions (right) ------------------------------------------ */}
         <div className="flex items-center gap-1">
-          {/* Grid size toggles */}
+          {/* Grid size toggles (hidden on mobile) */}
           <button
             type="button"
             onClick={() => setGrid("2")}
-            className={`rounded-md p-2 transition-colors duration-150 cursor-pointer ${
+            className={`hidden lg:inline-flex rounded-md p-2 transition-colors duration-150 cursor-pointer ${
               currentGrid === "2"
                 ? "bg-zinc-800 text-zinc-200"
                 : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300"
@@ -326,7 +346,7 @@ export function TopBar() {
           <button
             type="button"
             onClick={() => setGrid("3")}
-            className={`rounded-md p-2 transition-colors duration-150 cursor-pointer ${
+            className={`hidden lg:inline-flex rounded-md p-2 transition-colors duration-150 cursor-pointer ${
               currentGrid === "3"
                 ? "bg-zinc-800 text-zinc-200"
                 : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300"
@@ -353,8 +373,8 @@ export function TopBar() {
             )}
           </button>
 
-          {/* Divider */}
-          <div className="mx-1 h-5 w-px bg-zinc-800" />
+          {/* Divider (hidden on mobile) */}
+          <div className="mx-1 hidden h-5 w-px bg-zinc-800 lg:block" />
 
           {/* Notification bell */}
           <div className="relative" ref={notifRef}>

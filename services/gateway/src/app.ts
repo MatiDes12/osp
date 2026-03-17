@@ -17,6 +17,7 @@ import { extensionRoutes } from "./routes/extension.routes.js";
 import { locationRoutes } from "./routes/location.routes.js";
 import { tagRoutes, cameraTagRoutes } from "./routes/tag.routes.js";
 import { devRoutes } from "./routes/dev.routes.js";
+import { docsRoutes } from "./routes/docs.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -44,6 +45,15 @@ app.use("*", metricsMiddleware());
 app.use("*", errorHandler());
 app.use(
   "/health/*",
+  cors({
+    origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
+    allowMethods: ["GET"],
+    allowHeaders: ["Content-Type"],
+    maxAge: 86400,
+  }),
+);
+app.use(
+  "/docs/*",
   cors({
     origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
     allowMethods: ["GET"],
@@ -83,11 +93,12 @@ app.get("/", (c) => {
       tags: "/api/v1/tags",
       extensions: "/api/v1/extensions",
     },
-    docs: "https://github.com/MatiDes12/osp",
+    docs: "/docs",
   });
 });
 
 // Routes
+app.route("/docs", docsRoutes);
 app.route("/health", healthRoutes);
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/cameras", cameraRoutes);
