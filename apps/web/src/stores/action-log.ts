@@ -35,6 +35,43 @@ interface ActionLogState {
 const MAX_ENTRIES = 200;
 let seq = 0;
 
+// ── Console mirror: print actions in browser AND send to gateway terminal ──
+
+const KIND_TAG: Record<ActionKind, string> = {
+  navigate: "NAV",
+  click: "ACT",
+  api_call: "API",
+  api_response: "RES",
+  api_error: "ERR",
+  state_change: "STATE",
+  event: "EVENT",
+  websocket: "WS",
+};
+
+const GATEWAY_LOG_URL =
+  (typeof window !== "undefined"
+    ? process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000"
+    : "") + "/api/v1/dev/client-log";
+
+function mirrorToTerminal(entry: ActionEntry): void {
+  if (typeof window === "undefined") return;
+
+  // Fire-and-forget POST to gateway — never block UI.
+  try {
+    const body = JSON.stringify({
+      kind: entry.kind,
+      tag: KIND_TAG[entry.kind],
+      label: entry.label,
+      detail: entry.detail,
+      status: entry.status,
+      timestamp: entry.timestamp,
+    });
+    navigator.sendBeacon(GATEWAY_LOG_URL, body);
+  } catch {
+    // Silently ignore — logging should never break the app.
+  }
+}
+
 export const useActionLogStore = create<ActionLogState>((set) => ({
   entries: [],
   visible: process.env.NODE_ENV === "development",
@@ -52,6 +89,7 @@ export const useActionLogStore = create<ActionLogState>((set) => ({
     set((state) => ({
       entries: [...state.entries.slice(-(MAX_ENTRIES - 1)), entry],
     }));
+    mirrorToTerminal(entry);
   },
 
   toggle: () => set((state) => ({ visible: !state.visible })),

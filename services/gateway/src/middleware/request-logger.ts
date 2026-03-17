@@ -12,7 +12,7 @@ const logger = createLogger("gateway");
 // Paths that produce too much noise at info level.
 const QUIET_PATHS = new Set(["/health", "/health/ready", "/health/live"]);
 
-// Paths from Next.js dev tooling -- suppress entirely in dev.
+// Paths from Next.js dev tooling and internal dev endpoints -- suppress entirely.
 const NEXTJS_NOISE = [
   "/_next/",
   "/__nextjs",
@@ -20,6 +20,7 @@ const NEXTJS_NOISE = [
   "/favicon.ico",
   "/_next/webpack-hmr",
   "/_next/static",
+  "/api/v1/dev/client-log",
 ];
 
 export function requestLogger(): MiddlewareHandler {

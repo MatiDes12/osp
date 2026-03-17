@@ -9,6 +9,59 @@ import { z } from "zod";
 
 export const devRoutes = new Hono<Env>();
 
+// ── Client Action Log Collector ─────────────────────────────────────────
+// Receives client-side actions (NAV, ACT, API, etc.) via sendBeacon and
+// prints them in a boxed format to the gateway terminal so developers see
+// frontend activity alongside backend request logs.
+
+const CLIENT_TAG_COLORS: Record<string, string> = {
+  NAV:   "\x1b[34m",  // blue
+  ACT:   "\x1b[36m",  // cyan
+  API:   "\x1b[33m",  // yellow
+  RES:   "\x1b[32m",  // green
+  ERR:   "\x1b[31m",  // red
+  STATE: "\x1b[35m",  // magenta
+  EVENT: "\x1b[35m",  // magenta
+  WS:    "\x1b[36m",  // cyan
+};
+const RESET = "\x1b[0m";
+const DIM = "\x1b[2m";
+const BOLD = "\x1b[1m";
+
+devRoutes.post("/client-log", async (c) => {
+  if (process.env["NODE_ENV"] !== "development") {
+    return c.text("", 204);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c.req.json() as Record<string, unknown>;
+  } catch {
+    // sendBeacon may send text/plain; try parsing the raw text.
+    try {
+      const text = await c.req.text();
+      body = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return c.text("", 204);
+    }
+  }
+
+  const tag = String(body["tag"] ?? "???");
+  const label = String(body["label"] ?? "");
+  const detail = body["detail"] ? String(body["detail"]) : "";
+  const status = body["status"] ? String(body["status"]) : "";
+  const ts = String(body["timestamp"] ?? "");
+
+  const color = CLIENT_TAG_COLORS[tag] ?? "";
+  const statusChar = status === "ok" ? `${"\x1b[32m"}+${RESET}` : status === "error" ? `${"\x1b[31m"}x${RESET}` : status === "pending" ? `${"\x1b[33m"}~${RESET}` : " ";
+
+  const line = `${DIM}${ts}${RESET}  ${color}${BOLD}${tag.padEnd(5)}${RESET} ${statusChar} ${label}${detail ? `  ${DIM}${detail}${RESET}` : ""}`;
+
+  process.stdout.write(`  [client] ${line}\n`);
+
+  return c.text("", 204);
+});
+
 const SimulateMotionSchema = z.object({
   cameraId: z.string().uuid(),
 });
