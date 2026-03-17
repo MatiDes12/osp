@@ -91,6 +91,7 @@ locationRoutes.post("/", requireAuth("admin"), async (c) => {
       lat: input.lat ?? null,
       lng: input.lng ?? null,
       timezone: input.timezone,
+      floor_plan: input.floor_plan ?? [],
     })
     .select()
     .single();
@@ -147,6 +148,7 @@ locationRoutes.patch("/:id", requireAuth("admin"), async (c) => {
   if (input.lat !== undefined) updates["lat"] = input.lat;
   if (input.lng !== undefined) updates["lng"] = input.lng;
   if (input.timezone !== undefined) updates["timezone"] = input.timezone;
+  if (input.floor_plan !== undefined) updates["floor_plan"] = input.floor_plan;
   updates["updated_at"] = new Date().toISOString();
 
   const { data: location, error } = await supabase
