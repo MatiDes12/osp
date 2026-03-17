@@ -77,23 +77,51 @@ export function ZoneDrawer({
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
 
-  // Convert pixel coordinates to normalized 0-1
+  // Keep canvas pixel dimensions in sync with its CSS display size
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const w = Math.round(width);
+        const h = Math.round(height);
+        canvas.width = w;
+        canvas.height = h;
+        setCanvasSize({ w, h });
+      }
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
+
+  // Get the actual displayed size of the canvas
+  const getCanvasDisplaySize = useCallback(() => {
+    if (canvasSize.w > 0 && canvasSize.h > 0) return canvasSize;
+    const canvas = canvasRef.current;
+    if (!canvas) return { w: videoWidth, h: videoHeight };
+    const rect = canvas.getBoundingClientRect();
+    return { w: rect.width, h: rect.height };
+  }, [canvasSize, videoWidth, videoHeight]);
+
+  // Convert pixel coordinates (relative to displayed canvas) to normalized 0-1
   const toNormalized = useCallback(
-    (px: number, py: number): Point => ({
-      x: px / videoWidth,
-      y: py / videoHeight,
-    }),
-    [videoWidth, videoHeight],
+    (px: number, py: number): Point => {
+      const { w, h } = getCanvasDisplaySize();
+      return { x: px / w, y: py / h };
+    },
+    [getCanvasDisplaySize],
   );
 
-  // Convert normalized 0-1 to pixel coordinates
+  // Convert normalized 0-1 to pixel coordinates (relative to displayed canvas)
   const toPixel = useCallback(
-    (p: Point): { px: number; py: number } => ({
-      px: p.x * videoWidth,
-      py: p.y * videoHeight,
-    }),
-    [videoWidth, videoHeight],
+    (p: Point): { px: number; py: number } => {
+      const { w, h } = getCanvasDisplaySize();
+      return { px: p.x * w, py: p.y * h };
+    },
+    [getCanvasDisplaySize],
   );
 
   // Reset drawing state when drawing mode is toggled off
@@ -324,8 +352,6 @@ export function ZoneDrawer({
     <div className="absolute inset-0 z-10">
       <canvas
         ref={canvasRef}
-        width={videoWidth}
-        height={videoHeight}
         className="w-full h-full"
         style={{ cursor: isDrawing ? "crosshair" : "default" }}
         onClick={handleCanvasClick}
