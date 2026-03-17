@@ -1,26 +1,120 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------ */
+/*  Design-system CSS custom properties                                */
+/* ------------------------------------------------------------------ */
 :root {
-  --color-bg: #0a0a0a;
-  --color-fg: #ededed;
+  /* Background layers */
+  --color-bg: #09090b;
+  --color-surface: #18181b;
+  --color-raised: #27272a;
+
+  /* Borders */
+  --color-border: #3f3f46;
+  --color-border-subtle: #27272a;
+
+  /* Text */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+
+  /* Semantic */
   --color-primary: #3b82f6;
-  --color-success: #22c55e;
-  --color-warning: #eab308;
-  --color-error: #ef4444;
-  --color-muted: #6b7280;
-  --color-border: #27272a;
-  --color-card: #18181b;
+  --color-online: #22c55e;
+  --color-critical: #ef4444;
+  --color-warning: #f59e0b;
+  --color-ai: #a855f7;
+  --color-info: #06b6d4;
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Layout */
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 64px;
+  --topbar-height: 56px;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Base styles                                                        */
+/* ------------------------------------------------------------------ */
 body {
   background: var(--color-bg);
-  color: var(--color-fg);
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Focus ring utility                                                 */
+/* ------------------------------------------------------------------ */
+*:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 4px var(--color-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Custom scrollbar (thin, zinc-800 thumb)                            */
+/* ------------------------------------------------------------------ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #27272a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3f3f46;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Animations                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Live indicator pulse – 2s infinite */
+@keyframes pulse-live {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.15);
+  }
+}
+
+/* Alert pulse – 1s, plays 3 times */
+@keyframes pulse-alert {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  50% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Event feed slide-in */
 @keyframes slideInEvent {
   from {
     opacity: 0;
@@ -29,5 +123,54 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.animate-pulse-live {
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+.animate-pulse-alert {
+  animation: pulse-alert 1s ease-in-out 3;
+}
+
+.animate-slide-in-event {
+  animation: slideInEvent 200ms ease-out;
+}
+
+/* Modal / dialog fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Event feed slide-down (from top) */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reduced motion                                                     */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

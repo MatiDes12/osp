@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Camera, Wifi, AlertTriangle, HardDrive } from "lucide-react";
 import { CameraGrid } from "@/components/camera/CameraGrid";
 import { LiveEventFeed } from "@/components/events/LiveEventFeed";
-import type { Camera, EventSummary, ApiResponse } from "@osp/shared";
+import { StatCard, StatCardSkeleton } from "@/components/dashboard/StatCard";
+import { AddCameraDialog } from "@/components/camera/AddCameraDialog";
+import type { Camera as CameraType, EventSummary, ApiResponse } from "@osp/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -21,36 +24,22 @@ function getAuthHeaders(): Record<string, string> {
 interface DashboardStats {
   readonly totalCameras: number;
   readonly camerasOnline: number;
-  readonly eventsToday: number;
-  readonly unacknowledgedAlerts: number;
-}
-
-function StatCard({
-  label,
-  value,
-  color,
-}: {
-  readonly label: string;
-  readonly value: number;
-  readonly color: string;
-}) {
-  return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-4">
-      <p className="text-xs text-[var(--color-muted)] mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
+  readonly activeAlerts: number;
+  readonly storageUsedPercent: number;
+  readonly recordingCount: number;
 }
 
 export default function DashboardPage() {
-  const [cameras, setCameras] = useState<readonly Camera[]>([]);
+  const [cameras, setCameras] = useState<readonly CameraType[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     totalCameras: 0,
     camerasOnline: 0,
-    eventsToday: 0,
-    unacknowledgedAlerts: 0,
+    activeAlerts: 0,
+    storageUsedPercent: 0,
+    recordingCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -62,7 +51,7 @@ export default function DashboardPage() {
         }),
       ]);
 
-      const camerasJson: ApiResponse<Camera[]> = await camerasRes.json();
+      const camerasJson: ApiResponse<CameraType[]> = await camerasRes.json();
       const cameraList =
         camerasJson.success && camerasJson.data ? camerasJson.data : [];
       setCameras(cameraList);
@@ -71,23 +60,26 @@ export default function DashboardPage() {
         (c) => c.status === "online",
       ).length;
 
-      let eventsToday = 0;
-      let unacknowledged = 0;
+      const recordingCount = cameraList.filter(
+        (c) => c.config.recordingMode !== "off",
+      ).length;
+
+      let activeAlerts = 0;
 
       if (summaryRes.ok) {
         const summaryJson: ApiResponse<EventSummary> =
           await summaryRes.json();
         if (summaryJson.success && summaryJson.data) {
-          eventsToday = summaryJson.data.total;
-          unacknowledged = summaryJson.data.unacknowledged;
+          activeAlerts = summaryJson.data.unacknowledged;
         }
       }
 
       setStats({
         totalCameras: cameraList.length,
         camerasOnline: onlineCount,
-        eventsToday,
-        unacknowledgedAlerts: unacknowledged,
+        activeAlerts,
+        storageUsedPercent: 68, // TODO: fetch from storage API
+        recordingCount,
       });
     } catch {
       // Stats will remain at defaults on error
@@ -100,57 +92,107 @@ export default function DashboardPage() {
     fetchData();
   }, [fetchData]);
 
+  const handleAddCamera = useCallback(
+    async (data: {
+      name: string;
+      protocol: "rtsp" | "onvif";
+      connectionUri: string;
+      location?: { label?: string };
+    }) => {
+      const res = await fetch(`${API_URL}/api/v1/cameras`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(
+          body?.error ?? `Failed to add camera (${res.status})`,
+        );
+      }
+      await fetchData();
+    },
+    [fetchData],
+  );
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-
       {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Cameras"
-          value={stats.totalCameras}
-          color="text-[var(--color-fg)]"
-        />
-        <StatCard
-          label="Cameras Online"
-          value={stats.camerasOnline}
-          color="text-[var(--color-success)]"
-        />
-        <StatCard
-          label="Events Today"
-          value={stats.eventsToday}
-          color="text-[var(--color-primary)]"
-        />
-        <StatCard
-          label="Unacknowledged Alerts"
-          value={stats.unacknowledgedAlerts}
-          color={
-            stats.unacknowledgedAlerts > 0
-              ? "text-[var(--color-error)]"
-              : "text-[var(--color-fg)]"
-          }
-        />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Cameras"
+              value={stats.totalCameras}
+              icon={Camera}
+              subtitle={`${stats.recordingCount} recording`}
+            />
+            <StatCard
+              label="Online"
+              value={stats.camerasOnline}
+              icon={Wifi}
+              color="text-green-500"
+              progress={
+                stats.totalCameras > 0
+                  ? (stats.camerasOnline / stats.totalCameras) * 100
+                  : 0
+              }
+              progressColor="bg-green-500"
+              subtitle={`of ${stats.totalCameras} cameras`}
+            />
+            <StatCard
+              label="Active Alerts"
+              value={stats.activeAlerts}
+              icon={AlertTriangle}
+              color={stats.activeAlerts > 0 ? "text-red-400" : "text-zinc-50"}
+            />
+            <StatCard
+              label="Storage Used"
+              value={`${stats.storageUsedPercent}%`}
+              icon={HardDrive}
+              progress={stats.storageUsedPercent}
+              progressColor={
+                stats.storageUsedPercent > 90
+                  ? "bg-red-500"
+                  : stats.storageUsedPercent > 75
+                    ? "bg-amber-500"
+                    : "bg-blue-500"
+              }
+            />
+          </>
+        )}
       </div>
 
-      {/* Main content: camera grid + live event feed */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* Camera grid */}
-        <div className="xl:col-span-3">
-          {loading ? (
-            <div className="flex items-center justify-center py-20 text-[var(--color-muted)]">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-muted)] border-t-[var(--color-primary)]" />
-              <span className="ml-3 text-sm">Loading cameras...</span>
-            </div>
-          ) : (
-            <CameraGrid cameras={cameras} />
-          )}
+      {/* Main content: 70% camera grid + 30% live events */}
+      <div className="flex flex-col xl:flex-row gap-4">
+        {/* Camera grid - 70% */}
+        <div className="flex-1 xl:w-[70%] min-w-0">
+          <CameraGrid
+            cameras={cameras}
+            loading={loading}
+            onAddCamera={() => setAddDialogOpen(true)}
+          />
         </div>
 
-        {/* Live event feed sidebar */}
-        <div className="xl:col-span-1">
-          <LiveEventFeed maxEvents={50} />
+        {/* Live event sidebar - 30% */}
+        <div className="xl:w-[30%] min-w-0">
+          <LiveEventFeed maxEvents={30} />
         </div>
       </div>
+
+      {/* Add Camera Dialog */}
+      <AddCameraDialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        onSubmit={handleAddCamera}
+      />
     </div>
   );
 }
