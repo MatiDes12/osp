@@ -79,7 +79,7 @@ export default function RegisterPage() {
       localStorage.setItem("osp_access_token", json.data.accessToken);
       localStorage.setItem("osp_refresh_token", json.data.refreshToken);
 
-      window.location.href = "/";
+      window.location.href = "/cameras";
     } catch {
       setError("Network error. Please try again.");
     } finally {

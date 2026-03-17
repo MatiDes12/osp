@@ -27,7 +27,6 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cameras", label: "Cameras", icon: Camera },
   { href: "/events", label: "Events & Alerts", icon: Bell },
   { href: "/recordings", label: "Recordings", icon: Play },
