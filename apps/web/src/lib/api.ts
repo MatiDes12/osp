@@ -10,7 +10,7 @@ export const api = createOSPClient({
     if (typeof window !== "undefined") {
       localStorage.removeItem("osp_access_token");
       localStorage.removeItem("osp_refresh_token");
-      window.location.href = "/(auth)/login";
+      window.location.href = "/login";
     }
   },
 });

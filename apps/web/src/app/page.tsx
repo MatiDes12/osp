@@ -169,7 +169,7 @@ export default function HomePage() {
           {/* CTAs */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link
-              href="/(auth)/register"
+              href="/register"
               className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-blue-500 px-6 py-3 font-medium text-white transition-colors duration-150 hover:bg-blue-600"
             >
               Get Started Free
@@ -350,7 +350,7 @@ export default function HomePage() {
                   ))}
                 </ul>
                 <Link
-                  href={plan.name === "Enterprise" ? "#" : "/(auth)/register"}
+                  href={plan.name === "Enterprise" ? "#" : "/register"}
                   className={`mt-8 block cursor-pointer rounded-md py-2.5 text-center text-sm font-medium transition-colors duration-150 ${
                     plan.highlighted
                       ? "bg-blue-500 text-white hover:bg-blue-600"

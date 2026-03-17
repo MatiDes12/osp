@@ -79,7 +79,7 @@ export default function RegisterPage() {
       localStorage.setItem("osp_access_token", json.data.accessToken);
       localStorage.setItem("osp_refresh_token", json.data.refreshToken);
 
-      window.location.href = "/(dashboard)";
+      window.location.href = "/";
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -350,7 +350,7 @@ export default function RegisterPage() {
           <p className="mt-8 text-center text-sm text-zinc-500">
             Already have an account?{" "}
             <Link
-              href="/(auth)/login"
+              href="/login"
               className="cursor-pointer text-blue-400 transition-colors duration-150 hover:text-blue-300"
             >
               Sign in
