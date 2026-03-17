@@ -16,6 +16,7 @@ interface CameraGridProps {
   readonly selectedIds?: ReadonlySet<string>;
   readonly onToggleSelect?: (cameraId: string) => void;
   readonly cameraTagsMap?: ReadonlyMap<string, readonly CameraTag[]>;
+  readonly activeRecordingCameraIds?: ReadonlySet<string>;
 }
 
 const GRID_COLUMNS: Record<GridLayout, string> = {
@@ -40,6 +41,7 @@ export function CameraGrid({
   selectedIds,
   onToggleSelect,
   cameraTagsMap,
+  activeRecordingCameraIds,
 }: CameraGridProps) {
   const [layout, setLayout] = useState<GridLayout>(4);
 
@@ -117,6 +119,7 @@ export function CameraGrid({
             selected={selectedIds?.has(camera.id) ?? false}
             onToggleSelect={onToggleSelect}
             tags={cameraTagsMap?.get(camera.id) ?? []}
+            isActivelyRecording={activeRecordingCameraIds?.has(camera.id) ?? false}
           />
         ))}
       </div>

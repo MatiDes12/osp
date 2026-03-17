@@ -17,6 +17,7 @@ interface CameraCardProps {
   readonly selected?: boolean;
   readonly onToggleSelect?: (cameraId: string) => void;
   readonly tags?: readonly CameraTag[];
+  readonly isActivelyRecording?: boolean;
 }
 
 function formatTime(dateString: string | null): string {
@@ -114,11 +115,11 @@ function getStatusConfig(status: string) {
   return (STATUS_CONFIG[status] ?? STATUS_CONFIG["offline"])!;
 }
 
-export function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [] }: CameraCardProps) {
+export function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [], isActivelyRecording = false }: CameraCardProps) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const isOnline = camera.status === "online";
-  const isRecording = camera.config.recordingMode !== "off";
+  const isRecording = isActivelyRecording || camera.config.recordingMode !== "off";
   const snapshotUrl = useSnapshotUrl(camera.id, isOnline || camera.status === "connecting");
   const statusCfg = getStatusConfig(camera.status);
 
@@ -218,12 +219,20 @@ export function CameraCard({ camera, selectable = false, selected = false, onTog
                 : "SD"}
           </span>
         )}
-        {isRecording && (
+        {isActivelyRecording ? (
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-600/30 text-red-300 backdrop-blur-sm ring-1 ring-red-500/40">
+            <span className="relative h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+            </span>
+            REC
+          </span>
+        ) : isRecording ? (
           <span className="flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
             REC
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* Bottom-left: Camera name + location + tags */}

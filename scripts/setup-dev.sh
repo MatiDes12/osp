@@ -64,6 +64,11 @@ else
   ok ".env already exists"
 fi
 
+# ─── Create recordings directory ───
+info "Creating recordings directory..."
+mkdir -p recordings
+ok "Recordings directory ready"
+
 # ─── Install dependencies ───
 info "Installing Node.js dependencies..."
 pnpm install

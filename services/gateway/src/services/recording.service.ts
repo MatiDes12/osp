@@ -1,3 +1,5 @@
+import { mkdirSync, createWriteStream, statSync } from "fs";
+import { join } from "path";
 import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
@@ -6,7 +8,15 @@ import type { RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("recording-service");
 
+interface ActiveRecording {
+  readonly abortController: AbortController;
+  readonly filePath: string;
+  readonly cameraId: string;
+  readonly startTime: number;
+}
+
 export class RecordingService {
+  private activeRecordings = new Map<string, ActiveRecording>();
   /**
    * Start recording for a camera.
    * Tries gRPC video-pipeline service first, falls back to direct Supabase.
@@ -108,13 +118,78 @@ export class RecordingService {
       );
     }
 
-    logger.info("Recording started (direct mode)", {
-      recordingId: recording.id,
+    const recordingId = recording.id as string;
+
+    // Start background video capture from go2rtc
+    const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+    const recordingsDir = process.env["RECORDINGS_DIR"] ?? "./recordings";
+
+    const dir = join(recordingsDir, tenantId, cameraId);
+    mkdirSync(dir, { recursive: true });
+
+    const filePath = join(dir, `${recordingId}.mp4`);
+    const abortController = new AbortController();
+
+    const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
+
+    // Pipe the MP4 stream to a file in the background
+    const mp4Fetch = fetch(mp4Url, { signal: abortController.signal });
+    mp4Fetch
+      .then(async (res) => {
+        if (!res.body) {
+          logger.warn("MP4 stream returned no body", { recordingId, cameraId });
+          return;
+        }
+        const fileStream = createWriteStream(filePath);
+        const reader = res.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fileStream.write(value);
+          }
+        } catch (err) {
+          // AbortError is expected when recording is stopped
+          if ((err as Error).name !== "AbortError") {
+            logger.error("MP4 capture error", {
+              recordingId,
+              error: String(err),
+            });
+          }
+        } finally {
+          fileStream.end();
+        }
+      })
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") {
+          logger.error("MP4 fetch error", {
+            recordingId,
+            error: String(err),
+          });
+        }
+      });
+
+    this.activeRecordings.set(recordingId, {
+      abortController,
+      filePath,
       cameraId,
-      trigger,
+      startTime: Date.now(),
     });
 
-    return recording.id as string;
+    // Update storage_path to the actual file path
+    await supabase
+      .from("recordings")
+      .update({ storage_path: filePath })
+      .eq("id", recordingId);
+
+    logger.info("Recording started (direct mode)", {
+      recordingId,
+      cameraId,
+      trigger,
+      filePath,
+    });
+
+    return recordingId;
   }
 
   /**
@@ -143,16 +218,47 @@ export class RecordingService {
       );
     }
 
+    // Stop the video capture if active
+    const active = this.activeRecordings.get(recordingId);
+    if (active) {
+      active.abortController.abort();
+      this.activeRecordings.delete(recordingId);
+    }
+
     const startTime = new Date(recording.start_time as string);
     const durationSec = Math.round((Date.now() - startTime.getTime()) / 1000);
 
+    // Get actual file size (give the write stream a moment to flush)
+    let sizeBytes = 0;
+    let storagePath: string | undefined;
+    if (active) {
+      // Small delay to let the file stream finalize after abort
+      await new Promise((r) => setTimeout(r, 200));
+      try {
+        const stats = statSync(active.filePath);
+        sizeBytes = stats.size;
+        storagePath = active.filePath;
+      } catch {
+        logger.warn("Could not stat recording file", {
+          recordingId,
+          filePath: active.filePath,
+        });
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      status: "complete",
+      end_time: now,
+      duration_sec: durationSec,
+      size_bytes: sizeBytes,
+    };
+    if (storagePath) {
+      updatePayload["storage_path"] = storagePath;
+    }
+
     const { data: updated, error } = await supabase
       .from("recordings")
-      .update({
-        status: "complete",
-        end_time: now,
-        duration_sec: durationSec,
-      })
+      .update(updatePayload)
       .eq("id", recordingId)
       .select("*")
       .single();
@@ -169,7 +275,7 @@ export class RecordingService {
       );
     }
 
-    logger.info("Recording stopped", { recordingId, durationSec });
+    logger.info("Recording stopped", { recordingId, durationSec, sizeBytes });
 
     return updated as Record<string, unknown>;
   }
@@ -197,11 +303,19 @@ export class RecordingService {
 
   /**
    * Generate a playback URL for a recording.
-   * For MVP: returns the gateway's MP4 proxy endpoint (which proxies go2rtc).
+   * Points to the file-serving endpoint that returns the saved MP4 file.
    */
-  getPlaybackUrl(cameraId: string): string {
-    const gatewayUrl = process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
-    return `${gatewayUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/recording.mp4`;
+  getPlaybackUrl(recordingId: string): string {
+    const gatewayUrl =
+      process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
+    return `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
+  }
+
+  /**
+   * Get the absolute file path for a recording.
+   */
+  getRecordingFilePath(storagePath: string): string {
+    return storagePath;
   }
 
   /**

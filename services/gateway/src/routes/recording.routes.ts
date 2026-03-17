@@ -1,3 +1,4 @@
+import { existsSync, statSync, createReadStream } from "fs";
 import { Hono } from "hono";
 import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -5,6 +6,7 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { createSuccessResponse } from "@osp/shared";
+import { Readable } from "stream";
 
 export const recordingRoutes = new Hono<Env>();
 
@@ -129,7 +131,7 @@ recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
 
   const recordingService = getRecordingService();
   const cameraId = recording.camera_id as string;
-  const playbackUrl = recordingService.getPlaybackUrl(cameraId);
+  const playbackUrl = recordingService.getPlaybackUrl(recordingId);
 
   // Look up camera name
   const cameraName = await getCameraName(cameraId);
@@ -141,6 +143,72 @@ recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
       playback_url: playbackUrl,
     }),
   );
+});
+
+// Stream recorded MP4 file for playback
+recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const recordingId = c.req.param("id");
+  const supabase = getSupabase();
+
+  const { data: recording, error } = await supabase
+    .from("recordings")
+    .select("id, tenant_id, storage_path, status")
+    .eq("id", recordingId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !recording) {
+    throw new ApiError("RECORDING_NOT_FOUND", "Recording not found", 404);
+  }
+
+  const filePath = recording.storage_path as string;
+  if (!filePath || !existsSync(filePath)) {
+    throw new ApiError(
+      "RECORDING_FILE_NOT_FOUND",
+      "Recording file not found on disk",
+      404,
+    );
+  }
+
+  const stats = statSync(filePath);
+  const fileSize = stats.size;
+  const rangeHeader = c.req.header("Range");
+
+  // Support range requests for seeking
+  if (rangeHeader) {
+    const parts = rangeHeader.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0] ?? "0", 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunkSize = end - start + 1;
+
+    const nodeStream = createReadStream(filePath, { start, end });
+    const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+    return new Response(webStream, {
+      status: 206,
+      headers: {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(chunkSize),
+        "Content-Type": "video/mp4",
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  }
+
+  const nodeStream = createReadStream(filePath);
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+  return new Response(webStream, {
+    status: 200,
+    headers: {
+      "Content-Length": String(fileSize),
+      "Accept-Ranges": "bytes",
+      "Content-Type": "video/mp4",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
 });
 
 // Delete recording
@@ -195,10 +263,11 @@ async function enrichRecordings(
 
   return recordings.map((r) => {
     const cameraId = r.camera_id as string;
+    const recId = r.id as string;
     return {
       ...r,
       camera_name: nameMap.get(cameraId) ?? "Unknown Camera",
-      playback_url: recordingService.getPlaybackUrl(cameraId),
+      playback_url: recordingService.getPlaybackUrl(recId),
     };
   });
 }

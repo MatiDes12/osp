@@ -192,16 +192,18 @@ export default function RecordingsPage() {
   );
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
+  const prevBlobRef = useRef<string | null>(null);
 
   /**
    * Resolve a playback URL for the selected recording.
-   * If the recording already has a playbackUrl from the API, use it.
-   * Otherwise fall back to go2rtc's live MP4 stream as an MVP preview.
+   * Uses the gateway's file-serving endpoint which streams the saved MP4.
+   * Falls back to go2rtc live stream only if no playbackUrl is available.
    */
   const getPlaybackUrl = useCallback((rec: Recording): string => {
     if (rec.playbackUrl) return rec.playbackUrl;
-    const go2rtcBase = process.env.NEXT_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
-    return `${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(rec.cameraId)}&duration=30`;
+    // Fallback: construct the playback URL from the recording ID
+    return `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -250,6 +252,39 @@ export default function RecordingsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch the video file with auth headers and create a blob URL for playback
+  useEffect(() => {
+    if (!selectedRecording || selectedRecording.status === "recording") {
+      setVideoBlobUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    setVideoBlobUrl(null);
+    const url = getPlaybackUrl(selectedRecording);
+
+    fetch(url, { headers: getAuthHeaders() })
+      .then(async (res) => {
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        // Revoke previous blob URL
+        if (prevBlobRef.current) {
+          URL.revokeObjectURL(prevBlobRef.current);
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        prevBlobRef.current = blobUrl;
+        setVideoBlobUrl(blobUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setVideoBlobUrl(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRecording, getPlaybackUrl]);
 
   const hasFilters = cameraFilter || dateFilter || triggerFilter;
   const groupedRecordings = groupByDate(recordings);
@@ -469,21 +504,29 @@ export default function RecordingsPage() {
               <div className="bg-black rounded-lg aspect-video overflow-hidden flex items-center justify-center relative group">
                 {selectedRecording.status === "recording" ? (
                   <div className="text-center">
-                    <Play className="h-12 w-12 mx-auto mb-2 text-zinc-600" />
-                    <p className="text-sm text-zinc-500">
-                      Recording in progress...
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <span className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-semibold text-red-400">Recording in progress</span>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      Stop the recording to play it back
                     </p>
                   </div>
-                ) : (
+                ) : videoBlobUrl ? (
                   <video
                     ref={videoRef}
                     key={selectedRecording.id}
-                    src={getPlaybackUrl(selectedRecording)}
+                    src={videoBlobUrl}
                     controls
                     autoPlay
                     className="w-full h-full object-contain"
                     poster={selectedRecording.thumbnailUrl ?? undefined}
                   />
+                ) : (
+                  <div className="text-center">
+                    <div className="h-8 w-8 mx-auto mb-2 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-zinc-500">Loading video...</p>
+                  </div>
                 )}
               </div>
 
@@ -553,10 +596,14 @@ export default function RecordingsPage() {
 
                 {/* Download */}
                 <div className="mt-4 pt-3 border-t border-zinc-800">
-                  <button className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer">
+                  <a
+                    href={videoBlobUrl ?? "#"}
+                    download={`${selectedRecording.cameraName}-${new Date(selectedRecording.startTime).toISOString().slice(0, 19)}.mp4`}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer ${!videoBlobUrl ? "pointer-events-none opacity-50" : ""}`}
+                  >
                     <Download className="h-3.5 w-3.5" />
                     Download Recording
-                  </button>
+                  </a>
                 </div>
               </div>
             </div>

@@ -48,6 +48,9 @@ export default function CamerasPage() {
   // Selection state
   const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(new Set());
 
+  // Active recording camera IDs for live REC indicator
+  const [activeRecordingCameraIds, setActiveRecordingCameraIds] = useState<Set<string>>(new Set());
+
   // Camera tag assignments (camera_id -> tag[])
   const [cameraTagsMap, setCameraTagsMap] = useState<Map<string, CameraTag[]>>(new Map());
 
@@ -201,7 +204,7 @@ export default function CamerasPage() {
           fetch(`${API_URL}/api/v1/events/summary`, {
             headers: getAuthHeaders(),
           }).catch(() => null),
-          fetch(`${API_URL}/api/v1/recordings?status=recording&limit=1`, {
+          fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, {
             headers: getAuthHeaders(),
           }).catch(() => null),
         ]);
@@ -220,6 +223,7 @@ export default function CamerasPage() {
           }
         }
 
+        const recordingCameraIds = new Set<string>();
         if (recordingsRes) {
           try {
             const json = await recordingsRes.json();
@@ -229,6 +233,13 @@ export default function CamerasPage() {
               activeRecordings = Array.isArray(json.data)
                 ? json.data.length
                 : 0;
+            }
+            // Extract camera IDs from active recordings
+            if (json.success && Array.isArray(json.data)) {
+              for (const rec of json.data) {
+                const camId = rec.camera_id ?? rec.cameraId;
+                if (camId) recordingCameraIds.add(camId as string);
+              }
             }
           } catch {
             // Non-critical
@@ -242,6 +253,7 @@ export default function CamerasPage() {
             eventsToday,
             activeRecordings,
           });
+          setActiveRecordingCameraIds(recordingCameraIds);
         }
       } catch {
         // Stats are non-critical; fall back to camera-only stats
@@ -252,6 +264,7 @@ export default function CamerasPage() {
             eventsToday: 0,
             activeRecordings: 0,
           });
+          setActiveRecordingCameraIds(new Set());
         }
       } finally {
         if (!cancelled) {
@@ -429,6 +442,7 @@ export default function CamerasPage() {
           selectedIds={selectedCameraIds}
           onToggleSelect={handleToggleSelect}
           cameraTagsMap={cameraTagsMap}
+          activeRecordingCameraIds={activeRecordingCameraIds}
         />
       )}
 
