@@ -224,7 +224,7 @@ export function LiveViewPlayer({
         fallbackToHLS(info);
       }
     },
-    [cleanup, fallbackToHLS],
+    [cleanup, fallbackToHLS, twoWayAudioSupported],
   );
 
   const fetchStreamAndConnect = useCallback(async () => {
@@ -263,6 +263,81 @@ export function LiveViewPlayer({
   const handleReconnect = useCallback(() => {
     fetchStreamAndConnect();
   }, [fetchStreamAndConnect]);
+
+  // Sync speaker volume/muted to the video element
+  useEffect(() => {
+    if (!videoRef.current) return;
+    videoRef.current.volume = volume;
+    videoRef.current.muted = speakerMuted;
+  }, [volume, speakerMuted]);
+
+  // Toggle microphone (two-way audio)
+  const toggleMic = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    if (micActive) {
+      // Stop mic
+      if (micStreamRef.current) {
+        for (const track of micStreamRef.current.getTracks()) {
+          track.stop();
+        }
+        micStreamRef.current = null;
+      }
+      if (micSenderRef.current) {
+        try {
+          pc.removeTrack(micSenderRef.current);
+        } catch {
+          // PeerConnection may already be closed
+        }
+        micSenderRef.current = null;
+      }
+      setMicActive(false);
+      setMicError(null);
+      return;
+    }
+
+    // Start mic
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+
+      const audioTrack = stream.getAudioTracks()[0];
+      if (!audioTrack) {
+        throw new Error("No audio track available");
+      }
+
+      const sender = pc.addTrack(audioTrack, stream);
+      micSenderRef.current = sender;
+      setMicActive(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Microphone access denied";
+      setMicError(message);
+      if (micStreamRef.current) {
+        for (const track of micStreamRef.current.getTracks()) {
+          track.stop();
+        }
+        micStreamRef.current = null;
+      }
+    }
+  }, [micActive]);
+
+  const toggleSpeakerMute = useCallback(() => {
+    setSpeakerMuted((prev) => !prev);
+  }, []);
+
+  const handleVolumeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVolume = parseFloat(e.target.value);
+      setVolume(newVolume);
+      if (newVolume > 0 && speakerMuted) {
+        setSpeakerMuted(false);
+      }
+    },
+    [speakerMuted],
+  );
 
   // Fallback: MJPEG snapshot refresh (simpler and more reliable than HLS)
   if (state === "fallback") {
@@ -313,7 +388,7 @@ export function LiveViewPlayer({
         playsInline
       />
 
-      {/* LIVE badge */}
+      {/* LIVE badge + mic badge */}
       {state === "live" && (
         <div className="absolute top-2 left-2 flex items-center gap-1.5">
           <span className="relative flex h-2 w-2">
@@ -323,6 +398,11 @@ export function LiveViewPlayer({
           <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-red-500/80 text-white">
             Live
           </span>
+          {micActive && (
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-blue-500/80 text-white animate-pulse">
+              AUDIO
+            </span>
+          )}
         </div>
       )}
 
@@ -338,6 +418,67 @@ export function LiveViewPlayer({
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* Audio controls bar (bottom) */}
+      {state === "live" && (
+        <div className="absolute bottom-2 left-2 right-2 flex items-center gap-2 z-10">
+          {/* Mic toggle (two-way audio) */}
+          {twoWayAudioSupported && (
+            <div className="relative">
+              <button
+                onClick={toggleMic}
+                className={`p-1.5 rounded-md backdrop-blur-sm transition-colors duration-150 cursor-pointer ${
+                  micActive
+                    ? "bg-blue-500/30 text-blue-400 hover:bg-blue-500/40"
+                    : "bg-black/50 text-zinc-300 hover:text-white hover:bg-black/70"
+                }`}
+                aria-label={micActive ? "Mute microphone" : "Unmute microphone"}
+                title={micActive ? "Turn off microphone" : "Turn on microphone"}
+              >
+                {micActive ? (
+                  <Mic className="w-4 h-4 animate-pulse" />
+                ) : (
+                  <MicOff className="w-4 h-4" />
+                )}
+              </button>
+              {micError && (
+                <div className="absolute bottom-full left-0 mb-1 w-48 p-2 rounded-md bg-red-500/20 border border-red-500/30 text-[10px] text-red-300 backdrop-blur-sm">
+                  {micError}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Speaker controls */}
+          <button
+            onClick={toggleSpeakerMute}
+            className={`p-1.5 rounded-md backdrop-blur-sm transition-colors duration-150 cursor-pointer ${
+              !speakerMuted
+                ? "bg-black/50 text-zinc-100"
+                : "bg-black/50 text-zinc-400 hover:text-white"
+            }`}
+            aria-label={speakerMuted ? "Unmute speaker" : "Mute speaker"}
+            title={speakerMuted ? "Unmute" : "Mute"}
+          >
+            {speakerMuted ? (
+              <VolumeX className="w-4 h-4" />
+            ) : (
+              <Volume2 className="w-4 h-4" />
+            )}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={speakerMuted ? 0 : volume}
+            onChange={handleVolumeChange}
+            className="w-20 h-1 rounded-full appearance-none bg-zinc-600 accent-blue-500 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+            aria-label="Volume"
+            title={`Volume: ${Math.round((speakerMuted ? 0 : volume) * 100)}%`}
+          />
         </div>
       )}
 

@@ -594,6 +594,7 @@ export default function CameraDetailPage() {
           cameraId={camera.id}
           cameraName={camera.name}
           className="w-full aspect-video"
+          twoWayAudioSupported={camera.capabilities.twoWayAudio}
         />
 
         {/* Zone drawing overlay */}
