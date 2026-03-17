@@ -1,0 +1,58 @@
+name: Bug Report
+description: Report a bug in OSP
+labels: [bug, triage]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      placeholder: A clear description of what the bug is
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you expected to happen
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: Affected service
+      options:
+        - Web dashboard
+        - Mobile app
+        - API Gateway
+        - Camera Ingest
+        - Video Pipeline
+        - Event Engine
+        - Extension Runtime
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        OS: macOS 14.x
+        Browser: Chrome 122
+        App version: v0.1.0
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Screenshots
+      placeholder: Paste logs or screenshots here

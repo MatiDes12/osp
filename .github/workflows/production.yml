@@ -1,0 +1,152 @@
+name: Production Deploy
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to deploy (e.g., v1.0.0)"
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/osp
+
+jobs:
+  # ─── Pre-deploy checks ────────────────────────────
+  preflight:
+    name: Pre-deploy Checks
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify Docker images exist
+        run: |
+          TAG=${{ steps.version.outputs.tag }}
+          for svc in gateway camera-ingest video-pipeline event-engine extension-runtime web; do
+            echo "Checking ${{ env.IMAGE_PREFIX }}-${svc}:${TAG}"
+            docker manifest inspect ${{ env.IMAGE_PREFIX }}-${svc}:${TAG} > /dev/null 2>&1 || \
+              echo "::warning::Image ${{ env.IMAGE_PREFIX }}-${svc}:${TAG} not found"
+          done
+        env:
+          DOCKER_CLI_EXPERIMENTAL: enabled
+
+  # ─── Database migrations ───────────────────────────
+  migrate:
+    name: Run Migrations
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.version }}
+
+      - name: Run Supabase migrations
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations
+        run: supabase db push --linked
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  # ─── Deploy services ───────────────────────────────
+  deploy:
+    name: Deploy to Production
+    needs: [preflight, migrate]
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      max-parallel: 2
+      matrix:
+        service: [gateway, camera-ingest, video-pipeline, event-engine, extension-runtime, web]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.version }}
+
+      # Option A: Kubernetes (uncomment if using k8s)
+      # - name: Set up kubectl
+      #   uses: azure/setup-kubectl@v4
+      # - name: Set kubeconfig
+      #   run: echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+      # - name: Deploy to k8s
+      #   run: |
+      #     kubectl set image deployment/${{ matrix.service }} \
+      #       ${{ matrix.service }}=${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ needs.preflight.outputs.version }} \
+      #       -n osp-production
+      #     kubectl rollout status deployment/${{ matrix.service }} -n osp-production --timeout=300s
+
+      # Option B: Fly.io (uncomment if using Fly)
+      # - uses: superfly/flyctl-actions/setup-flyctl@master
+      # - run: flyctl deploy --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ needs.preflight.outputs.version }}
+      #   env:
+      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deployment placeholder
+        run: |
+          echo "Deploying ${{ matrix.service }} version ${{ needs.preflight.outputs.version }}"
+          echo "Image: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ needs.preflight.outputs.version }}"
+
+  # ─── Post-deploy health checks ────────────────────
+  healthcheck:
+    name: Health Check
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for rollout
+        run: sleep 30
+
+      - name: Check gateway health
+        run: |
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.PRODUCTION_GATEWAY_URL }}/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Gateway is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Gateway health check failed"
+          exit 1
+
+      - name: Check web health
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.PRODUCTION_WEB_URL }} || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Web health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Web is healthy"
+
+  # ─── Notify ────────────────────────────────────────
+  notify:
+    name: Notify
+    needs: [preflight, healthcheck]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack notification
+        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "OSP ${{ needs.preflight.outputs.version }} deployed to production: ${{ needs.healthcheck.result == 'success' && 'SUCCESS' || 'FAILED' }}"
+            }

@@ -1,0 +1,79 @@
+# Auto-label PRs based on files changed
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/web/**"
+          - "packages/ui/**"
+
+mobile:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/mobile/**"
+
+gateway:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/gateway/**"
+
+camera-ingest:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/camera-ingest/**"
+
+video-pipeline:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/video-pipeline/**"
+
+event-engine:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/event-engine/**"
+
+extension-runtime:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/extension-runtime/**"
+
+shared:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/shared/**"
+
+sdk:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/sdk/**"
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/**"
+          - ".github/**"
+          - "Dockerfile*"
+          - "docker-compose*"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "*.md"
+
+go:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.go"
+          - "**/go.mod"
+          - "**/go.sum"
+
+typescript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.ts"
+          - "**/*.tsx"
+
+database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/supabase/**"
+          - "**/*migration*"

@@ -1,0 +1,43 @@
+name: Supabase Migration Check
+
+on:
+  pull_request:
+    paths:
+      - "infra/supabase/migrations/**"
+      - "infra/supabase/seed.sql"
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+jobs:
+  migration-check:
+    name: Validate Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: supabase start
+        working-directory: infra/supabase
+
+      - name: Verify migrations apply cleanly
+        run: supabase db reset
+        working-directory: infra/supabase
+
+      - name: Check for migration drift
+        run: |
+          DIFF=$(supabase db diff --linked 2>/dev/null || echo "")
+          if [ -n "$DIFF" ]; then
+            echo "::warning::Migration drift detected"
+            echo "$DIFF"
+          fi
+        working-directory: infra/supabase
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+        working-directory: infra/supabase

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "group:allNonMajor"],
+  "labels": ["dependencies"],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["eslint", "prettier", "vitest", "typescript"],
+      "groupName": "dev tooling"
+    },
+    {
+      "matchPackagePatterns": ["react", "react-dom", "@types/react"],
+      "groupName": "react"
+    },
+    {
+      "matchPackagePatterns": ["next", "eslint-config-next"],
+      "groupName": "next.js"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "groupName": "go dependencies"
+    }
+  ]
+}

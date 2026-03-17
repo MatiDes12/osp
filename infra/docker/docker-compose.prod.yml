@@ -1,0 +1,152 @@
+version: "3.9"
+
+services:
+  # ─── Redis ───
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── go2rtc — Camera Proxy ───
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    ports:
+      - "1984:1984"
+      - "8554:8554"
+      - "8555:8555"
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ─── API Gateway ───
+  gateway:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-gateway:${VERSION:-latest}
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - REDIS_URL=redis://redis:6379
+      - GO2RTC_URL=http://go2rtc:1984
+      - CAMERA_INGEST_URL=http://camera-ingest:8080
+      - VIDEO_PIPELINE_URL=http://video-pipeline:8081
+      - EVENT_ENGINE_URL=http://event-engine:8082
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Camera Ingest (Go) ───
+  camera-ingest:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-camera-ingest:${VERSION:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GO2RTC_URL=http://go2rtc:1984
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ─── Video Pipeline (Go) ───
+  video-pipeline:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-video-pipeline:${VERSION:-latest}
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY}
+      - R2_SECRET_KEY=${R2_SECRET_KEY}
+      - R2_BUCKET=${R2_BUCKET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ─── Event Engine (Go) ───
+  event-engine:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-event-engine:${VERSION:-latest}
+    ports:
+      - "8082:8082"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ─── Extension Runtime (Go) ───
+  extension-runtime:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-extension-runtime:${VERSION:-latest}
+    ports:
+      - "8083:8083"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # ─── Web Dashboard ───
+  web:
+    image: ${IMAGE_PREFIX:-ghcr.io/matides12/osp}-web:${VERSION:-latest}
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  redis-data:

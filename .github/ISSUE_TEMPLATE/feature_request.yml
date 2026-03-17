@@ -1,0 +1,52 @@
+name: Feature Request
+description: Suggest a new feature for OSP
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      placeholder: What problem does this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: Describe how you'd like this to work
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Core platform
+        - Extension/Plugin
+        - Camera support
+        - AI/ML
+        - Mobile
+        - Web dashboard
+        - API
+        - Infrastructure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: persona
+    attributes:
+      label: Primary user persona
+      options:
+        - Homeowner
+        - Small Business
+        - Retail Chain
+        - Mall/Enterprise
+        - Extension Developer
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: What other solutions did you consider?

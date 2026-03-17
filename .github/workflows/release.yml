@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  NODE_VERSION: "20"
+  GO_VERSION: "1.22"
+  PNPM_VERSION: "10"
+  REGISTRY: ghcr.io
+
+jobs:
+  # ─── Validate before release ───────────────────────
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test
+
+      - name: Go tests
+        run: |
+          for svc in camera-ingest video-pipeline event-engine extension-runtime; do
+            cd services/$svc && go test -race ./... && cd ../..
+          done
+
+  # ─── Build Go binaries for multiple platforms ──────
+  build-binaries:
+    name: Build Go Binaries
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [camera-ingest, video-pipeline, event-engine, extension-runtime]
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build
+        working-directory: services/${{ matrix.service }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" \
+            -o ../../dist/${{ matrix.service }}-${{ matrix.goos }}-${{ matrix.goarch }} \
+            ./cmd/server/
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/${{ matrix.service }}-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  # ─── Docker images (production tagged) ─────────────
+  docker-release:
+    name: Docker Release Images
+    needs: validate
+    uses: ./.github/workflows/docker.yml
+    secrets: inherit
+
+  # ─── Create GitHub Release ─────────────────────────
+  github-release:
+    name: Create Release
+    needs: [build-binaries, docker-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" --no-merges ${PREV_TAG}..HEAD)
+          fi
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: OSP ${{ github.ref_name }}
+          body: |
+            ## Changes
+
+            ${{ steps.changelog.outputs.changes }}
+
+            ## Docker Images
+
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-gateway:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-camera-ingest:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-video-pipeline:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-event-engine:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-extension-runtime:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/osp-web:${{ github.ref_name }}
+            ```
+
+            ## Binaries
+
+            Download the appropriate binary for your platform from the assets below.
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
