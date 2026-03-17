@@ -1,3 +1,11 @@
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load .env from project root (two levels up from services/gateway/)
+config({ path: resolve(process.cwd(), "../../.env") });
+// Also try current directory (for Docker / direct invocation)
+config({ path: resolve(process.cwd(), ".env") });
+
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { startRedisSubscription, stopRedisSubscription } from "./ws/events.ws.js";

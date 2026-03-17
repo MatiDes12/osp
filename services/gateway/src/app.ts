@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { ZodError } from "zod";
 import { requestId } from "./middleware/request-id.js";
-import { errorHandler } from "./middleware/error-handler.js";
+import { errorHandler, ApiError } from "./middleware/error-handler.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { tenantContext } from "./middleware/tenant.js";
 import { authRoutes } from "./routes/auth.routes.js";
@@ -92,6 +93,67 @@ app.notFound((c) => {
       meta: null,
     },
     404,
+  );
+});
+
+// Global error handler (safety net for errors that bypass middleware)
+app.onError((err, c) => {
+  const reqId = c.get("requestId") ?? "unknown";
+
+  if (err instanceof ApiError) {
+    return c.json(
+      {
+        success: false,
+        data: null,
+        error: {
+          code: err.code,
+          message: err.message,
+          details: err.details,
+          requestId: reqId,
+          timestamp: new Date().toISOString(),
+        },
+        meta: null,
+      },
+      err.status as 400,
+    );
+  }
+
+  if (err instanceof ZodError) {
+    const fieldErrors = err.errors.map((e) => ({
+      field: e.path.join("."),
+      message: e.message,
+    }));
+    return c.json(
+      {
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid request data",
+          details: fieldErrors,
+          requestId: reqId,
+          timestamp: new Date().toISOString(),
+        },
+        meta: null,
+      },
+      422,
+    );
+  }
+
+  console.error("Unhandled error:", err);
+  return c.json(
+    {
+      success: false,
+      data: null,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "An unexpected error occurred",
+        requestId: reqId,
+        timestamp: new Date().toISOString(),
+      },
+      meta: null,
+    },
+    500,
   );
 });
 

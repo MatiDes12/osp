@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import { ZodError } from "zod";
 import type { Env } from "../app.js";
 
 export class ApiError extends Error {
@@ -35,6 +36,29 @@ export function errorHandler() {
             meta: null,
           },
           err.status as 400,
+        );
+      }
+
+      // Zod validation errors → 422
+      if (err instanceof ZodError) {
+        const fieldErrors = err.errors.map((e) => ({
+          field: e.path.join("."),
+          message: e.message,
+        }));
+        return c.json(
+          {
+            success: false,
+            data: null,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "Invalid request data",
+              details: fieldErrors,
+              requestId,
+              timestamp: new Date().toISOString(),
+            },
+            meta: null,
+          },
+          422,
         );
       }
 
