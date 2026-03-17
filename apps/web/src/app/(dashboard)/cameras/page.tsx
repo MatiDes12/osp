@@ -425,7 +425,7 @@ export default function CamerasPage() {
       {!loading && !error && (
         <CameraGrid
           cameras={filteredCameras}
-          selectable={selectedCameraIds.size > 0 || filteredCameras.length > 0}
+          selectable={selectedCameraIds.size > 0}
           selectedIds={selectedCameraIds}
           onToggleSelect={handleToggleSelect}
           cameraTagsMap={cameraTagsMap}

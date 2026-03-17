@@ -6,7 +6,7 @@ test.describe("Dashboard", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     // Navigate first to establish the origin, then set auth tokens
-    await page.goto("/(dashboard)");
+    await page.goto("/");
     await loginAs(page);
     await page.reload();
   });

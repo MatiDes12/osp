@@ -32,6 +32,8 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 export function ActionLogPanel() {
+  if (process.env.NEXT_PUBLIC_DISABLE_ACTION_LOG === "1") return null;
+
   const entries = useActionLogStore((s) => s.entries);
   const visible = useActionLogStore((s) => s.visible);
   const toggle = useActionLogStore((s) => s.toggle);

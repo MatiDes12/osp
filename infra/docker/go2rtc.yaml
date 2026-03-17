@@ -7,8 +7,12 @@ rtsp:
 
 webrtc:
   listen: ":8555"
+  # When running go2rtc in Docker, explicitly publish host-reachable candidates.
+  # For local dev on the same machine, 127.0.0.1 is usually sufficient.
   candidates:
-    - stun:stun.l.google.com:19302
+    - "127.0.0.1:8555"
+  ice_servers:
+    - urls: ["stun:stun.l.google.com:19302"]
 
 log:
   level: info
@@ -25,4 +29,8 @@ streams:
   b3641916-861c-496e-95c5-1d6a43cdca4d:
     - rtsp://192.168.4.23:8554/stream
   5eb621c3-3640-48be-b129-6bcb67dfd7da:
+    - rtsp://192.168.4.20:8554/stream
+  52a34051-f062-4108-b2e0-62da1b5cdbb3:
+    - rtsp://172.17.16.1:8554/stream
+  e61dea4c-7924-4513-b8cc-ad9bab6bab56:
     - rtsp://192.168.4.20:8554/stream

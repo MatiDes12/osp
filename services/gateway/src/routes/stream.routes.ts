@@ -44,13 +44,20 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     tenantId,
   );
 
-  // Return direct go2rtc WebRTC URL (go2rtc has CORS enabled via api.origin: "*")
-  // This avoids the gateway proxy hop for lower latency
-  const go2rtcPublicUrl = process.env["GO2RTC_PUBLIC_URL"] ?? process.env["GO2RTC_URL"] ?? "http://localhost:1984";
-  const whepUrl = `${go2rtcPublicUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
+  // Use the gateway WHEP proxy for better dev reliability (Docker/CORS/LAN issues).
+  // This only proxies signaling; media still flows via WebRTC ICE.
+  const gatewayPublicUrl =
+    process.env["GATEWAY_PUBLIC_URL"] ??
+    process.env["NEXT_PUBLIC_API_URL"] ??
+    "http://localhost:3000";
+  const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
 
-  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
-  const fallbackHlsUrl = `${go2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  const go2rtcPublicUrl =
+    process.env["GO2RTC_PUBLIC_URL"] ??
+    process.env["GO2RTC_API_URL"] ??
+    process.env["GO2RTC_URL"] ??
+    "http://localhost:1984";
+  const fallbackHlsUrl = `${go2rtcPublicUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
 
   return c.json(
     createSuccessResponse({
