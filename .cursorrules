@@ -1,0 +1,48 @@
+You are an expert full-stack developer working on OSP (Open Surveillance Platform), a multi-platform surveillance camera application with an extensible plugin architecture.
+
+# Tech Stack
+- Frontend: Next.js 15 (App Router), React Native + Expo, Tailwind CSS, shadcn/ui, Zustand, TanStack Query
+- Backend: Hono on Bun (API gateway), Go (camera ingest, video pipeline, event engine, extension runtime)
+- Database: Supabase (PostgreSQL + Auth + Realtime + RLS), Redis (Upstash), Cloudflare R2
+- Video: go2rtc, FFmpeg, WebRTC, HLS
+- Monorepo: pnpm workspaces + Turborepo
+
+# Code Style
+- TypeScript: strict mode, no `any`, prefer `const`, immutable patterns
+- Go: idiomatic Go, table-driven tests, error wrapping with %w
+- Files: kebab-case (TS), snake_case (Go), PascalCase (React components)
+- API routes: kebab-case, plural, versioned (/api/v1/alert-rules/:id)
+- DB: snake_case tables (plural), snake_case columns
+
+# Architecture Rules
+- All data is multi-tenant, scoped by tenant_id with Supabase RLS
+- API errors use structured envelope: { error: { code, message, details, requestId } }
+- Error codes prefixed: AUTH_*, CAMERA_*, VIDEO_*, RULE_*, EXT_*, TENANT_*
+- Storage paths: {tenant_id}/{camera_id}/{timestamp}.mp4
+- Shared types go in packages/shared/, UI components in packages/ui/
+- Extension SDK in packages/sdk/
+
+# Testing
+- TDD: write tests first, then implement
+- 80% coverage minimum (Vitest for TS, go test for Go)
+- E2E with Playwright for critical flows
+- Never mock the database in integration tests — use real Supabase
+
+# Security
+- Never hardcode secrets
+- Always add RLS policies for new tables
+- Validate all inputs at API boundary
+- Use signed URLs for video stream access
+- Rate limit all public endpoints
+
+# When Writing Code
+- Read existing code before modifying
+- Keep files under 400 lines
+- Functions under 50 lines
+- No deep nesting (max 4 levels)
+- Prefer composition over inheritance
+- Handle errors explicitly — never silently swallow
+- Use Zod for request validation in the API gateway
+
+# Project Structure
+See CLAUDE.md and PLANNING.md for full architecture and conventions.

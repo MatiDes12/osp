@@ -45,3 +45,13 @@ pnpm-debug.log*
 
 # Supabase
 infra/supabase/.temp/
+
+# Claude Code (keep CLAUDE.md, ignore local settings)
+.claude/settings.local.json
+
+# Cursor (keep .cursorrules, ignore generated caches)
+.cursor/ecc-install-state.json
+.cursor/skills/
+.cursor/hooks/
+.cursor/scripts/
+.cursor/mcp-configs/
