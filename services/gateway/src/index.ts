@@ -9,29 +9,86 @@ config({ path: resolve(process.cwd(), ".env") });
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { startWebSocketServer, stopWebSocketServer } from "./ws/server.js";
+import {
+  createLogger,
+  logStartupBanner,
+  logShutdownBanner,
+  logConnectionStatus,
+} from "./lib/logger.js";
+
+const logger = createLogger("gateway");
+const startTime = performance.now();
 
 const port = parseInt(process.env["GATEWAY_PORT"] ?? "3000", 10);
 const wsPort = parseInt(process.env["WS_PORT"] ?? "3002", 10);
 
-console.log(`OSP API Gateway starting on port ${port}`);
+logger.info("OSP API Gateway initializing...");
 
-// Start the dedicated WebSocket server (includes Redis pub/sub subscription)
-startWebSocketServer();
+// Check external dependencies before serving.
+async function checkDependencies(): Promise<void> {
+  // Redis
+  const redisUrl = process.env["REDIS_URL"] ?? "redis://localhost:6379";
+  try {
+    // Lightweight check — just verify the URL is parseable.
+    new URL(redisUrl);
+    logConnectionStatus(logger, "Redis", true, redisUrl.replace(/\/\/.*@/, "//***@"));
+  } catch {
+    logConnectionStatus(logger, "Redis", false, "Invalid REDIS_URL");
+  }
 
-serve({
-  fetch: app.fetch,
-  port,
+  // Supabase
+  const supabaseUrl = process.env["SUPABASE_URL"] ?? "";
+  logConnectionStatus(logger, "Supabase", supabaseUrl.length > 0, supabaseUrl || "NOT SET");
+
+  // go2rtc
+  const go2rtcUrl = process.env["GO2RTC_API_URL"] ?? "http://localhost:1984";
+  logConnectionStatus(logger, "go2rtc", true, go2rtcUrl);
+}
+
+async function start(): Promise<void> {
+  await checkDependencies();
+
+  // Start the dedicated WebSocket server (includes Redis pub/sub subscription)
+  startWebSocketServer();
+
+  serve({
+    fetch: app.fetch,
+    port,
+  });
+
+  const bootTime = Math.round(performance.now() - startTime);
+
+  logStartupBanner("OSP API Gateway", port, {
+    websocket: `ws://localhost:${wsPort}`,
+    boot_time: `${bootTime}ms`,
+    node: process.version,
+    env: process.env["NODE_ENV"] ?? "development",
+  });
+}
+
+start().catch((err) => {
+  logger.error("Failed to start gateway", { error: err as Error });
+  process.exit(1);
 });
 
-console.log(`OSP API Gateway running at http://localhost:${port}`);
-console.log(`OSP WebSocket server running at ws://localhost:${wsPort}`);
-
 // Graceful shutdown
-function shutdown() {
-  console.log("Shutting down...");
+function shutdown(): void {
+  logShutdownBanner("OSP API Gateway");
   stopWebSocketServer();
   process.exit(0);
 }
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+// Catch unhandled rejections and exceptions.
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection", {
+    error: reason instanceof Error ? reason : new Error(String(reason)),
+  });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception", { error: err });
+  process.exit(1);
+});

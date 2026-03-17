@@ -31,8 +31,11 @@ export type Env = {
 
 const app = new Hono<Env>();
 
+import { requestLogger } from "./middleware/request-logger.js";
+
 // Global middleware
 app.use("*", requestId());
+app.use("*", requestLogger());
 app.use("*", errorHandler());
 app.use(
   "/api/*",
@@ -142,7 +145,9 @@ app.onError((err, c) => {
     );
   }
 
-  console.error("Unhandled error:", err);
+  const { createLogger } = await import("./lib/logger.js");
+  const logger = createLogger("gateway");
+  logger.error("Unhandled error", { error: err as Error, requestId: reqId });
   return c.json(
     {
       success: false,

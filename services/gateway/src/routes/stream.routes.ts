@@ -190,14 +190,35 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
 
   // Remove existing stream, then re-add
   await streamService.removeStream(cameraId);
-  await streamService.addStream(cameraId, camera.connection_uri as string);
 
-  // Update camera status to connecting
+  // Set status to connecting while we attempt to re-add
   await supabase
     .from("cameras")
     .update({ status: "connecting", updated_at: new Date().toISOString() })
     .eq("id", cameraId)
     .eq("tenant_id", tenantId);
+
+  try {
+    await streamService.addStream(cameraId, camera.connection_uri as string);
+
+    // Stream re-added successfully — mark camera as online
+    await supabase
+      .from("cameras")
+      .update({ status: "online", updated_at: new Date().toISOString() })
+      .eq("id", cameraId)
+      .eq("tenant_id", tenantId);
+  } catch (err) {
+    logger.warn("Failed to re-add stream in go2rtc on reconnect", {
+      cameraId,
+      error: String(err),
+    });
+
+    await supabase
+      .from("cameras")
+      .update({ status: "error", updated_at: new Date().toISOString() })
+      .eq("id", cameraId)
+      .eq("tenant_id", tenantId);
+  }
 
   return c.json(
     createSuccessResponse({ reconnected: true, cameraId }),

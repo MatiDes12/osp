@@ -146,12 +146,29 @@ cameraRoutes.post("/", requireAuth("admin"), async (c) => {
   try {
     const streamService = getStreamService();
     await streamService.addStream(camera.id, input.connectionUri);
+
+    // Stream registered successfully — mark camera as online
+    await supabase
+      .from("cameras")
+      .update({ status: "online", updated_at: new Date().toISOString() })
+      .eq("id", camera.id)
+      .eq("tenant_id", tenantId);
+
+    camera.status = "online";
   } catch (err) {
     logger.warn("Failed to register stream in go2rtc on camera create", {
       cameraId: camera.id,
       error: String(err),
     });
-    // Non-fatal: camera is created, stream can be added later via reconnect
+
+    // Mark camera as error so the UI reflects the failure
+    await supabase
+      .from("cameras")
+      .update({ status: "error", updated_at: new Date().toISOString() })
+      .eq("id", camera.id)
+      .eq("tenant_id", tenantId);
+
+    camera.status = "error";
   }
 
   return c.json(createSuccessResponse(camera), 201);
