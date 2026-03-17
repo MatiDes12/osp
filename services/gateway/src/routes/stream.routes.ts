@@ -44,9 +44,10 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     tenantId,
   );
 
-  // Return the gateway's WHEP proxy URL so the browser avoids CORS issues with go2rtc
-  const gatewayOrigin = process.env["GATEWAY_PUBLIC_URL"] ?? `${new URL(c.req.url).origin}`;
-  const whepUrl = `${gatewayOrigin}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
+  // Return direct go2rtc WebRTC URL (go2rtc has CORS enabled via api.origin: "*")
+  // This avoids the gateway proxy hop for lower latency
+  const go2rtcPublicUrl = process.env["GO2RTC_PUBLIC_URL"] ?? process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const whepUrl = `${go2rtcPublicUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
 
   const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
   const fallbackHlsUrl = `${go2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;

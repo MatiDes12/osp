@@ -133,19 +133,28 @@ export function LiveViewPlayer({
 
         if (abort.signal.aborted) return;
 
-        // WHEP: POST the SDP offer to the gateway's WHEP proxy
+        // Send SDP offer to go2rtc (direct connection, no proxy)
+        // go2rtc accepts JSON: {type: "offer", sdp: "..."}
+        const isDirectGo2rtc = info.whepUrl.includes("/api/webrtc");
         const whepHeaders: Record<string, string> = {
-          "Content-Type": "application/sdp",
+          "Content-Type": isDirectGo2rtc ? "application/json" : "application/sdp",
         };
-        const authToken = localStorage.getItem("osp_access_token");
-        if (authToken) {
-          whepHeaders["Authorization"] = `Bearer ${authToken}`;
+        // Only send auth header if going through the gateway proxy
+        if (!isDirectGo2rtc) {
+          const authToken = localStorage.getItem("osp_access_token");
+          if (authToken) {
+            whepHeaders["Authorization"] = `Bearer ${authToken}`;
+          }
         }
+
+        const whepBody = isDirectGo2rtc
+          ? JSON.stringify({ type: "offer", sdp: offer.sdp })
+          : offer.sdp;
 
         const whepResponse = await fetch(info.whepUrl, {
           method: "POST",
           headers: whepHeaders,
-          body: offer.sdp,
+          body: whepBody,
           signal: abort.signal,
         });
 
@@ -153,7 +162,15 @@ export function LiveViewPlayer({
           throw new Error(`WHEP server returned ${whepResponse.status}`);
         }
 
-        const answerSdp = await whepResponse.text();
+        const responseText = await whepResponse.text();
+        // go2rtc returns JSON {type:"answer",sdp:"..."}, parse it
+        let answerSdp: string;
+        try {
+          const parsed = JSON.parse(responseText);
+          answerSdp = parsed.sdp ?? responseText;
+        } catch {
+          answerSdp = responseText;
+        }
         await pc.setRemoteDescription({
           type: "answer",
           sdp: answerSdp,
