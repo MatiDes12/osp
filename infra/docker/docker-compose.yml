@@ -1,7 +1,5 @@
-version: "3.9"
-
 services:
-  # ─── Redis ───
+  # ─── Data Layer ───
   redis:
     image: redis:7-alpine
     ports:
@@ -14,7 +12,7 @@ services:
       timeout: 3s
       retries: 5
 
-  # ─── go2rtc ───
+  # ─── Video Infrastructure ───
   go2rtc:
     image: alexxit/go2rtc:latest
     ports:
@@ -37,6 +35,80 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GO2RTC_API_URL=http://go2rtc:1984
+    restart: unless-stopped
+
+  # ─── Go Services ───
+  camera-ingest:
+    build:
+      context: ../../services/camera-ingest
+      dockerfile: ../../infra/docker/go-service.Dockerfile
+      args:
+        SERVICE_NAME: camera-ingest
+    ports:
+      - "50051:50051"
+    environment:
+      - INGEST_GRPC_PORT=50051
+      - GO2RTC_API_URL=http://go2rtc:1984
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - go2rtc
+    restart: unless-stopped
+
+  video-pipeline:
+    build:
+      context: ../../services/video-pipeline
+      dockerfile: ../../infra/docker/go-service.Dockerfile
+      args:
+        SERVICE_NAME: video-pipeline
+    ports:
+      - "50052:50052"
+    env_file:
+      - ../../.env
+    environment:
+      - VIDEO_GRPC_PORT=50052
+      - GO2RTC_API_URL=http://go2rtc:1984
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - go2rtc
+    restart: unless-stopped
+
+  event-engine:
+    build:
+      context: ../../services/event-engine
+      dockerfile: ../../infra/docker/go-service.Dockerfile
+      args:
+        SERVICE_NAME: event-engine
+    ports:
+      - "50053:50053"
+    env_file:
+      - ../../.env
+    environment:
+      - EVENT_GRPC_PORT=50053
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  extension-runtime:
+    build:
+      context: ../../services/extension-runtime
+      dockerfile: ../../infra/docker/go-service.Dockerfile
+      args:
+        SERVICE_NAME: extension-runtime
+    ports:
+      - "50054:50054"
+    env_file:
+      - ../../.env
+    environment:
+      - EXTENSION_GRPC_PORT=50054
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
     restart: unless-stopped
 
 volumes:

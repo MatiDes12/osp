@@ -31,6 +31,9 @@ Thumbs.db
 # Testing
 coverage/
 *.lcov
+test-results/
+playwright-report/
+blob-report/
 
 # Go
 services/*/bin/

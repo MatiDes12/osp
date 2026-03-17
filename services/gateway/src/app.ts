@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requestId } from "./middleware/request-id.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { rateLimit } from "./middleware/rate-limit.js";
+import { tenantContext } from "./middleware/tenant.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { cameraRoutes } from "./routes/camera.routes.js";
 import { streamRoutes } from "./routes/stream.routes.js";
@@ -11,6 +13,8 @@ import { recordingRoutes } from "./routes/recording.routes.js";
 import { ruleRoutes } from "./routes/rule.routes.js";
 import { tenantRoutes } from "./routes/tenant.routes.js";
 import { extensionRoutes } from "./routes/extension.routes.js";
+import type { TenantPlan } from "@osp/shared";
+import { PLAN_LIMITS } from "@osp/shared";
 
 export type Env = {
   Variables: {
@@ -18,6 +22,8 @@ export type Env = {
     tenantId: string;
     userId: string;
     userRole: string;
+    tenantPlan: TenantPlan;
+    tenantLimits: (typeof PLAN_LIMITS)[TenantPlan];
   };
 };
 
@@ -35,6 +41,10 @@ app.use(
     maxAge: 86400,
   }),
 );
+
+// Tenant context and rate limiting for API routes
+app.use("/api/*", tenantContext());
+app.use("/api/*", rateLimit());
 
 // Root route
 app.get("/", (c) => {

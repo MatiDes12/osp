@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Camera, ApiResponse } from "@osp/shared";
+import type {
+  Camera,
+  ApiResponse,
+  CreateCameraInput,
+  UpdateCameraInput,
+} from "@osp/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -17,17 +22,16 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 interface UseCamerasReturn {
-  cameras: readonly Camera[];
-  loading: boolean;
-  error: string | null;
-  refetch: () => Promise<void>;
-  addCamera: (data: {
-    name: string;
-    protocol: "rtsp" | "onvif";
-    connectionUri: string;
-    location?: { label?: string };
-  }) => Promise<Camera>;
-  deleteCamera: (id: string) => Promise<void>;
+  readonly cameras: readonly Camera[];
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly refetch: () => Promise<void>;
+  readonly addCamera: (data: CreateCameraInput) => Promise<Camera>;
+  readonly updateCamera: (
+    id: string,
+    data: UpdateCameraInput,
+  ) => Promise<Camera>;
+  readonly deleteCamera: (id: string) => Promise<void>;
 }
 
 export function useCameras(): UseCamerasReturn {
@@ -60,12 +64,7 @@ export function useCameras(): UseCamerasReturn {
   }, [fetchCameras]);
 
   const addCamera = useCallback(
-    async (data: {
-      name: string;
-      protocol: "rtsp" | "onvif";
-      connectionUri: string;
-      location?: { label?: string };
-    }): Promise<Camera> => {
+    async (data: CreateCameraInput): Promise<Camera> => {
       const response = await fetch(`${API_URL}/api/v1/cameras`, {
         method: "POST",
         headers: getAuthHeaders(),
@@ -81,20 +80,55 @@ export function useCameras(): UseCamerasReturn {
     [fetchCameras],
   );
 
-  const deleteCamera = useCallback(
-    async (id: string): Promise<void> => {
+  const updateCamera = useCallback(
+    async (id: string, data: UpdateCameraInput): Promise<Camera> => {
       const response = await fetch(`${API_URL}/api/v1/cameras/${id}`, {
-        method: "DELETE",
+        method: "PATCH",
         headers: getAuthHeaders(),
+        body: JSON.stringify(data),
       });
-      const json: ApiResponse<void> = await response.json();
-      if (!json.success) {
-        throw new Error(json.error?.message ?? "Failed to delete camera");
+      const json: ApiResponse<Camera> = await response.json();
+      if (!json.success || !json.data) {
+        throw new Error(json.error?.message ?? "Failed to update camera");
       }
       await fetchCameras();
+      return json.data;
     },
     [fetchCameras],
   );
 
-  return { cameras, loading, error, refetch: fetchCameras, addCamera, deleteCamera };
+  const deleteCamera = useCallback(
+    async (id: string): Promise<void> => {
+      // Optimistic update: remove from list immediately
+      const previousCameras = cameras;
+      setCameras((prev) => prev.filter((c) => c.id !== id));
+
+      try {
+        const response = await fetch(`${API_URL}/api/v1/cameras/${id}`, {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        });
+        const json: ApiResponse<void> = await response.json();
+        if (!json.success) {
+          // Rollback on failure
+          setCameras(previousCameras);
+          throw new Error(json.error?.message ?? "Failed to delete camera");
+        }
+      } catch (err) {
+        setCameras(previousCameras);
+        throw err;
+      }
+    },
+    [cameras, fetchCameras],
+  );
+
+  return {
+    cameras,
+    loading,
+    error,
+    refetch: fetchCameras,
+    addCamera,
+    updateCamera,
+    deleteCamera,
+  };
 }
