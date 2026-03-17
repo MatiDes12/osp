@@ -4,7 +4,13 @@ import { requestId } from "./middleware/request-id.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { cameraRoutes } from "./routes/camera.routes.js";
+import { streamRoutes } from "./routes/stream.routes.js";
 import { healthRoutes } from "./routes/health.routes.js";
+import { eventRoutes } from "./routes/event.routes.js";
+import { recordingRoutes } from "./routes/recording.routes.js";
+import { ruleRoutes } from "./routes/rule.routes.js";
+import { tenantRoutes } from "./routes/tenant.routes.js";
+import { extensionRoutes } from "./routes/extension.routes.js";
 
 export type Env = {
   Variables: {
@@ -34,6 +40,12 @@ app.use(
 app.route("/health", healthRoutes);
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/cameras", cameraRoutes);
+app.route("/api/v1/cameras", streamRoutes);
+app.route("/api/v1/events", eventRoutes);
+app.route("/api/v1/recordings", recordingRoutes);
+app.route("/api/v1/rules", ruleRoutes);
+app.route("/api/v1/tenants", tenantRoutes);
+app.route("/api/v1/extensions", extensionRoutes);
 
 // 404 fallback
 app.notFound((c) => {

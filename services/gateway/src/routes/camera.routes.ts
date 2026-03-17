@@ -3,6 +3,8 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
+import { getStreamService } from "../services/stream.service.js";
+import { createLogger } from "../lib/logger.js";
 import {
   CreateCameraSchema,
   UpdateCameraSchema,
@@ -10,6 +12,8 @@ import {
   UpdateZoneSchema,
 } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
+
+const logger = createLogger("camera-routes");
 
 export const cameraRoutes = new Hono<Env>();
 
@@ -138,7 +142,17 @@ cameraRoutes.post("/", requireAuth("admin"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to create camera", 500);
   }
 
-  // TODO: Notify camera-ingest service via gRPC to connect
+  // Register stream in go2rtc
+  try {
+    const streamService = getStreamService();
+    await streamService.addStream(camera.id, input.connectionUri);
+  } catch (err) {
+    logger.warn("Failed to register stream in go2rtc on camera create", {
+      cameraId: camera.id,
+      error: String(err),
+    });
+    // Non-fatal: camera is created, stream can be added later via reconnect
+  }
 
   return c.json(createSuccessResponse(camera), 201);
 });
@@ -188,7 +202,17 @@ cameraRoutes.delete("/:id", requireAuth("admin"), async (c) => {
     throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
   }
 
-  // TODO: Notify camera-ingest to disconnect stream
+  // Remove stream from go2rtc
+  try {
+    const streamService = getStreamService();
+    await streamService.removeStream(cameraId);
+  } catch (err) {
+    logger.warn("Failed to remove stream from go2rtc on camera delete", {
+      cameraId,
+      error: String(err),
+    });
+    // Non-fatal: camera is deleted, go2rtc stream will be orphaned but harmless
+  }
 
   return c.json(createSuccessResponse({ deleted: true }));
 });
