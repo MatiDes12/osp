@@ -89,28 +89,56 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
 
-  const go2rtcResponse = await fetch(whepUrl, {
+  // go2rtc accepts SDP offer as raw text or JSON {type:"offer",sdp:"..."}
+  // Try raw SDP first (standard WHEP), fall back to JSON if it fails
+  let go2rtcResponse = await fetch(whepUrl, {
     method: "POST",
     headers: { "Content-Type": "application/sdp" },
     body: sdpOffer,
   });
 
   if (!go2rtcResponse.ok) {
+    logger.info("Raw SDP failed, trying JSON format", {
+      cameraId,
+      status: go2rtcResponse.status,
+    });
+    go2rtcResponse = await fetch(whepUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
+    });
+  }
+
+  if (!go2rtcResponse.ok) {
     const body = await go2rtcResponse.text().catch(() => "unknown");
-    logger.error("go2rtc WHEP failed", { cameraId, status: go2rtcResponse.status, body });
+    logger.error("go2rtc WHEP failed", {
+      cameraId,
+      status: go2rtcResponse.status,
+      body,
+    });
     throw new ApiError(
-      "WHEP_FAILED",
-      `go2rtc returned ${go2rtcResponse.status}`,
+      "STREAM_ERROR",
+      "Camera stream not ready — it may still be connecting",
       502,
     );
   }
 
-  const sdpAnswer = await go2rtcResponse.text();
+  const responseText = await go2rtcResponse.text();
 
-  return new Response(sdpAnswer, {
+  // go2rtc may return JSON {type:"answer",sdp:"..."} or raw SDP
+  let answerSdp: string;
+  try {
+    const parsed = JSON.parse(responseText);
+    answerSdp = parsed.sdp ?? responseText;
+  } catch {
+    answerSdp = responseText;
+  }
+
+  return new Response(answerSdp, {
     status: 200,
     headers: {
       "Content-Type": "application/sdp",
+      "Access-Control-Allow-Origin": "*",
     },
   });
 });
