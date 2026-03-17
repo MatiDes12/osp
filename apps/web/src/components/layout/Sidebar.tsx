@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebarStore } from "@/stores/sidebar";
@@ -43,21 +43,53 @@ const NAV_ITEMS: readonly NavItem[] = [
 ] as const;
 
 /* ------------------------------------------------------------------ */
-/*  Stub data – cameras quick-status                                   */
+/*  Cameras quick-status hook                                         */
 /* ------------------------------------------------------------------ */
-interface QuickCamera {
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+interface SidebarCamera {
   readonly id: string;
   readonly name: string;
-  readonly online: boolean;
+  readonly status: "online" | "offline" | "connecting" | "error";
 }
 
-const STUB_CAMERAS: readonly QuickCamera[] = [
-  { id: "1", name: "Front Door", online: true },
-  { id: "2", name: "Backyard", online: true },
-  { id: "3", name: "Garage", online: false },
-  { id: "4", name: "Driveway", online: true },
-  { id: "5", name: "Office", online: true },
-] as const;
+function useSidebarCameras(): { cameras: readonly SidebarCamera[]; loading: boolean } {
+  const [cameras, setCameras] = useState<readonly SidebarCamera[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCameras = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("osp_access_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_URL}/api/v1/cameras`, { headers });
+      const json = await response.json();
+      if (json.success && Array.isArray(json.data)) {
+        const top5 = (json.data as Record<string, unknown>[])
+          .slice(0, 5)
+          .map((row) => ({
+            id: row.id as string,
+            name: row.name as string,
+            status: (row.status ?? "offline") as SidebarCamera["status"],
+          }));
+        setCameras(top5);
+      }
+    } catch {
+      // Silently swallow errors — sidebar must not break on fetch failure
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCameras();
+  }, [fetchCameras]);
+
+  return { cameras, loading };
+}
 
 /* ------------------------------------------------------------------ */
 /*  Sidebar                                                            */
@@ -72,6 +104,8 @@ export function Sidebar() {
   const userInitial = userEmail.charAt(0).toUpperCase();
   const tenantName = (jwtUser?.user_metadata?.tenant_name as string | undefined) ?? jwtUser?.tenant_id ?? "My Org";
   const userRole = jwtUser?.role ?? "free";
+
+  const { cameras: sidebarCameras, loading: sidebarCamerasLoading } = useSidebarCameras();
 
   const isActive = (href: string): boolean => {
     if (href === "/") return pathname === "/";
@@ -139,23 +173,30 @@ export function Sidebar() {
             <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
               Cameras
             </h3>
-            <ul className="space-y-0.5">
-              {STUB_CAMERAS.map((cam) => (
-                <li key={cam.id}>
-                  <Link
-                    href={`/cameras/${cam.id}`}
-                    className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm text-zinc-400 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-50 cursor-pointer"
-                  >
-                    <Circle
-                      className={`h-2 w-2 shrink-0 fill-current ${
-                        cam.online ? "text-green-500" : "text-zinc-600"
-                      }`}
-                    />
-                    <span className="truncate">{cam.name}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {sidebarCamerasLoading ? (
+              <div className="space-y-2 px-3">
+                <div className="h-3 w-3/4 animate-pulse rounded bg-zinc-800" />
+                <div className="h-3 w-1/2 animate-pulse rounded bg-zinc-800" />
+              </div>
+            ) : (
+              <ul className="space-y-0.5">
+                {sidebarCameras.map((cam) => (
+                  <li key={cam.id}>
+                    <Link
+                      href={`/cameras/${cam.id}`}
+                      className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm text-zinc-400 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-50 cursor-pointer"
+                    >
+                      <Circle
+                        className={`h-2 w-2 shrink-0 fill-current ${
+                          cam.status === "online" ? "text-green-500" : "text-zinc-600"
+                        }`}
+                      />
+                      <span className="truncate">{cam.name}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </nav>

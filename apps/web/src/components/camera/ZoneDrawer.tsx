@@ -77,34 +77,37 @@ export function ZoneDrawer({
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const canvasSizeRef = useRef({ w: 0, h: 0 });
 
   // Keep canvas pixel dimensions in sync with its CSS display size
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        const w = Math.round(width);
-        const h = Math.round(height);
+    const sync = () => {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.round(rect.width);
+      const h = Math.round(rect.height);
+      if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
-        setCanvasSize({ w, h });
+        canvasSizeRef.current = { w, h };
       }
-    });
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
     observer.observe(canvas);
     return () => observer.disconnect();
   }, []);
 
   // Get the actual displayed size of the canvas
   const getCanvasDisplaySize = useCallback(() => {
-    if (canvasSize.w > 0 && canvasSize.h > 0) return canvasSize;
+    const s = canvasSizeRef.current;
+    if (s.w > 0 && s.h > 0) return s;
     const canvas = canvasRef.current;
     if (!canvas) return { w: videoWidth, h: videoHeight };
     const rect = canvas.getBoundingClientRect();
     return { w: rect.width, h: rect.height };
-  }, [canvasSize, videoWidth, videoHeight]);
+  }, [videoWidth, videoHeight]);
 
   // Convert pixel coordinates (relative to displayed canvas) to normalized 0-1
   const toNormalized = useCallback(
@@ -217,14 +220,15 @@ export function ZoneDrawer({
     [isDrawing, zones, toNormalized],
   );
 
-  // Canvas rendering
+  // Canvas rendering — use requestAnimationFrame to avoid flicker
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, videoWidth, videoHeight);
+    const frameId = requestAnimationFrame(() => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw existing zones
     for (const zone of zones) {
@@ -336,6 +340,9 @@ export function ZoneDrawer({
         }
       }
     }
+    }); // end requestAnimationFrame
+
+    return () => cancelAnimationFrame(frameId);
   }, [
     zones,
     currentPoints,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Maximize2, Settings, MapPin } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { getToken } from "@/hooks/use-auth";
@@ -109,6 +110,7 @@ function getStatusConfig(status: string) {
 }
 
 export function CameraCard({ camera }: CameraCardProps) {
+  const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const isOnline = camera.status === "online";
   const isRecording = camera.config.recordingMode !== "off";
@@ -219,10 +221,11 @@ export function CameraCard({ camera }: CameraCardProps) {
         >
           <button
             type="button"
-            className="p-2 rounded-full bg-zinc-900/80 text-zinc-200 backdrop-blur-sm hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-full bg-zinc-900/80 text-zinc-200 backdrop-blur-sm hover:bg-zinc-800 transition-colors cursor-pointer"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              window.open(`/cameras/${camera.id}`, "_blank");
             }}
             aria-label="Fullscreen"
           >
@@ -230,10 +233,11 @@ export function CameraCard({ camera }: CameraCardProps) {
           </button>
           <button
             type="button"
-            className="p-2 rounded-full bg-zinc-900/80 text-zinc-200 backdrop-blur-sm hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-full bg-zinc-900/80 text-zinc-200 backdrop-blur-sm hover:bg-zinc-800 transition-colors cursor-pointer"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              router.push(`/cameras/${camera.id}?tab=settings`);
             }}
             aria-label="Settings"
           >
