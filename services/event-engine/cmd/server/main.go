@@ -16,16 +16,17 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"time"
+
 	"github.com/MatiDes12/osp/services/event-engine/internal/dispatch"
 	"github.com/MatiDes12/osp/services/event-engine/internal/events"
+	osplog "github.com/MatiDes12/osp/services/event-engine/internal/log"
 	"github.com/MatiDes12/osp/services/event-engine/internal/rules"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slogLevel(),
-	}))
-	slog.SetDefault(logger)
+	bootStart := time.Now()
+	logger := osplog.Init("event-engine")
 
 	// --- Configuration from environment ---
 	grpcPort := envOrDefault("EVENT_GRPC_PORT", "50053")
@@ -44,9 +45,10 @@ func main() {
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("ping database: %v", err)
+		osplog.ConnectionFail("PostgreSQL", fmt.Sprintf("ping: %v", err))
+		os.Exit(1)
 	}
-	logger.Info("connected to database")
+	osplog.ConnectionOK("PostgreSQL", "connected")
 
 	// --- Redis ---
 	rdb := redis.NewClient(&redis.Options{
@@ -58,9 +60,10 @@ func main() {
 	defer cancel()
 
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		log.Fatalf("ping redis: %v", err)
+		osplog.ConnectionFail("Redis", fmt.Sprintf("ping: %v", err))
+		os.Exit(1)
 	}
-	logger.Info("connected to redis", slog.String("addr", redisAddr))
+	osplog.ConnectionOK("Redis", redisAddr)
 
 	// --- Services ---
 	eventRepo := events.NewPostgresEventRepository(db)
@@ -150,9 +153,14 @@ func main() {
 	// TODO: Register EventEngineService gRPC handler once proto is compiled.
 
 	go func() {
-		logger.Info("event engine gRPC server listening", slog.String("port", grpcPort))
+		osplog.StartupBanner("Event Engine Service", grpcPort,
+			map[string]string{
+				"database": "PostgreSQL",
+				"redis":    redisAddr,
+			}, time.Since(bootStart))
 		if err := srv.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			slog.Error("gRPC serve failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -161,7 +169,7 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("shutting down event engine service")
+	osplog.ShutdownBanner("Event Engine Service")
 	cancel()
 	srv.GracefulStop()
 
@@ -169,7 +177,7 @@ func main() {
 	_ = eventPublisher
 	_ = eventRepo
 
-	logger.Info("event engine service stopped")
+	slog.Info("Event Engine Service stopped")
 }
 
 func envOrDefault(key, fallback string) string {
@@ -179,15 +187,3 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
-func slogLevel() slog.Level {
-	switch os.Getenv("LOG_LEVEL") {
-	case "debug":
-		return slog.LevelDebug
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}

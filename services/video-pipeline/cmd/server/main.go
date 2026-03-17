@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -16,6 +16,7 @@ import (
 	"github.com/MatiDes12/osp/services/video-pipeline/internal/config"
 	"github.com/MatiDes12/osp/services/video-pipeline/internal/db"
 	grpchandler "github.com/MatiDes12/osp/services/video-pipeline/internal/grpc"
+	osplog "github.com/MatiDes12/osp/services/video-pipeline/internal/log"
 	"github.com/MatiDes12/osp/services/video-pipeline/internal/playback"
 	"github.com/MatiDes12/osp/services/video-pipeline/internal/recording"
 	"github.com/MatiDes12/osp/services/video-pipeline/internal/retention"
@@ -25,7 +26,11 @@ import (
 )
 
 func main() {
+	bootStart := time.Now()
 	cfg := config.Load()
+
+	logger := osplog.Init("video-pipeline")
+	logger.Info("initializing video pipeline service", "port", cfg.GRPCPort)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -33,34 +38,39 @@ func main() {
 	// Connect to PostgreSQL.
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("connect to database: %v", err)
+		osplog.ConnectionFail("PostgreSQL", fmt.Sprintf("connect: %v", err))
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("ping database: %v", err)
+		osplog.ConnectionFail("PostgreSQL", fmt.Sprintf("ping: %v", err))
+		os.Exit(1)
 	}
-	log.Println("connected to database")
+	osplog.ConnectionOK("PostgreSQL", "connected")
 
 	queries := db.NewQueries(pool)
 
 	// Initialize R2 storage.
 	r2, err := storage.NewR2Storage(ctx, storage.R2Config{
-		Endpoint:       cfg.R2Endpoint,
-		AccessKeyID:    cfg.R2AccessKeyID,
-		SecretAccessKey: cfg.R2SecretAccessKey,
-		BucketName:     cfg.R2BucketName,
+		Endpoint:        cfg.R2Endpoint,
+		AccessKeyID:     cfg.R2AccessKeyID,
+		SecretAccessKey:  cfg.R2SecretAccessKey,
+		BucketName:      cfg.R2BucketName,
 	})
 	if err != nil {
-		log.Fatalf("initialize R2 storage: %v", err)
+		osplog.ConnectionFail("Cloudflare R2", fmt.Sprintf("init: %v", err))
+		os.Exit(1)
 	}
-	log.Println("R2 storage initialized")
+	osplog.ConnectionOK("Cloudflare R2", cfg.R2BucketName)
 
 	// Initialize spool manager.
 	spool, err := storage.NewSpoolManager(cfg.SpoolDir, cfg.SpoolMaxBytes, r2)
 	if err != nil {
-		log.Fatalf("initialize spool manager: %v", err)
+		slog.Error("failed to initialize spool manager", "error", err)
+		os.Exit(1)
 	}
+	slog.Info("spool manager initialized", "dir", cfg.SpoolDir)
 
 	// Initialize services.
 	recService := recording.NewRecordingService(cfg, queries, r2, spool)
@@ -75,7 +85,8 @@ func main() {
 	// Set up gRPC server.
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GRPCPort))
 	if err != nil {
-		log.Fatalf("listen on :%s: %v", cfg.GRPCPort, err)
+		slog.Error("failed to listen", "port", cfg.GRPCPort, "error", err)
+		os.Exit(1)
 	}
 
 	srv := grpc.NewServer()
@@ -83,9 +94,15 @@ func main() {
 	pb.RegisterVideoPipelineServiceServer(srv, handler)
 
 	go func() {
-		log.Printf("Video Pipeline Service listening on :%s", cfg.GRPCPort)
+		osplog.StartupBanner("Video Pipeline Service", cfg.GRPCPort,
+			map[string]string{
+				"database": "PostgreSQL",
+				"storage":  "Cloudflare R2 (" + cfg.R2BucketName + ")",
+				"ffmpeg":   cfg.FFmpegPath,
+			}, time.Since(bootStart))
 		if err := srv.Serve(lis); err != nil {
-			log.Fatalf("serve gRPC: %v", err)
+			slog.Error("gRPC serve failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -94,8 +111,8 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("shutting down Video Pipeline Service...")
+	osplog.ShutdownBanner("Video Pipeline Service")
 	cancel() // Stop background workers.
 	srv.GracefulStop()
-	log.Println("Video Pipeline Service stopped")
+	slog.Info("Video Pipeline Service stopped")
 }
