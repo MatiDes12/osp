@@ -89,25 +89,12 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
 
-  // go2rtc accepts SDP offer as raw text or JSON {type:"offer",sdp:"..."}
-  // Try raw SDP first (standard WHEP), fall back to JSON if it fails
-  let go2rtcResponse = await fetch(whepUrl, {
+  // go2rtc works best with JSON format: {type:"offer", sdp:"..."}
+  const go2rtcResponse = await fetch(whepUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/sdp" },
-    body: sdpOffer,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
   });
-
-  if (!go2rtcResponse.ok) {
-    logger.info("Raw SDP failed, trying JSON format", {
-      cameraId,
-      status: go2rtcResponse.status,
-    });
-    go2rtcResponse = await fetch(whepUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
-    });
-  }
 
   if (!go2rtcResponse.ok) {
     const body = await go2rtcResponse.text().catch(() => "unknown");

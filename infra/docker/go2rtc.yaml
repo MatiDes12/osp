@@ -17,3 +17,5 @@ streams:
     - ffmpeg:testsrc=size=1280x720:rate=15#video=h264
   demo-cam-2:
     - ffmpeg:testsrc2=size=1920x1080:rate=25#video=h264
+  248c5f1d-ac05-447a-8543-9db0942482b1:
+    - rtsp://192.168.4.20:8554/stream
