@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useCameras } from "@/hooks/use-cameras";
+import { useLocations } from "@/hooks/use-locations";
 import { CameraGrid } from "@/components/camera/CameraGrid";
 import { AddCameraDialog } from "@/components/camera/AddCameraDialog";
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/StatCard";
 import { PageError } from "@/components/PageError";
-import { Camera, Wifi, Bell, Circle } from "lucide-react";
+import { Camera, Wifi, Bell, Circle, MapPin } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -30,16 +31,28 @@ interface DashboardStats {
 
 export default function CamerasPage() {
   const { cameras, loading, error, refetch, addCamera } = useCameras();
+  const { locations, loading: locationsLoading } = useLocations();
   const [search, setSearch] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
   const filteredCameras = useMemo(() => {
-    if (!search.trim()) return cameras;
-    const query = search.toLowerCase();
-    return cameras.filter((c) => c.name.toLowerCase().includes(query));
-  }, [cameras, search]);
+    let result = cameras;
+    if (selectedLocationId !== "all") {
+      if (selectedLocationId === "unassigned") {
+        result = result.filter((c) => !c.locationId);
+      } else {
+        result = result.filter((c) => c.locationId === selectedLocationId);
+      }
+    }
+    if (search.trim()) {
+      const query = search.toLowerCase();
+      result = result.filter((c) => c.name.toLowerCase().includes(query));
+    }
+    return result;
+  }, [cameras, search, selectedLocationId]);
 
   const handleAddCamera = useCallback(
     async (data: {
@@ -182,8 +195,8 @@ export default function CamerasPage() {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
+      {/* Search + Location filter */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <input
           type="text"
           value={search}
@@ -191,6 +204,22 @@ export default function CamerasPage() {
           placeholder="Search cameras by name..."
           className="w-full max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
         />
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-[var(--color-muted)]" />
+          <select
+            value={selectedLocationId}
+            onChange={(e) => setSelectedLocationId(e.target.value)}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-sm text-[var(--color-fg)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+          >
+            <option value="all">All Locations</option>
+            <option value="unassigned">Unassigned</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Loading */}

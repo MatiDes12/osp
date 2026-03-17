@@ -22,6 +22,7 @@ export interface Camera {
   firmwareVersion: string | null;
   manufacturer: string | null;
   model: string | null;
+  locationId: string | null;
   zonesCount: number;
   lastSeenAt: string | null;
   createdAt: string;

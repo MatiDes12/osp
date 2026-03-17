@@ -5,7 +5,12 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { InviteUserSchema } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
+import { sendEmail } from "../lib/email.js";
+import { inviteEmailTemplate } from "../lib/email-templates.js";
+import { createLogger } from "../lib/logger.js";
 import { z } from "zod";
+
+const logger = createLogger("tenant-routes");
 
 const UpdateTenantSettingsSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -247,7 +252,50 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to create invitation", 500);
   }
 
-  // TODO: Send invitation email via notification service
+  // Send invitation email
+  try {
+    const inviterId = c.get("userId");
+    const { data: inviter } = await supabase
+      .from("users")
+      .select("display_name, email")
+      .eq("id", inviterId)
+      .single();
+
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("name")
+      .eq("id", tenantId)
+      .single();
+
+    const inviterName =
+      (inviter?.display_name as string) ??
+      (inviter?.email as string) ??
+      "A team member";
+    const tenantName = (tenantData?.name as string) ?? "your organization";
+
+    const webUrl = process.env["WEB_URL"] ?? "http://localhost:3001";
+    const inviteUrl = `${webUrl}/invite/${invitation?.id as string}`;
+
+    const html = inviteEmailTemplate({
+      inviterName,
+      tenantName,
+      inviteUrl,
+      role: input.role,
+      message: input.message,
+    });
+
+    await sendEmail({
+      to: [input.email],
+      subject: `You've been invited to ${tenantName} on OSP`,
+      html,
+    });
+  } catch (emailErr) {
+    // Don't fail the invite if the email fails to send.
+    logger.error("Failed to send invitation email", {
+      error: emailErr instanceof Error ? emailErr : new Error(String(emailErr)),
+      invitationId: String(invitation?.id),
+    });
+  }
 
   return c.json(createSuccessResponse(invitation), 201);
 });

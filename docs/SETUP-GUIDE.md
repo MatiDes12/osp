@@ -435,6 +435,142 @@ docker compose -f infra/docker/docker-compose.yml up -d redis go2rtc
 
 ---
 
+## Production Deployment
+
+### Overview
+
+OSP uses a multi-platform deployment strategy:
+- **Web App** (Next.js) -- Vercel
+- **API Gateway** (Hono/Node.js) -- Fly.io
+- **Go Microservices** (camera-ingest, video-pipeline, event-engine) -- Fly.io
+- **Infrastructure** (Redis, go2rtc) -- Kubernetes or Docker Compose on a VPS
+
+### HTTPS / SSL
+
+**Vercel** handles HTTPS automatically for the web app. Custom domains get free SSL certificates via Let's Encrypt, provisioned on first deployment. No configuration needed.
+
+**Fly.io** handles HTTPS automatically for the gateway and Go services. Each `*.fly.dev` subdomain gets a managed TLS certificate. Custom domains are supported via `fly certs add`.
+
+**go2rtc WebRTC** requires a TURN server for production. WebRTC peer connections fail across symmetric NATs without a relay. Options:
+- **Cloudflare Calls** -- Managed TURN, generous free tier
+- **Twilio Network Traversal** -- Pay-per-use TURN/STUN
+- **coturn** (self-hosted) -- Deploy alongside go2rtc on your VPS
+
+Configure TURN credentials in the go2rtc config:
+```yaml
+webrtc:
+  candidates:
+    - stun:stun.l.google.com:19302
+  ice_servers:
+    - urls: [turn:YOUR_TURN_SERVER:3478]
+      username: YOUR_USERNAME
+      credential: YOUR_CREDENTIAL
+```
+
+**Cloudflare** can be placed in front of all services as a CDN and DDoS protection layer. Use Cloudflare DNS with proxy enabled (orange cloud) for the web app and gateway domains. go2rtc streaming traffic should bypass Cloudflare (grey cloud / DNS-only) since Cloudflare does not proxy WebRTC or RTSP.
+
+### Deploying the Web App (Vercel)
+
+1. Install and authenticate the Vercel CLI:
+   ```bash
+   npm i -g vercel
+   vercel login
+   ```
+
+2. Link the project (first time only):
+   ```bash
+   cd apps/web
+   vercel link
+   ```
+
+3. Set environment variables in the Vercel dashboard:
+   - `NEXT_PUBLIC_API_URL` -- Your gateway URL (e.g., `https://osp-gateway.fly.dev`)
+   - `NEXT_PUBLIC_GO2RTC_URL` -- Your go2rtc URL
+   - `NEXT_PUBLIC_WS_URL` -- WebSocket URL (e.g., `wss://osp-gateway.fly.dev/ws`)
+
+4. Deploy:
+   ```bash
+   # Preview
+   bash scripts/deploy-vercel.sh
+
+   # Production
+   bash scripts/deploy-vercel.sh production
+   ```
+
+### Deploying Services (Fly.io)
+
+1. Install and authenticate the Fly CLI:
+   ```bash
+   curl -L https://fly.io/install.sh | sh
+   fly auth login
+   ```
+
+2. Create the apps (first time only):
+   ```bash
+   fly apps create osp-gateway
+   fly apps create osp-camera-ingest
+   fly apps create osp-video-pipeline
+   fly apps create osp-event-engine
+   ```
+
+3. Set secrets for each app:
+   ```bash
+   fly secrets set \
+     SUPABASE_URL=https://xxx.supabase.co \
+     SUPABASE_SERVICE_KEY=your-key \
+     REDIS_URL=redis://... \
+     JWT_SECRET=your-jwt-secret \
+     -a osp-gateway
+   ```
+
+4. Deploy:
+   ```bash
+   # Deploy everything
+   bash scripts/deploy-fly.sh all
+
+   # Deploy a single service
+   bash scripts/deploy-fly.sh gateway
+   bash scripts/deploy-fly.sh camera-ingest
+   ```
+
+### Deploying with Kubernetes
+
+For larger-scale or self-hosted deployments, use the Kustomize manifests:
+
+1. Update secrets in `infra/k8s/base/kustomization.yaml` (or use sealed-secrets / external-secrets in production).
+
+2. Apply the base manifests:
+   ```bash
+   kubectl apply -k infra/k8s/base/
+   ```
+
+3. For environment-specific overrides, create overlays in `infra/k8s/overlays/staging/` or `infra/k8s/overlays/production/`.
+
+### CI/CD Pipeline
+
+The GitHub Actions workflow (`.github/workflows/deploy.yml`) handles automated deployments:
+
+- **On push to `main`**: Detects changed services, builds Docker images, deploys to staging via Fly.io, deploys web to Vercel.
+- **Manual trigger**: Select an environment (staging/production) and specific services to deploy from the Actions tab.
+
+Required GitHub secrets:
+| Secret | Purpose |
+|--------|---------|
+| `FLY_API_TOKEN` | Fly.io deployment authentication |
+| `VERCEL_TOKEN` | Vercel deployment authentication |
+| `VERCEL_ORG_ID` | Vercel organization ID |
+| `VERCEL_PROJECT_ID` | Vercel project ID |
+| `STAGING_GATEWAY_URL` | Gateway URL for staging health checks |
+| `STAGING_WEB_URL` | Web URL for staging health checks |
+| `PRODUCTION_GATEWAY_URL` | Gateway URL for production health checks |
+| `PRODUCTION_WEB_URL` | Web URL for production health checks |
+
+### Production Environment Variables
+
+See `infra/production/.env.production.example` for a complete list of all required environment variables with descriptions.
+
+---
+
 ## What's Next
 
 After setup, explore:

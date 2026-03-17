@@ -1,0 +1,64 @@
+syntax = "proto3";
+package osp.eventengine.v1;
+option go_package = "github.com/MatiDes12/osp/services/event-engine/pkg/proto";
+
+service EventEngineService {
+  rpc ProcessEvent(ProcessEventRequest) returns (ProcessEventResponse);
+  rpc EvaluateRules(EvaluateRulesRequest) returns (EvaluateRulesResponse);
+  rpc GetRuleStatus(GetRuleStatusRequest) returns (RuleStatusResponse);
+}
+
+// ---------- ProcessEvent ----------
+
+message ProcessEventRequest {
+  string tenant_id = 1;
+  string camera_id = 2;
+  string zone_id = 3;
+  string type = 4;           // event_type enum value
+  string severity = 5;       // event_severity enum value
+  string detected_at = 6;    // RFC 3339
+  map<string, string> metadata = 7;
+  string snapshot_id = 8;
+  string clip_path = 9;
+  float intensity = 10;
+}
+
+message ProcessEventResponse {
+  bool success = 1;
+  string event_id = 2;
+  int32 rules_matched = 3;
+  repeated string actions_dispatched = 4;
+}
+
+// ---------- EvaluateRules ----------
+
+message EvaluateRulesRequest {
+  string tenant_id = 1;
+  string event_id = 2;
+}
+
+message EvaluateRulesResponse {
+  repeated MatchedRuleProto matched_rules = 1;
+}
+
+message MatchedRuleProto {
+  string rule_id = 1;
+  string rule_name = 2;
+  repeated string actions = 3;
+}
+
+// ---------- GetRuleStatus ----------
+
+message GetRuleStatusRequest {
+  string tenant_id = 1;
+  string rule_id = 2;
+}
+
+message RuleStatusResponse {
+  string rule_id = 1;
+  string rule_name = 2;
+  bool enabled = 3;
+  string last_triggered_at = 4; // RFC 3339 or empty
+  int32 cooldown_sec = 5;
+  bool in_cooldown = 6;
+}

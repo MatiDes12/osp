@@ -68,6 +68,7 @@ export function transformCamera(raw: RawRow): Camera {
     firmwareVersion: (raw.firmware_version as string | null) ?? null,
     manufacturer: (raw.manufacturer as string | null) ?? null,
     model: (raw.model as string | null) ?? null,
+    locationId: (raw.location_id as string | null) ?? null,
     zonesCount: (raw.zones_count as number) ?? 0,
     lastSeenAt: (raw.last_seen_at as string | null) ?? null,
     createdAt: raw.created_at as string,

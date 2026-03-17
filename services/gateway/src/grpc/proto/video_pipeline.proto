@@ -1,0 +1,83 @@
+syntax = "proto3";
+package osp.videopipeline.v1;
+option go_package = "github.com/MatiDes12/osp/services/video-pipeline/pkg/proto";
+
+service VideoPipelineService {
+  rpc StartRecording(StartRecordingRequest) returns (StartRecordingResponse);
+  rpc StopRecording(StopRecordingRequest) returns (StopRecordingResponse);
+  rpc GetRecordingStatus(GetRecordingStatusRequest) returns (RecordingStatusResponse);
+  rpc GenerateSnapshot(GenerateSnapshotRequest) returns (GenerateSnapshotResponse);
+  rpc GetPlaybackURL(GetPlaybackURLRequest) returns (PlaybackURLResponse);
+}
+
+// ---------- StartRecording ----------
+
+message StartRecordingRequest {
+  string camera_id = 1;
+  string tenant_id = 2;
+  string trigger = 3;       // motion, continuous, manual, rule, ai_detection
+  int32 duration_sec = 4;   // 0 = indefinite until StopRecording
+}
+
+message StartRecordingResponse {
+  bool success = 1;
+  string recording_id = 2;
+  string message = 3;
+}
+
+// ---------- StopRecording ----------
+
+message StopRecordingRequest {
+  string recording_id = 1;
+}
+
+message StopRecordingResponse {
+  bool success = 1;
+  int32 duration_sec = 2;
+  string message = 3;
+}
+
+// ---------- GetRecordingStatus ----------
+
+message GetRecordingStatusRequest {
+  string recording_id = 1;
+}
+
+message RecordingStatusResponse {
+  string recording_id = 1;
+  string status = 2;         // recording, complete, partial, failed, deleted
+  int32 duration_sec = 3;
+  int64 size_bytes = 4;
+  string start_time = 5;     // RFC 3339
+  string end_time = 6;       // RFC 3339, empty if still recording
+}
+
+// ---------- GenerateSnapshot ----------
+
+message GenerateSnapshotRequest {
+  string camera_id = 1;
+  string tenant_id = 2;
+  string recording_id = 3;   // optional: extract from recording instead of live
+  float timestamp_sec = 4;   // used with recording_id
+}
+
+message GenerateSnapshotResponse {
+  bool success = 1;
+  string snapshot_id = 2;
+  string storage_path = 3;
+  string message = 4;
+}
+
+// ---------- GetPlaybackURL ----------
+
+message GetPlaybackURLRequest {
+  string recording_id = 1;
+  string tenant_id = 2;
+}
+
+message PlaybackURLResponse {
+  bool success = 1;
+  string playback_url = 2;
+  int32 expires_in_sec = 3;
+  string message = 4;
+}

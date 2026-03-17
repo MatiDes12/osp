@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: osp
+
+resources:
+  - namespace.yaml
+  - gateway/deployment.yaml
+  - gateway/service.yaml
+  - go2rtc/deployment.yaml
+  - go2rtc/service.yaml
+  - redis/deployment.yaml
+  - redis/service.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+
+configMapGenerator:
+  - name: osp-config
+    literals:
+      - redis-url=redis://redis:6379
+      - go2rtc-url=http://go2rtc:1984
+      - camera-ingest-url=http://camera-ingest:8080
+      - video-pipeline-url=http://video-pipeline:8081
+      - event-engine-url=http://event-engine:8082
+
+secretGenerator:
+  - name: osp-secrets
+    literals:
+      - supabase-url=CHANGE_ME
+      - supabase-service-key=CHANGE_ME
+      - supabase-anon-key=CHANGE_ME
+      - r2-endpoint=CHANGE_ME
+      - r2-access-key=CHANGE_ME
+      - r2-secret-key=CHANGE_ME
+      - r2-bucket=CHANGE_ME
+    type: Opaque

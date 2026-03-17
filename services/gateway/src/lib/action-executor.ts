@@ -1,6 +1,8 @@
 import { getSupabase } from "./supabase.js";
 import { publishEvent } from "./event-publisher.js";
 import { createLogger } from "./logger.js";
+import { sendEmail } from "./email.js";
+import { alertEmailTemplate } from "./email-templates.js";
 import type { RuleAction } from "@osp/shared";
 import type { MatchedRule } from "./rule-evaluator.js";
 
@@ -102,7 +104,7 @@ async function executeAction(
       break;
 
     case "email":
-      handleEmail(action, matchedRule, event, tenantId);
+      await handleEmail(action, matchedRule, event, tenantId);
       break;
 
     case "webhook":
@@ -197,25 +199,58 @@ async function handlePushNotification(
 }
 
 /**
- * Placeholder: logs the email action.
+ * Sends an alert email to the configured recipients (or all tenant users).
  */
-function handleEmail(
+async function handleEmail(
   action: RuleAction,
   matchedRule: MatchedRule,
   event: EventContext,
   tenantId: string,
-): void {
-  const recipients = (action.config["recipients"] as string[]) ?? [];
+): Promise<void> {
+  let recipients = (action.config["recipients"] as string[]) ?? [];
+
+  // If no explicit recipients, fall back to all tenant user emails.
+  if (recipients.length === 0) {
+    const supabase = getSupabase();
+    const { data: users } = await supabase
+      .from("users")
+      .select("email")
+      .eq("tenant_id", tenantId);
+
+    recipients = (users ?? [])
+      .map((u) => u.email as string)
+      .filter(Boolean);
+  }
+
+  if (recipients.length === 0) {
+    logger.warn("No email recipients for alert", {
+      ruleId: matchedRule.ruleId,
+      tenantId,
+    });
+    return;
+  }
+
   const subject = interpolateTemplate(
     (action.config["subject"] as string) ?? `Alert: ${matchedRule.ruleName}`,
     event,
   );
 
-  logger.info("[EMAIL PLACEHOLDER] Would send email", {
+  const snapshotUrl = (event.metadata["snapshotUrl"] as string) ?? null;
+
+  const html = alertEmailTemplate({
+    eventType: event.type,
+    cameraName: event.cameraName,
+    timestamp: event.detectedAt,
+    snapshotUrl,
+    ruleName: matchedRule.ruleName,
+    severity: event.severity,
+  });
+
+  await sendEmail({ to: recipients, subject, html });
+
+  logger.info("Alert email sent", {
     ruleId: matchedRule.ruleId,
-    recipients: recipients.join(", "),
-    subject,
-    tenantId,
+    recipientCount: String(recipients.length),
   });
 }
 

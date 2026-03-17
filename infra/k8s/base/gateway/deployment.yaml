@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: osp
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: osp
+    app.kubernetes.io/component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gateway
+        app.kubernetes.io/part-of: osp
+        app.kubernetes.io/component: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: gateway
+          image: ghcr.io/matides12/osp-gateway:latest
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: GATEWAY_PORT
+              value: "3000"
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: osp-secrets
+                  key: supabase-url
+            - name: SUPABASE_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: osp-secrets
+                  key: supabase-service-key
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: osp-config
+                  key: redis-url
+            - name: GO2RTC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: osp-config
+                  key: go2rtc-url
+            - name: CAMERA_INGEST_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: osp-config
+                  key: camera-ingest-url
+            - name: VIDEO_PIPELINE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: osp-config
+                  key: video-pipeline-url
+            - name: EVENT_ENGINE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: osp-config
+                  key: event-engine-url
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

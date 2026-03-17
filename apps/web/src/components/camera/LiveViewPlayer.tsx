@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { HLSPlayer } from "./HLSPlayer";
 
 interface LiveViewPlayerProps {
@@ -8,6 +9,8 @@ interface LiveViewPlayerProps {
   readonly cameraName: string;
   readonly className?: string;
   readonly onError?: (error: string) => void;
+  /** Whether the camera supports backchannel (two-way) audio */
+  readonly twoWayAudioSupported?: boolean;
 }
 
 interface StreamInfo {
@@ -42,6 +45,7 @@ export function LiveViewPlayer({
   cameraName,
   className,
   onError,
+  twoWayAudioSupported = false,
 }: LiveViewPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -53,7 +57,28 @@ export function LiveViewPlayer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
 
+  // Two-way audio state
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micSenderRef = useRef<RTCRtpSender | null>(null);
+  const [micActive, setMicActive] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+
+  // Speaker/volume state
+  const [speakerMuted, setSpeakerMuted] = useState(true);
+  const [volume, setVolume] = useState(0.7);
+
   const cleanup = useCallback(() => {
+    // Stop mic tracks
+    if (micStreamRef.current) {
+      for (const track of micStreamRef.current.getTracks()) {
+        track.stop();
+      }
+      micStreamRef.current = null;
+    }
+    micSenderRef.current = null;
+    setMicActive(false);
+    setMicError(null);
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -104,7 +129,10 @@ export function LiveViewPlayer({
         pcRef.current = pc;
 
         pc.addTransceiver("video", { direction: "recvonly" });
-        pc.addTransceiver("audio", { direction: "recvonly" });
+        // Use sendrecv for audio when two-way audio is supported to enable mic
+        pc.addTransceiver("audio", {
+          direction: twoWayAudioSupported ? "sendrecv" : "recvonly",
+        });
 
         pc.ontrack = (event) => {
           if (videoRef.current && event.streams[0]) {

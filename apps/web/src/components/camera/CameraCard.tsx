@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Maximize2, Settings } from "lucide-react";
+import { Maximize2, Settings, MapPin } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { getToken } from "@/hooks/use-auth";
 
@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 interface CameraCardProps {
   readonly camera: Camera;
+  readonly locationName?: string;
 }
 
 function formatTime(dateString: string | null): string {
@@ -187,11 +188,17 @@ export function CameraCard({ camera }: CameraCardProps) {
           )}
         </div>
 
-        {/* Bottom-left: Camera name */}
+        {/* Bottom-left: Camera name + location */}
         <div className="absolute bottom-2.5 left-2.5">
           <span className="text-sm font-medium text-zinc-50 drop-shadow-md">
             {camera.name}
           </span>
+          {camera.location?.label && (
+            <span className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-400 drop-shadow-md">
+              <MapPin className="h-2.5 w-2.5" />
+              {camera.location.label}
+            </span>
+          )}
         </div>
 
         {/* Bottom-right: Timestamp */}

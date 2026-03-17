@@ -1,60 +1,225 @@
 name: Deploy
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'services/gateway/**'
+      - 'services/camera-ingest/**'
+      - 'services/video-pipeline/**'
+      - 'services/event-engine/**'
       - 'apps/web/**'
+      - 'packages/shared/**'
+      - 'infra/docker/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      services:
+        description: "Services to deploy (comma-separated, or 'all')"
+        required: true
+        default: "all"
+        type: string
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-${{ github.ref }}-${{ inputs.environment || 'staging' }}
   cancel-in-progress: false
 
 env:
   NODE_VERSION: "20"
   PNPM_VERSION: "10"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/osp
 
 jobs:
-  # ─── Build & Deploy Gateway ────────────────────────
-  deploy-gateway:
-    name: Deploy Gateway
+  # ─── Determine what changed ──────────────────────────
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    outputs:
+      gateway: ${{ steps.filter.outputs.gateway }}
+      camera-ingest: ${{ steps.filter.outputs.camera-ingest }}
+      video-pipeline: ${{ steps.filter.outputs.video-pipeline }}
+      event-engine: ${{ steps.filter.outputs.event-engine }}
+      web: ${{ steps.filter.outputs.web }}
+      environment: ${{ steps.env.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'push'
         with:
-          version: ${{ env.PNPM_VERSION }}
+          filters: |
+            gateway:
+              - 'services/gateway/**'
+              - 'packages/shared/**'
+              - 'infra/docker/gateway.Dockerfile'
+            camera-ingest:
+              - 'services/camera-ingest/**'
+            video-pipeline:
+              - 'services/video-pipeline/**'
+            event-engine:
+              - 'services/event-engine/**'
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
 
-      - uses: actions/setup-node@v4
+      - name: Set environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          fi
+
+  # ─── Build Docker Images ─────────────────────────────
+  build-images:
+    name: Build ${{ matrix.service }}
+    needs: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - service: gateway
+            context: .
+            dockerfile: infra/docker/gateway.Dockerfile
+          - service: camera-ingest
+            context: services/camera-ingest
+            dockerfile: services/camera-ingest/Dockerfile
+          - service: video-pipeline
+            context: services/video-pipeline
+            dockerfile: services/video-pipeline/Dockerfile
+          - service: event-engine
+            context: services/event-engine
+            dockerfile: services/event-engine/Dockerfile
+    steps:
+      - name: Should build?
+        id: should-build
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SERVICES="${{ inputs.services }}"
+            if [ "$SERVICES" = "all" ] || echo "$SERVICES" | grep -q "${{ matrix.service }}"; then
+              echo "build=true" >> $GITHUB_OUTPUT
+            else
+              echo "build=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ needs.changes.outputs[matrix.service] }}" = "true" ]; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          else
+            echo "build=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.should-build.outputs.build == 'true'
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.should-build.outputs.build == 'true'
+
+      - name: Login to GHCR
+        if: steps.should-build.outputs.build == 'true'
+        uses: docker/login-action@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: pnpm install --frozen-lockfile
+      - name: Docker meta
+        if: steps.should-build.outputs.build == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build gateway
-        run: pnpm --filter @osp/gateway build
+      - name: Build and push
+        if: steps.should-build.outputs.build == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      # TODO: Replace with real Docker build command
-      # Example: docker build -t osp-gateway:${{ github.sha }} -f services/gateway/Dockerfile .
-      - name: Build Docker image (placeholder)
-        run: echo "Building Docker image for gateway — replace with real docker build command"
+  # ─── Deploy to Fly.io ───────────────────────────────
+  deploy-fly:
+    name: Deploy ${{ matrix.service }} (Fly.io)
+    needs: [changes, build-images]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.changes.outputs.environment }}
+    strategy:
+      max-parallel: 2
+      matrix:
+        include:
+          - service: gateway
+            app: osp-gateway
+            config: services/gateway/fly.toml
+          - service: camera-ingest
+            app: osp-camera-ingest
+            config: services/camera-ingest/fly.toml
+          - service: video-pipeline
+            app: osp-video-pipeline
+            config: services/video-pipeline/fly.toml
+          - service: event-engine
+            app: osp-event-engine
+            config: services/event-engine/fly.toml
+    steps:
+      - name: Should deploy?
+        id: should-deploy
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SERVICES="${{ inputs.services }}"
+            if [ "$SERVICES" = "all" ] || echo "$SERVICES" | grep -q "${{ matrix.service }}"; then
+              echo "deploy=true" >> $GITHUB_OUTPUT
+            else
+              echo "deploy=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ needs.changes.outputs[matrix.service] }}" = "true" ]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy=false" >> $GITHUB_OUTPUT
+          fi
 
-      # TODO: Replace with real deployment command
-      # Example: docker push <registry>/osp-gateway:${{ github.sha }}
-      # Example: kubectl set image deployment/gateway gateway=<registry>/osp-gateway:${{ github.sha }}
-      - name: Deploy gateway (placeholder)
-        run: echo "Deploying gateway — replace with real deployment command (e.g., docker push, kubectl apply, fly deploy)"
+      - uses: actions/checkout@v4
+        if: steps.should-deploy.outputs.deploy == 'true'
 
-  # ─── Deploy Web App ────────────────────────────────
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.should-deploy.outputs.deploy == 'true'
+
+      - name: Deploy to Fly.io
+        if: steps.should-deploy.outputs.deploy == 'true'
+        run: |
+          flyctl deploy \
+            --config ${{ matrix.config }} \
+            --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }} \
+            --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ─── Deploy Web to Vercel ────────────────────────────
   deploy-web:
-    name: Deploy Web
+    name: Deploy Web (Vercel)
+    needs: changes
+    if: >
+      (github.event_name == 'push' && needs.changes.outputs.web == 'true') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.services == 'all' || contains(inputs.services, 'web')))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    environment: ${{ needs.changes.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
 
@@ -69,11 +234,62 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build web app
-        run: pnpm --filter @osp/web build
+      - name: Build shared packages
+        run: pnpm --filter @osp/shared build
 
-      # TODO: Replace with real deployment command
-      # Example: vercel deploy --prod
-      # Example: aws s3 sync apps/web/.next s3://osp-web-bucket/
-      - name: Deploy web app (placeholder)
-        run: echo "Deploying web app — replace with real deployment command (e.g., vercel deploy, aws s3 sync)"
+      - name: Deploy to Vercel
+        run: |
+          cd apps/web
+          if [ "${{ needs.changes.outputs.environment }}" = "production" ]; then
+            npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            npx vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
+          fi
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ─── Post-deploy Health Checks ───────────────────────
+  healthcheck:
+    name: Health Check
+    needs: [changes, deploy-fly, deploy-web]
+    if: always() && (needs.deploy-fly.result == 'success' || needs.deploy-web.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for rollout
+        run: sleep 30
+
+      - name: Check gateway health
+        if: needs.deploy-fly.result == 'success'
+        run: |
+          GATEWAY_URL="${{ needs.changes.outputs.environment == 'production' && secrets.PRODUCTION_GATEWAY_URL || secrets.STAGING_GATEWAY_URL }}"
+          if [ -z "$GATEWAY_URL" ]; then
+            echo "::warning::Gateway URL not configured, skipping health check"
+            exit 0
+          fi
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$GATEWAY_URL/health" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Gateway is healthy"
+              exit 0
+            fi
+            echo "Attempt $i: status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Gateway health check failed"
+          exit 1
+
+      - name: Check web health
+        if: needs.deploy-web.result == 'success'
+        run: |
+          WEB_URL="${{ needs.changes.outputs.environment == 'production' && secrets.PRODUCTION_WEB_URL || secrets.STAGING_WEB_URL }}"
+          if [ -z "$WEB_URL" ]; then
+            echo "::warning::Web URL not configured, skipping health check"
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$WEB_URL" || echo "000")
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Web health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Web is healthy"

@@ -6,3 +6,4 @@ export * from "./recording.js";
 export * from "./rule.js";
 export * from "./extension.js";
 export * from "./api.js";
+export * from "./location.js";

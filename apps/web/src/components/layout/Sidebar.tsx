@@ -8,11 +8,13 @@ import { getUserFromToken } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
   Camera,
+  MapPin,
   Bell,
   Play,
   Zap,
   Puzzle,
   Settings,
+  Activity,
   ChevronLeft,
   ChevronRight,
   Circle,
@@ -31,11 +33,13 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { href: "/cameras", label: "Cameras", icon: Camera },
+  { href: "/locations", label: "Locations", icon: MapPin },
   { href: "/events", label: "Events & Alerts", icon: Bell },
   { href: "/recordings", label: "Recordings", icon: Play },
   { href: "/rules", label: "Rules", icon: Zap },
   { href: "/extensions", label: "Extensions", icon: Puzzle },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/health", label: "System Health", icon: Activity },
 ] as const;
 
 /* ------------------------------------------------------------------ */

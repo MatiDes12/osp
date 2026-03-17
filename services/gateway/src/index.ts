@@ -15,6 +15,7 @@ import {
   logShutdownBanner,
   logConnectionStatus,
 } from "./lib/logger.js";
+import { closeAllClients as closeGrpcClients } from "./grpc/client.js";
 
 const logger = createLogger("gateway");
 const startTime = performance.now();
@@ -74,6 +75,7 @@ start().catch((err) => {
 // Graceful shutdown
 function shutdown(): void {
   logShutdownBanner("OSP API Gateway");
+  closeGrpcClients();
   stopWebSocketServer();
   process.exit(0);
 }

@@ -1,6 +1,7 @@
 import { getRedis } from "../lib/redis.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
+import { getCameraIngestClient, GrpcFallbackError } from "../grpc/index.js";
 
 const logger = createLogger("stream-service");
 
@@ -38,11 +39,25 @@ export class StreamService {
   }
 
   async addStream(cameraId: string, rtspUrl: string): Promise<void> {
+    // Try gRPC camera-ingest service first (production path)
+    try {
+      const client = getCameraIngestClient();
+      await client.addCamera(cameraId, rtspUrl, { name: cameraId });
+      logger.info("Stream added via gRPC camera-ingest", { cameraId });
+      return;
+    } catch (err) {
+      if (!(err instanceof GrpcFallbackError)) {
+        throw err;
+      }
+      // Fall through to direct go2rtc HTTP
+    }
+
+    // Fallback: direct go2rtc HTTP (development / standalone mode)
     const url = new URL("/api/streams", this.go2rtcUrl);
     url.searchParams.set("name", cameraId);
     url.searchParams.set("src", rtspUrl);
 
-    logger.info("Adding stream to go2rtc", { cameraId, rtspUrl });
+    logger.info("Adding stream to go2rtc (direct mode)", { cameraId, rtspUrl });
 
     const response = await fetch(url.toString(), { method: "PUT" });
 
@@ -75,11 +90,24 @@ export class StreamService {
   }
 
   async removeStream(cameraId: string): Promise<void> {
-    // go2rtc DELETE uses ?src= to identify the stream by name
+    // Try gRPC camera-ingest service first (production path)
+    try {
+      const client = getCameraIngestClient();
+      await client.removeCamera(cameraId);
+      logger.info("Stream removed via gRPC camera-ingest", { cameraId });
+      return;
+    } catch (err) {
+      if (!(err instanceof GrpcFallbackError)) {
+        throw err;
+      }
+      // Fall through to direct go2rtc HTTP
+    }
+
+    // Fallback: direct go2rtc HTTP (development / standalone mode)
     const url = new URL("/api/streams", this.go2rtcUrl);
     url.searchParams.set("src", cameraId);
 
-    logger.info("Removing stream from go2rtc", { cameraId });
+    logger.info("Removing stream from go2rtc (direct mode)", { cameraId });
 
     const response = await fetch(url.toString(), { method: "DELETE" });
 

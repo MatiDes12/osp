@@ -14,6 +14,7 @@ import { recordingRoutes } from "./routes/recording.routes.js";
 import { ruleRoutes } from "./routes/rule.routes.js";
 import { tenantRoutes } from "./routes/tenant.routes.js";
 import { extensionRoutes } from "./routes/extension.routes.js";
+import { locationRoutes } from "./routes/location.routes.js";
 import { devRoutes } from "./routes/dev.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
@@ -32,11 +33,13 @@ export type Env = {
 const app = new Hono<Env>();
 
 import { requestLogger } from "./middleware/request-logger.js";
+import { metricsMiddleware } from "./middleware/metrics.js";
 import { createLogger } from "./lib/logger.js";
 
 // Global middleware
 app.use("*", requestId());
 app.use("*", requestLogger());
+app.use("*", metricsMiddleware());
 app.use("*", errorHandler());
 app.use(
   "/api/*",
@@ -66,6 +69,7 @@ app.get("/", (c) => {
       recordings: "/api/v1/recordings",
       rules: "/api/v1/rules",
       tenants: "/api/v1/tenants",
+      locations: "/api/v1/locations",
       extensions: "/api/v1/extensions",
     },
     docs: "https://github.com/MatiDes12/osp",
@@ -81,6 +85,7 @@ app.route("/api/v1/events", eventRoutes);
 app.route("/api/v1/recordings", recordingRoutes);
 app.route("/api/v1/rules", ruleRoutes);
 app.route("/api/v1/tenants", tenantRoutes);
+app.route("/api/v1/locations", locationRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
 app.route("/api/v1/dev", devRoutes);
 

@@ -1,6 +1,7 @@
 import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
+import { getVideoPipelineClient, GrpcFallbackError } from "../grpc/index.js";
 import type { RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("recording-service");
@@ -8,9 +9,38 @@ const logger = createLogger("recording-service");
 export class RecordingService {
   /**
    * Start recording for a camera.
-   * Creates a DB record with status "recording" and links to go2rtc's MP4 stream.
+   * Tries gRPC video-pipeline service first, falls back to direct Supabase.
    */
   async startRecording(
+    cameraId: string,
+    tenantId: string,
+    trigger: RecordingTrigger,
+  ): Promise<string> {
+    // Try gRPC video-pipeline service first (production path)
+    try {
+      const client = getVideoPipelineClient();
+      const result = await client.startRecording(cameraId, tenantId, trigger);
+      logger.info("Recording started via gRPC video-pipeline", {
+        recordingId: result.recordingId,
+        cameraId,
+        trigger,
+      });
+      return result.recordingId;
+    } catch (err) {
+      if (!(err instanceof GrpcFallbackError)) {
+        throw err;
+      }
+      // Fall through to direct Supabase
+    }
+
+    // Fallback: direct Supabase (development / standalone mode)
+    return this.startRecordingDirect(cameraId, tenantId, trigger);
+  }
+
+  /**
+   * Direct Supabase implementation of startRecording (fallback path).
+   */
+  private async startRecordingDirect(
     cameraId: string,
     tenantId: string,
     trigger: RecordingTrigger,
@@ -78,7 +108,7 @@ export class RecordingService {
       );
     }
 
-    logger.info("Recording started", {
+    logger.info("Recording started (direct mode)", {
       recordingId: recording.id,
       cameraId,
       trigger,

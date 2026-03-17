@@ -29,6 +29,7 @@ cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
   const limit = Math.min(parseInt(c.req.query("limit") ?? "20", 10), 100);
   const status = c.req.query("status");
   const search = c.req.query("search");
+  const locationId = c.req.query("locationId");
   const offset = (page - 1) * limit;
 
   let query = supabase
@@ -43,6 +44,9 @@ cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
   }
   if (search) {
     query = query.ilike("name", `%${search}%`);
+  }
+  if (locationId) {
+    query = query.eq("location_id", locationId);
   }
 
   const { data: cameras, count, error } = await query;
