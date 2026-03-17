@@ -1,2 +1,2 @@
-export { cn } from "./utils.js";
-export { StatusIndicator } from "./primitives/status-indicator.js";
+export { cn } from "./utils";
+export { StatusIndicator } from "./primitives/status-indicator";

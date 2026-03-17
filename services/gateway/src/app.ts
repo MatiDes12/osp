@@ -36,6 +36,26 @@ app.use(
   }),
 );
 
+// Root route
+app.get("/", (c) => {
+  return c.json({
+    name: "OSP — Open Surveillance Platform | Camera Management, Live Monitoring & Extensible Security",
+    version: "0.1.0",
+    status: "running",
+    endpoints: {
+      health: "/health",
+      auth: "/api/v1/auth",
+      cameras: "/api/v1/cameras",
+      events: "/api/v1/events",
+      recordings: "/api/v1/recordings",
+      rules: "/api/v1/rules",
+      tenants: "/api/v1/tenants",
+      extensions: "/api/v1/extensions",
+    },
+    docs: "https://github.com/MatiDes12/osp",
+  });
+});
+
 // Routes
 app.route("/health", healthRoutes);
 app.route("/api/v1/auth", authRoutes);

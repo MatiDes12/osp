@@ -1,5 +1,5 @@
 import type { CameraStatus } from "@osp/shared";
-import { cn } from "../utils.js";
+import { cn } from "../utils";
 
 const STATUS_COLORS: Record<CameraStatus, string> = {
   online: "bg-green-500",

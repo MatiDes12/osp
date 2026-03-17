@@ -2,7 +2,7 @@
 
 ## Overview
 
-Full-stack, cross-platform surveillance camera application that connects to any camera type (Ring, Arlo, Wyze, Hikvision, Dahua, ONVIF-compatible, RTSP streams, USB/IP cameras). Core differentiator: an **extension layer** that lets any customer (home user, retail store, mall, enterprise) customize the platform through plugins, custom rules, and white-label theming.
+Full-stack, cross-platform surveillance camera platform — a **complete standalone product** for camera management, live monitoring, recording, and alerting. OSP works out of the box for any scale, from a single home camera to thousands across enterprise sites. It connects to any camera type (Ring, Arlo, Wyze, Hikvision, Dahua, ONVIF-compatible, RTSP streams, USB/IP cameras). Beyond its core capabilities, OSP also provides an **extension layer** that lets customers and third-party developers build on top of the platform through plugins, custom rules, custom AI models, and white-label theming — making it both a product and a platform.
 
 ---
 

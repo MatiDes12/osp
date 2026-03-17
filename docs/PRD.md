@@ -6,6 +6,19 @@
 
 ---
 
+## Product Vision
+
+OSP is a **complete, standalone surveillance platform** — not just a framework or extension system. Out of the box, it provides professional-grade camera management, live monitoring, recording, motion detection, and alerting for any scale from a single home camera to thousands across enterprise sites.
+
+What makes OSP unique is that beyond being a fully-featured product, it's also an **open platform**. Customers can customize it through extensions, custom rules, and white-label theming. Developers can build and sell plugins in the marketplace. This dual nature — product + platform — means OSP competes with closed products like Ring and Verkada while offering the flexibility of open systems like Frigate.
+
+**OSP is for**:
+- **End users** who want a powerful, vendor-agnostic surveillance system that works immediately
+- **Businesses** who need multi-tenant, role-based camera management across locations
+- **Developers** who want to build custom integrations, AI models, or white-label solutions on top of a proven platform
+
+---
+
 ## Table of Contents
 
 1. [Personas](#1-personas)
@@ -558,7 +571,7 @@ Storage optimization:
                                             Frigate ●
 ```
 
-**OSP's unique position**: The only platform that spans from consumer to enterprise with an open, extensible architecture. Competitors are either consumer-only (Ring, Arlo), enterprise-only (Milestone, Verkada), or technical-user-only (Frigate). OSP bridges all segments with a single platform, shared extension ecosystem, and consistent UX across web, mobile, and desktop.
+**OSP's unique position**: The only **complete product** that spans from consumer to enterprise — fully functional out of the box like Ring/Verkada, yet open and extensible like Frigate. OSP doesn't require extensions to be useful; extensions make an already-great product even better. Competitors are either consumer-only (Ring, Arlo), enterprise-only (Milestone, Verkada), or technical-user-only (Frigate). OSP bridges all segments with a single platform, shared extension ecosystem, and consistent UX across web, mobile, and desktop.
 
 ---
 

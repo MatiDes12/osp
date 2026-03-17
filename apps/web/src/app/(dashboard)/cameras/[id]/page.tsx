@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { StatusIndicator } from "@osp/ui";
+import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import type { Camera, CameraZone, OSPEvent, ApiResponse } from "@osp/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -160,27 +161,12 @@ export default function CameraDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Live view placeholder */}
+        {/* Live view */}
         <div className="lg:col-span-2">
-          <div className="aspect-video rounded-lg bg-black border border-[var(--color-border)] flex items-center justify-center">
-            <div className="text-center">
-              <svg
-                className="w-12 h-12 mx-auto mb-2 text-[var(--color-muted)] opacity-30"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                />
-              </svg>
-              <p className="text-[var(--color-muted)] text-sm">{camera.name} - Live View</p>
-              <p className="text-[var(--color-muted)] text-xs mt-1">Stream will appear here when connected</p>
-            </div>
-          </div>
+          <LiveViewPlayer
+            cameraId={camera.id}
+            cameraName={camera.name}
+          />
         </div>
 
         {/* Camera info panel */}

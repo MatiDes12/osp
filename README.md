@@ -1,54 +1,24 @@
-# Open Surveillance Platform (OSP)
+# OSP — Open Surveillance Platform
 
-A cross-platform surveillance camera application that connects to any camera type and lets customers customize it for their specific use case -- home, retail, mall, or enterprise.
+**A complete, standalone surveillance system that works out of the box — and an open platform you can extend.**
 
-OSP is not another camera viewer. The core value is the **extension layer**: a plugin system that allows anyone to add custom alert rules, AI models, analytics widgets, and notification channels on top of a universal camera management platform.
+OSP provides professional-grade camera management, live monitoring, recording, motion detection, and alerting for any scale, from a single home camera to thousands across enterprise sites. It connects to any camera (Ring, Arlo, Wyze, Hikvision, Dahua, ONVIF, RTSP, USB/IP) and runs on web, mobile, and desktop.
+
+What makes OSP different: it's both a **product** and a **platform**. You don't need extensions to get a fully-featured surveillance system. But when you want more, the extension layer lets you add custom rules, AI models, notification channels, analytics widgets, and white-label theming — or build and sell plugins in the marketplace.
 
 ---
 
-## Architecture
+## Key Features
 
-```
-                    +------------------+
-                    |   Web (Next.js)  |
-                    |  Mobile (Expo)   |
-                    +--------+---------+
-                             |
-                      WebSocket / REST
-                             |
-                    +--------+---------+
-                    |  API Gateway     |
-                    |  (Hono / Bun)    |
-                    +--------+---------+
-                             |
-              +--------------+--------------+
-              |              |              |
-     +--------+---+  +------+------+  +----+--------+
-     | Camera     |  | Video       |  | Event       |
-     | Ingest (Go)|  | Pipeline(Go)|  | Engine (Go) |
-     +--------+---+  +------+------+  +----+--------+
-              |              |              |
-         +----+----+    +---+---+    +-----+-----+
-         | go2rtc  |    | FFmpeg|    | Extension  |
-         | (proxy) |    |       |    | Runtime(Go)|
-         +---------+    +---+---+    +-----------+
-                            |
-                    +-------+--------+
-                    | Cloudflare R2  |
-                    | (video storage)|
-                    +----------------+
-
-         Database: Supabase (PostgreSQL + Auth + Realtime)
-         Cache: Redis
-```
-
-**Frontend** -- Next.js 15 web dashboard, React Native mobile app (iOS/Android), Tauri desktop (planned).
-
-**Backend** -- Hono/Bun API gateway handles REST and WebSocket. Four Go microservices handle camera connections, video processing, event rules, and extension sandboxing.
-
-**Video** -- go2rtc proxies all camera protocols (RTSP, ONVIF, WebRTC). FFmpeg handles transcoding and HLS packaging. Clips stored in Cloudflare R2.
-
-**Data** -- Supabase PostgreSQL with Row Level Security for multi-tenant isolation. Redis for caching and pub/sub.
+- **Live View** — Low-latency (<500ms) streaming via WebRTC, grid layout, full-screen, PTZ controls
+- **Recording & Playback** — Continuous and motion-triggered recording, timeline scrubber, clip export
+- **Motion Detection** — Built-in detection with configurable sensitivity and zones
+- **Alerts & Notifications** — Push (mobile), email, and webhook notifications for motion/offline events
+- **Multi-Tenant** — Tenant isolation with scoped cameras, users, and data
+- **Role-Based Access Control** — Admin, Operator, and Viewer roles with granular permissions
+- **Any Camera, Any Brand** — RTSP, ONVIF auto-discovery, WebRTC, USB/IP — no vendor lock-in
+- **Extension SDK** — TypeScript SDK with hook points for custom integrations and plugins
+- **Cross-Platform** — Next.js web dashboard, React Native mobile app (iOS + Android), Tauri desktop (planned)
 
 ---
 
@@ -62,13 +32,56 @@ OSP is not another camera viewer. The core value is the **extension layer**: a p
 | Core Services | Go 1.22 |
 | Video Proxy | go2rtc |
 | Transcoding | FFmpeg |
-| Database | Supabase (PostgreSQL) |
-| Auth | Supabase Auth |
+| Database | Supabase (PostgreSQL + Auth + Realtime) |
 | Cache | Redis |
 | Object Storage | Cloudflare R2 |
 | Monorepo | pnpm workspaces, Turborepo |
 | CI/CD | GitHub Actions |
 | Containers | Docker |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 10+
+- Go 1.22+
+- Docker and Docker Compose
+- Supabase CLI
+
+### Using Docker Compose
+
+```bash
+git clone https://github.com/MatiDes12/osp.git
+cd osp
+cp .env.example .env
+docker compose -f infra/docker/docker-compose.yml up --build
+```
+
+### Local Development
+
+```bash
+git clone https://github.com/MatiDes12/osp.git
+cd osp
+pnpm install
+cp .env.example .env
+
+# Start infrastructure (Redis, go2rtc)
+docker compose -f infra/docker/docker-compose.yml up -d
+
+# Start Supabase locally
+cd infra/supabase && supabase start && cd ../..
+
+# Start all services
+pnpm dev
+```
+
+This starts:
+- Web dashboard at `http://localhost:3001`
+- API gateway at `http://localhost:3000`
+- go2rtc API at `http://localhost:1984`
 
 ---
 
@@ -95,207 +108,8 @@ osp/
 │   ├── k8s/                 # Kubernetes manifests
 │   └── supabase/            # Migrations, RLS policies, seeds
 ├── docs/                    # Architecture and design docs
-└── .github/                 # CI/CD workflows, templates
+└── tests/                   # E2E and integration tests
 ```
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- pnpm 10+
-- Go 1.22+
-- Docker and Docker Compose
-- Supabase CLI (for local database)
-
-### Setup
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/MatiDes12/osp.git
-cd osp
-```
-
-2. Install dependencies:
-
-```bash
-pnpm install
-```
-
-3. Copy the environment file and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-4. Start infrastructure (Redis, go2rtc):
-
-```bash
-docker compose -f infra/docker/docker-compose.yml up -d
-```
-
-5. Start Supabase locally:
-
-```bash
-cd infra/supabase
-supabase start
-cd ../..
-```
-
-6. Run the development servers:
-
-```bash
-pnpm dev
-```
-
-This starts all services through Turborepo:
-- Web dashboard at `http://localhost:3001`
-- API gateway at `http://localhost:3000`
-- go2rtc API at `http://localhost:1984`
-
-### Running Go Services Individually
-
-```bash
-cd services/camera-ingest
-go run ./cmd/server/
-
-cd services/video-pipeline
-go run ./cmd/server/
-
-cd services/event-engine
-go run ./cmd/server/
-
-cd services/extension-runtime
-go run ./cmd/server/
-```
-
----
-
-## Development
-
-### Commands
-
-```bash
-pnpm dev              # Start all services
-pnpm build            # Build all packages
-pnpm lint             # Run ESLint across all packages
-pnpm type-check       # TypeScript type checking
-pnpm test             # Run unit tests
-pnpm test:integration # Run integration tests
-pnpm format           # Format code with Prettier
-```
-
-### Running Tests
-
-TypeScript tests use Vitest. Go tests use the standard `go test` toolchain.
-
-```bash
-# All TypeScript tests
-pnpm test
-
-# Single package
-pnpm --filter @osp/web test
-pnpm --filter @osp/gateway test
-
-# Go service tests
-cd services/camera-ingest && go test -v ./...
-cd services/video-pipeline && go test -v -race ./...
-
-# E2E tests (requires running services)
-pnpm exec playwright test
-```
-
-### Docker
-
-Build and run the full stack locally:
-
-```bash
-# Development
-docker compose -f infra/docker/docker-compose.yml up --build
-
-# Production-like
-docker compose -f infra/docker/docker-compose.prod.yml up
-```
-
-Build a single service image:
-
-```bash
-docker build -f infra/docker/gateway.Dockerfile -t osp-gateway .
-docker build -f services/camera-ingest/Dockerfile -t osp-camera-ingest services/camera-ingest/
-```
-
----
-
-## CI/CD
-
-All workflows run on GitHub Actions. See `.github/workflows/` for the full configuration.
-
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| CI | Push/PR | Lint, type-check, unit tests, Go vet, security audit |
-| E2E | Push/PR to main | Playwright end-to-end tests |
-| Docker | Push to main, tags | Build and push images to GHCR |
-| Preview | PR | Deploy preview environment, comment URL on PR |
-| Release | Tag (v*) | Build binaries, create GitHub Release |
-| Production | Release published | Run migrations, deploy, health check, notify |
-| CodeQL | Push/PR, weekly | Security analysis for TypeScript and Go |
-| Dependency Review | PR | Block high-severity or restricted-license deps |
-| Supabase Migrate | PR (migration files) | Validate migrations apply cleanly |
-
-### Creating a Release
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-This triggers the release workflow which builds cross-platform binaries, creates Docker images, and publishes a GitHub Release with a changelog.
-
----
-
-## Configuration
-
-All configuration is through environment variables. See `.env.example` for the full list.
-
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key (client-facing) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service key (server-side only) |
-| `REDIS_URL` | Redis connection string |
-| `R2_ENDPOINT` | Cloudflare R2 endpoint |
-| `R2_ACCESS_KEY_ID` | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | R2 secret key |
-| `R2_BUCKET_NAME` | R2 bucket for video storage |
-| `GO2RTC_API_URL` | go2rtc API endpoint |
-
----
-
-## Extension System
-
-OSP supports custom extensions that hook into the event pipeline. Extensions can add alert rules, notification channels, analytics widgets, and AI models.
-
-```typescript
-// Example extension
-import { defineExtension } from "@osp/extension-sdk";
-
-export default defineExtension({
-  name: "slack-alerts",
-  version: "1.0.0",
-  hooks: {
-    onMotionDetected: async (event) => {
-      await sendSlackMessage(event.cameraName, event.snapshot);
-    },
-  },
-});
-```
-
-Hook points: `onMotionDetected`, `onPersonDetected`, `onCameraOffline`, `onRecordingComplete`, `onAlertTriggered`.
-
-See `packages/sdk/` for the full SDK and `docs/` for the extension architecture.
 
 ---
 
@@ -311,22 +125,12 @@ See `packages/sdk/` for the full SDK and `docs/` for the extension architecture.
 
 ---
 
-## Roadmap
-
-**Phase 1 (MVP)** -- RTSP/ONVIF cameras, live view via WebRTC, motion-triggered recording, basic alerts, web dashboard, mobile app, multi-tenant with RBAC.
-
-**Phase 2** -- Visual rule engine, Extension SDK and marketplace, AI detection (person/vehicle/animal), desktop app via Tauri, ClickHouse analytics.
-
-**Phase 3** -- Enterprise features, compliance and audit logging, SSO, white-label theming, SLA monitoring.
-
-**Phase 4** -- Edge computing, custom AI model deployment, federated camera networks.
-
----
-
 ## Contributing
 
+Contributions are welcome. To get started:
+
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feat/add-ptz-controls`)
+2. Create a feature branch (`git checkout -b feat/your-feature`)
 3. Follow the [consistency standards](docs/CONSISTENCY-STANDARDS.md)
 4. Write tests first (TDD), aim for 80% coverage
 5. Open a pull request using the PR template

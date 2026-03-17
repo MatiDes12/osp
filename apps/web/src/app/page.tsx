@@ -8,7 +8,7 @@ export default function HomePage() {
           Open Surveillance Platform
         </h1>
         <p className="mt-3 text-lg text-[var(--color-muted)]">
-          Extensible camera management for every scale
+          Your complete surveillance platform — monitor, record, alert, extend
         </p>
       </div>
       <div className="flex gap-4">
