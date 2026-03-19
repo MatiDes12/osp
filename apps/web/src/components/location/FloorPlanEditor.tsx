@@ -1256,39 +1256,80 @@ export function FloorPlanEditor({
             </div>
 
             {/* Camera link */}
-            {selectedObj.type === "camera" && cameras && (
-              <div>
-                <span className="text-[10px] text-zinc-600">Link Camera</span>
-                <select
-                  value={selectedObj.cameraId ?? ""}
-                  onChange={(e) => {
-                    const cam = cameras.find((c) => c.id === e.target.value);
-                    updateObj(selectedId!, {
-                      cameraId: e.target.value || undefined,
-                      cameraStatus: cam?.status,
-                      label: cam?.name ?? selectedObj.label,
-                    });
-                  }}
-                  className="w-full mt-0.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Not linked</option>
-                  {cameras.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.status})
-                    </option>
-                  ))}
-                </select>
-                {selectedObj.cameraId && (
-                  <button
-                    onClick={() => setPopupCameraId(selectedId)}
-                    className="w-full mt-1.5 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
+            {selectedObj.type === "camera" && cameras && (() => {
+              // Build a set of camera IDs already linked to OTHER floor plan objects
+              const linkedCameraIds = new Set(
+                objects
+                  .filter((o) => o.type === "camera" && o.id !== selectedId && o.cameraId)
+                  .map((o) => o.cameraId!),
+              );
+
+              return (
+                <div>
+                  <span className="text-[10px] text-zinc-600">Link Camera</span>
+                  <select
+                    value={selectedObj.cameraId ?? ""}
+                    onChange={(e) => {
+                      const newCamId = e.target.value || undefined;
+                      const cam = newCamId ? cameras.find((c) => c.id === newCamId) : undefined;
+                      updateObj(selectedId!, {
+                        cameraId: newCamId,
+                        cameraStatus: cam?.status,
+                        label: cam?.name ?? (newCamId ? selectedObj.label : "New Camera"),
+                      });
+                    }}
+                    className="w-full mt-0.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <Eye className="h-3 w-3" />
-                    Preview Live Feed
-                  </button>
-                )}
-              </div>
-            )}
+                    <option value="">Not linked</option>
+                    {cameras.map((c) => {
+                      const taken = linkedCameraIds.has(c.id);
+                      return (
+                        <option
+                          key={c.id}
+                          value={c.id}
+                          disabled={taken}
+                          className={taken ? "text-zinc-600" : ""}
+                        >
+                          {c.name} ({c.status}){taken ? " — already linked" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  {/* Unlink button */}
+                  {selectedObj.cameraId && (
+                    <button
+                      onClick={() => {
+                        updateObj(selectedId!, {
+                          cameraId: undefined,
+                          cameraStatus: undefined,
+                          label: "New Camera",
+                        });
+                      }}
+                      className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors cursor-pointer"
+                    >
+                      Unlink Camera
+                    </button>
+                  )}
+
+                  {selectedObj.cameraId && (
+                    <button
+                      onClick={() => setPopupCameraId(selectedId)}
+                      className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Preview Live Feed
+                    </button>
+                  )}
+
+                  {cameras.length === 0 && (
+                    <p className="mt-1 text-[9px] text-zinc-600">
+                      No cameras found. Add cameras first.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Room color */}
             {selectedObj.type === "room" && (

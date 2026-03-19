@@ -57,7 +57,8 @@ export default function LocationDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch location + cameras at this location
+  // Fetch location + ALL cameras from the tenant (not just this location)
+  // so the user can link any camera to the floor plan
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -66,7 +67,7 @@ export default function LocationDetailPage({
           fetch(`${API_URL}/api/v1/locations/${id}`, {
             headers: getAuthHeaders(),
           }),
-          fetch(`${API_URL}/api/v1/cameras?locationId=${id}`, {
+          fetch(`${API_URL}/api/v1/cameras`, {
             headers: getAuthHeaders(),
           }),
         ]);
