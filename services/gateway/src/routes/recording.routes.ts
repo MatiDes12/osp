@@ -1,4 +1,4 @@
-import { existsSync, statSync, createReadStream } from "fs";
+import { existsSync, statSync, createReadStream } from "node:fs";
 import { Hono } from "hono";
 import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -6,7 +6,7 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { createSuccessResponse } from "@osp/shared";
-import { Readable } from "stream";
+import { Readable } from "node:stream";
 
 export const recordingRoutes = new Hono<Env>();
 
@@ -15,8 +15,8 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
 
-  const page = parseInt(c.req.query("page") ?? "1", 10);
-  const limit = Math.min(parseInt(c.req.query("limit") ?? "20", 10), 100);
+  const page = Number.parseInt(c.req.query("page") ?? "1", 10);
+  const limit = Math.min(Number.parseInt(c.req.query("limit") ?? "20", 10), 100);
   const cameraId = c.req.query("cameraId");
   const trigger = c.req.query("trigger");
   const status = c.req.query("status");
@@ -55,7 +55,11 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
 
   // Enrich recordings with camera name and playback URL
   const recordingService = getRecordingService();
-  const enriched = await enrichRecordings(recordings ?? [], recordingService);
+  const enriched = await enrichRecordings(
+    recordings ?? [],
+    recordingService,
+    tenantId,
+  );
 
   return c.json(
     createSuccessResponse(enriched, {
@@ -131,7 +135,7 @@ recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
 
   const recordingService = getRecordingService();
   const cameraId = recording.camera_id as string;
-  const playbackUrl = recordingService.getPlaybackUrl(recordingId);
+  const playbackUrl = await recordingService.getPlaybackUrl(recordingId, tenantId);
 
   // Look up camera name
   const cameraName = await getCameraName(cameraId);
@@ -162,6 +166,20 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
     throw new ApiError("RECORDING_NOT_FOUND", "Recording not found", 404);
   }
 
+  const recordingService = getRecordingService();
+  const playbackUrl = await recordingService.getPlaybackUrl(
+    recordingId,
+    tenantId,
+  );
+  const gatewayUrl =
+    process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
+  const localFallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
+
+  // If playbackUrl is a remote, pre-signed HLS URL (R2), redirect clients.
+  if (playbackUrl !== localFallbackUrl) {
+    return c.redirect(playbackUrl, 302);
+  }
+
   const filePath = recording.storage_path as string;
   if (!filePath || !existsSync(filePath)) {
     throw new ApiError(
@@ -178,8 +196,8 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
   // Support range requests for seeking
   if (rangeHeader) {
     const parts = rangeHeader.replace(/bytes=/, "").split("-");
-    const start = parseInt(parts[0] ?? "0", 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const start = Number.parseInt(parts[0] ?? "0", 10);
+    const end = parts[1] ? Number.parseInt(parts[1], 10) : fileSize - 1;
     const chunkSize = end - start + 1;
 
     const nodeStream = createReadStream(filePath, { start, end });
@@ -245,6 +263,7 @@ async function getCameraName(cameraId: string): Promise<string> {
 async function enrichRecordings(
   recordings: Record<string, unknown>[],
   recordingService: ReturnType<typeof getRecordingService>,
+  tenantId: string,
 ): Promise<Record<string, unknown>[]> {
   // Collect unique camera IDs to batch-lookup names
   const cameraIds = [...new Set(recordings.map((r) => r.camera_id as string))];
@@ -261,13 +280,15 @@ async function enrichRecordings(
     }
   }
 
-  return recordings.map((r) => {
+  return Promise.all(
+    recordings.map(async (r) => {
     const cameraId = r.camera_id as string;
     const recId = r.id as string;
     return {
       ...r,
       camera_name: nameMap.get(cameraId) ?? "Unknown Camera",
-      playback_url: recordingService.getPlaybackUrl(recId),
+      playback_url: await recordingService.getPlaybackUrl(recId, tenantId),
     };
-  });
+    }),
+  );
 }

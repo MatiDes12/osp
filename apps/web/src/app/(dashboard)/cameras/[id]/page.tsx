@@ -23,6 +23,7 @@ import { PTZControls } from "@/components/camera/PTZControls";
 import { ZoneDrawer } from "@/components/camera/ZoneDrawer";
 import { ZoneNameDialog } from "@/components/camera/ZoneNameDialog";
 import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
+import { HLSPlayer } from "@/components/camera/HLSPlayer";
 import type { Camera as CameraType, CameraZone, OSPEvent } from "@osp/shared";
 import {
   transformCamera,
@@ -815,12 +816,22 @@ export default function CameraDetailPage() {
               Close
             </button>
           </div>
-          <video
-            ref={playbackVideoRef}
-            src={playbackUrl}
-            controls
-            className="w-full aspect-video"
-          />
+          {playbackUrl.endsWith(".m3u8") ? (
+            <HLSPlayer
+              url={playbackUrl}
+              controls
+              muted={false}
+              videoRef={playbackVideoRef}
+              className="w-full aspect-video"
+            />
+          ) : (
+            <video
+              ref={playbackVideoRef}
+              src={playbackUrl}
+              controls
+              className="w-full aspect-video"
+            />
+          )}
         </div>
       )}
 

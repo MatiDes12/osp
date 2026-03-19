@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Image,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import type { Camera, OSPEvent } from "@osp/shared/types";
@@ -15,10 +14,10 @@ import { api } from "@/lib/api";
 import { transformCamera, transformEvents } from "@/lib/transforms";
 import { EventRow } from "@/components/EventRow";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
+import { MobileLiveViewWebRTCPlayer } from "@/components/camera/MobileLiveViewWebRTCPlayer";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
-const GO2RTC_BASE_URL = process.env.EXPO_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
-const MJPEG_REFRESH_MS = 500;
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 const STATUS_COLORS: Record<string, string> = {
   online: colors.success,
@@ -35,8 +34,6 @@ export default function CameraDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [frameKey, setFrameKey] = useState(0);
-  const frameTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(
     async (showRefresh = false) => {
@@ -78,22 +75,6 @@ export default function CameraDetailScreen() {
     fetchData();
   }, [fetchData]);
 
-  // MJPEG frame refresh timer
-  useEffect(() => {
-    if (camera?.status === "online") {
-      frameTimerRef.current = setInterval(() => {
-        setFrameKey((prev) => prev + 1);
-      }, MJPEG_REFRESH_MS);
-    }
-
-    return () => {
-      if (frameTimerRef.current) {
-        clearInterval(frameTimerRef.current);
-        frameTimerRef.current = null;
-      }
-    };
-  }, [camera?.status]);
-
   const handlePtz = useCallback(
     async (direction: string) => {
       if (!id) return;
@@ -126,7 +107,6 @@ export default function CameraDetailScreen() {
   }
 
   const statusColor = STATUS_COLORS[camera.status] ?? colors.textMuted;
-  const frameUri = `${GO2RTC_BASE_URL}/api/frame.jpeg?src=${camera.id}&t=${frameKey}`;
 
   return (
     <ScrollView
@@ -143,11 +123,7 @@ export default function CameraDetailScreen() {
       {/* Live View */}
       <View style={styles.liveView}>
         {camera.status === "online" ? (
-          <Image
-            source={{ uri: frameUri }}
-            style={styles.liveImage}
-            resizeMode="contain"
-          />
+          <MobileLiveViewWebRTCPlayer cameraId={camera.id} status={camera.status} />
         ) : (
           <View style={styles.liveViewOffline}>
             <Text style={styles.liveViewLabel}>{camera.name}</Text>

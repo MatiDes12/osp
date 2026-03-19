@@ -1,17 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import Hls from "hls.js";
 
 interface HLSPlayerProps {
   readonly url: string;
   readonly className?: string;
+  readonly controls?: boolean;
+  readonly videoRef?: RefObject<HTMLVideoElement>;
+  readonly muted?: boolean;
 }
 
 type PlayerState = "loading" | "playing" | "error";
 
-export function HLSPlayer({ url, className }: HLSPlayerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+export function HLSPlayer({
+  url,
+  className,
+  controls,
+  videoRef: videoRefProp,
+  muted = true,
+}: HLSPlayerProps) {
+  const internalVideoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = videoRefProp ?? internalVideoRef;
   const hlsRef = useRef<Hls | null>(null);
   const [state, setState] = useState<PlayerState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -104,9 +115,12 @@ export function HLSPlayer({ url, className }: HLSPlayerProps) {
         ref={videoRef}
         className="w-full h-full object-contain"
         autoPlay
-        muted
+        muted={muted}
         playsInline
-      />
+        controls={controls}
+      >
+        <track kind="captions" />
+      </video>
 
       {state === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/60">

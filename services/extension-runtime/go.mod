@@ -1,10 +1,10 @@
 module github.com/MatiDes12/osp/services/extension-runtime
 
-go 1.22
+go 1.22.0
 
-require (
-	google.golang.org/grpc v1.71.0
-)
+toolchain go1.22.12
+
+require google.golang.org/grpc v1.71.0
 
 require (
 	golang.org/x/net v0.34.0 // indirect

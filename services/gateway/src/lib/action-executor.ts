@@ -4,6 +4,7 @@ import { createLogger } from "./logger.js";
 import { sendEmail } from "./email.js";
 import { alertEmailTemplate } from "./email-templates.js";
 import { getRecordingService } from "../services/recording.service.js";
+import { getExtensionRunner } from "../services/extension-runner.js";
 import type { RuleAction } from "@osp/shared";
 import type { MatchedRule } from "./rule-evaluator.js";
 
@@ -117,10 +118,7 @@ async function executeAction(
       break;
 
     case "extension_hook":
-      logger.info("Extension hook action (not implemented)", {
-        ruleId: matchedRule.ruleId,
-        actionType: action.type,
-      });
+      await handleExtensionHook(action, matchedRule, event);
       break;
 
     default:
@@ -129,6 +127,62 @@ async function executeAction(
         actionType: action.type,
       });
   }
+}
+
+async function handleExtensionHook(
+  action: RuleAction,
+  matchedRule: MatchedRule,
+  event: EventContext,
+): Promise<void> {
+  const extensionId =
+    (action.config["extensionId"] as string | undefined)
+    ?? (action.config["installedExtensionId"] as string | undefined)
+    ?? "";
+  if (!extensionId) {
+    logger.warn("Extension hook action missing extensionId", {
+      ruleId: matchedRule.ruleId,
+    });
+    return;
+  }
+
+  const hookName =
+    (action.config["hookName"] as string | undefined) ?? "onRuleTriggered";
+  const timeoutMs = Number(
+    (action.config["timeoutMs"] as number | string | undefined) ?? 5000,
+  );
+
+  const runner = getExtensionRunner();
+  const result = await runner.executeHook(
+    extensionId,
+    hookName,
+    {
+      rule: {
+        id: matchedRule.ruleId,
+        name: matchedRule.ruleName,
+      },
+      event,
+      triggeredAt: new Date().toISOString(),
+    },
+    action.config,
+    timeoutMs,
+  );
+
+  if (!result.success) {
+    logger.warn("Extension hook failed", {
+      ruleId: matchedRule.ruleId,
+      extensionId,
+      hookName,
+      error: result.error ?? "unknown",
+    });
+    return;
+  }
+
+  logger.info("Extension hook executed", {
+    ruleId: matchedRule.ruleId,
+    extensionId,
+    hookName,
+    durationMs: String(result.durationMs),
+  });
 }
 
 /**
@@ -395,7 +449,7 @@ function interpolateTemplate(
     eventId: event.id,
   };
 
-  return template.replace(
+  return template.replaceAll(
     /\{\{(\w+)\}\}/g,
     (_, key: string) => replacements[key] ?? `{{${key}}}`,
   );

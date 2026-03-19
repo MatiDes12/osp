@@ -12,21 +12,43 @@ import {
   CreateZoneSchema,
   UpdateZoneSchema,
   PTZCommandSchema,
+  createSuccessResponse,
 } from "@osp/shared";
-import { createSuccessResponse } from "@osp/shared";
 import type { RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("camera-routes");
 
 export const cameraRoutes = new Hono<Env>();
 
+// Internal service endpoint for ingest workers (no user JWT).
+// Protected by shared service token.
+cameraRoutes.get("/internal/online", async (c) => {
+  const token = c.req.header("X-Internal-Token");
+  const expectedToken = process.env["API_TOKEN"];
+  if (!expectedToken || !token || token !== expectedToken) {
+    throw new ApiError("AUTH_TOKEN_INVALID", "Invalid internal service token", 401);
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("cameras")
+    .select("id, tenant_id, name, connection_uri, status, config")
+    .eq("status", "online");
+
+  if (error) {
+    throw new ApiError("INTERNAL_ERROR", "Failed to fetch online cameras", 500);
+  }
+
+  return c.json(createSuccessResponse(data ?? []));
+});
+
 // List cameras
 cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
 
-  const page = parseInt(c.req.query("page") ?? "1", 10);
-  const limit = Math.min(parseInt(c.req.query("limit") ?? "20", 10), 100);
+  const page = Number.parseInt(c.req.query("page") ?? "1", 10);
+  const limit = Math.min(Number.parseInt(c.req.query("limit") ?? "20", 10), 100);
   const status = c.req.query("status");
   const search = c.req.query("search");
   const locationId = c.req.query("locationId");

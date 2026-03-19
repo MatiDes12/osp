@@ -7,9 +7,11 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 interface RequestOptions {
   readonly method?: string;
   readonly body?: unknown;
-  readonly params?: Record<string, string | number | undefined>;
+  readonly params?: Record<string, ApiParamValue>;
   readonly requiresAuth?: boolean;
 }
+
+type ApiParamValue = string | number | undefined;
 
 function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
   const url = new URL(path, API_BASE_URL);
@@ -125,6 +127,12 @@ export const api = {
 
   put: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: "PUT", body }),
+
+  patch: <T>(
+    path: string,
+    body?: unknown,
+    options?: { requiresAuth?: boolean },
+  ) => apiRequest<T>(path, { method: "PATCH", body, requiresAuth: options?.requiresAuth }),
 
   delete: <T>(path: string) =>
     apiRequest<T>(path, { method: "DELETE" }),

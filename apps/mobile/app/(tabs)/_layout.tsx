@@ -1,6 +1,11 @@
+import { useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import { Text, StyleSheet } from "react-native";
 import { colors } from "@/constants/theme";
+import { api } from "@/lib/api";
+import { registerForPushNotifications } from "@/lib/push-notifications";
+import { transformTenant } from "@/lib/transforms";
+import type { Tenant } from "@osp/shared/types";
 
 function TabIcon({ name, focused }: { readonly name: string; readonly focused: boolean }) {
   const icons: Record<string, string> = {
@@ -16,7 +21,59 @@ function TabIcon({ name, focused }: { readonly name: string; readonly focused: b
   );
 }
 
+const tabIconCameras = ({ focused }: { readonly focused: boolean }) => (
+  <TabIcon name="Cameras" focused={focused} />
+);
+
+const tabIconEvents = ({ focused }: { readonly focused: boolean }) => (
+  <TabIcon name="Events" focused={focused} />
+);
+
+const tabIconRecordings = ({ focused }: { readonly focused: boolean }) => (
+  <TabIcon name="Recordings" focused={focused} />
+);
+
+const tabIconSettings = ({ focused }: { readonly focused: boolean }) => (
+  <TabIcon name="Settings" focused={focused} />
+);
+
 export default function TabsLayout() {
+  const didRegisterRef = useRef(false);
+
+  useEffect(() => {
+    if (didRegisterRef.current) return;
+    didRegisterRef.current = true;
+
+    async function registerPushToken(): Promise<void> {
+      try {
+        const tenantResult = await api.get<Tenant>("/api/v1/tenants/current");
+        if (!tenantResult.success || !tenantResult.data) return;
+
+        const tenant = transformTenant(tenantResult.data);
+        if (!tenant.settings.notificationPreferences.pushEnabled) return;
+
+        const token = await registerForPushNotifications();
+        if (!token) return;
+
+        const result = await api.patch<{ saved: boolean; pushToken: string }>(
+          "/api/v1/users/push-token",
+          { pushToken: token },
+        );
+
+        if (!result.success) {
+          // Endpoint errors are still actionable; keep logging to surface issues.
+          // eslint-disable-next-line no-console
+          console.warn("[push] Failed to save push token", result.error);
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[push] Push token registration failed", err);
+      }
+    }
+
+    void registerPushToken();
+  }, []);
+
   return (
     <Tabs
       screenOptions={{
@@ -47,28 +104,28 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Cameras",
-          tabBarIcon: ({ focused }) => <TabIcon name="Cameras" focused={focused} />,
+          tabBarIcon: tabIconCameras,
         }}
       />
       <Tabs.Screen
         name="events"
         options={{
           title: "Events",
-          tabBarIcon: ({ focused }) => <TabIcon name="Events" focused={focused} />,
+          tabBarIcon: tabIconEvents,
         }}
       />
       <Tabs.Screen
         name="recordings"
         options={{
           title: "Recordings",
-          tabBarIcon: ({ focused }) => <TabIcon name="Recordings" focused={focused} />,
+          tabBarIcon: tabIconRecordings,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ focused }) => <TabIcon name="Settings" focused={focused} />,
+          tabBarIcon: tabIconSettings,
         }}
       />
     </Tabs>

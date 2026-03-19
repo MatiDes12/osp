@@ -1,6 +1,6 @@
-import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "fs";
-import { join } from "path";
-import { Readable } from "stream";
+import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "node:fs";
+import { join } from "node:path";
+import { Readable } from "node:stream";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../app.js";
@@ -13,14 +13,19 @@ import { executeActions } from "../lib/action-executor.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { createLogger } from "../lib/logger.js";
 import {
+  getAIDetectionService,
+  type DetectionResult,
+} from "../services/ai-detection.service.js";
+import {
   ListEventsSchema,
   BulkAcknowledgeSchema,
   EventTypeSchema,
   EventSeveritySchema,
+  createSuccessResponse,
 } from "@osp/shared";
-import { createSuccessResponse } from "@osp/shared";
 
 const ruleLogger = createLogger("rule-engine");
+const aiLogger = createLogger("ai-detection");
 
 export const eventRoutes = new Hono<Env>();
 
@@ -185,6 +190,139 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     })();
   }
 
+  // --- AI detection on motion events (fire-and-forget) ---
+  if (input.type === "motion") {
+    (async () => {
+      try {
+        const aiService = getAIDetectionService();
+        if (!aiService.isConfigured()) return;
+
+        // Only analyze when the camera is online.
+        const { data: cameraStatus } = await supabase
+          .from("cameras")
+          .select("status")
+          .eq("id", input.cameraId)
+          .eq("tenant_id", tenantId)
+          .single();
+
+        if (cameraStatus?.status !== "online") return;
+
+        const go2rtcUrl =
+          process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+
+        const snapshotRes = await fetch(
+          `${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(input.cameraId)}`,
+          { signal: AbortSignal.timeout(5000) },
+        ).catch(() => null);
+
+        if (!snapshotRes?.ok) return;
+
+        const buf = Buffer.from(await snapshotRes.arrayBuffer());
+        const detections = await aiService.analyzeFrame(input.cameraId, buf);
+
+        if (detections.length === 0) return;
+
+        // Attach detections to the original motion event.
+        await supabase
+          .from("events")
+          .update({
+            metadata: {
+              ...input.metadata,
+              detections,
+            },
+          })
+          .eq("id", ospEvent.id);
+
+        // Create typed events for high-confidence detections.
+        const typedDetections = detections.filter(
+          (d): d is DetectionResult & {
+            type: Exclude<DetectionResult["type"], "unknown">;
+          } => d.type !== "unknown" && d.confidence > 0.7,
+        );
+        if (typedDetections.length === 0) return;
+
+        // Pre-load enabled rules once to avoid N x rule queries.
+        const { data: enabledRules } = await supabase
+          .from("alert_rules")
+          .select("*")
+          .eq("tenant_id", tenantId)
+          .eq("enabled", true);
+
+        for (const d of typedDetections) {
+          const createdEventAt = new Date().toISOString();
+          const typedEventRow = {
+            camera_id: input.cameraId,
+            zone_id: input.zoneId ?? null,
+            tenant_id: tenantId,
+            type: d.type,
+            severity: input.severity,
+            detected_at: createdEventAt,
+            metadata: {
+              ...input.metadata,
+              detection: d,
+              confidence: d.confidence,
+              label: d.label,
+            },
+            intensity: input.intensity,
+            acknowledged: false,
+          };
+
+          const { data: created, error: insertError } = await supabase
+            .from("events")
+            .insert(typedEventRow)
+            .select("*")
+            .single();
+
+          if (insertError || !created) {
+            aiLogger.warn("Failed to insert typed AI event", {
+              tenantId,
+              cameraId: input.cameraId,
+              type: d.type,
+              error: String(insertError),
+            });
+            continue;
+          }
+
+          const typedOspEvent = {
+            id: created.id as string,
+            cameraId: created.camera_id as string,
+            cameraName: (camera.name as string) ?? "Unknown",
+            zoneId: (created.zone_id as string | null) ?? null,
+            zoneName,
+            tenantId,
+            type: created.type as string,
+            severity: created.severity as string,
+            detectedAt: created.detected_at as string,
+            metadata: created.metadata as Record<string, unknown>,
+            snapshotUrl: null,
+            clipUrl: null,
+            intensity: created.intensity as number,
+            acknowledged: false,
+            acknowledgedBy: null,
+            acknowledgedAt: null,
+            createdAt: created.created_at as string,
+          };
+
+          // Publish + run rules so typed AI events trigger actions.
+          await publishEvent(tenantId, typedOspEvent);
+
+          if (enabledRules && enabledRules.length > 0) {
+            const matched = evaluateRules(typedOspEvent, enabledRules);
+            for (const match of matched) {
+              await executeActions(match, typedOspEvent, tenantId);
+            }
+          }
+        }
+      } catch (err) {
+        aiLogger.warn("AI motion detection failed", {
+          eventId: ospEvent.id,
+          cameraId: input.cameraId,
+          error: String(err),
+        });
+      }
+    })();
+  }
+
   // --- Save a 10-second event clip for detection events (fire-and-forget) ---
   const clipEventTypes = ["motion", "person", "vehicle"];
   if (clipEventTypes.includes(input.type)) {
@@ -316,7 +454,7 @@ eventRoutes.get("/summary", requireAuth("viewer"), async (c) => {
   const to = c.req.query("to") ?? new Date().toISOString();
 
   // Counts by type
-  const { data: byType, error: typeError } = await supabase
+  const { error: typeError } = await supabase
     .from("events")
     .select("type")
     .eq("tenant_id", tenantId)
@@ -439,8 +577,8 @@ eventRoutes.get("/:id/clip", requireAuth("viewer"), async (c) => {
 
   if (rangeHeader) {
     const parts = rangeHeader.replace(/bytes=/, "").split("-");
-    const start = parseInt(parts[0] ?? "0", 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const start = Number.parseInt(parts[0] ?? "0", 10);
+    const end = parts[1] ? Number.parseInt(parts[1], 10) : fileSize - 1;
     const chunkSize = end - start + 1;
 
     const nodeStream = createReadStream(filePath, { start, end });

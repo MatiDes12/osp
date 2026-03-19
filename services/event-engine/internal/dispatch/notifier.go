@@ -119,7 +119,15 @@ func (d *NotificationDispatcher) handlePushNotification(
 		}
 	}
 
-	return d.push.SendPush(ctx, title, body, userIDs, thumbnailURL)
+	data := map[string]any{
+		"eventId":    event.ID,
+		"cameraId":   event.CameraID,
+		"eventType":  event.Type,
+		"severity":   event.Severity,
+		"thumbnailUrl": thumbnailURL,
+	}
+
+	return d.push.SendPush(ctx, title, body, userIDs, event.TenantID, thumbnailURL, data)
 }
 
 func (d *NotificationDispatcher) handleEmail(

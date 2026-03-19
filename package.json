@@ -8,6 +8,7 @@
     "type-check": "turbo type-check",
     "test": "turbo test",
     "test:integration": "turbo test:integration",
+    "smoke:motion": "./scripts/smoke-motion.sh",
     "clean": "turbo clean",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\""
   },

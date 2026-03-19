@@ -72,7 +72,7 @@ func main() {
 
 	ruleEngine := rules.NewRuleEngine(db, rdb, logger)
 
-	pushSender := dispatch.NewPushSender(logger)
+	pushSender := dispatch.NewPushSender(logger, db)
 	emailSender := dispatch.NewEmailSender(logger)
 	dispatcher := dispatch.NewNotificationDispatcher(rdb, pushSender, emailSender, logger)
 

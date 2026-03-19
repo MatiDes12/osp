@@ -13,6 +13,11 @@ webrtc:
     - "127.0.0.1:8555"
   ice_servers:
     - urls: ["stun:stun.l.google.com:19302"]
+    # Optional TURN server for remote WebRTC connectivity.
+    # go2rtc supports environment variable expansion via `${VAR}` syntax.
+    - urls: ["${TURN_SERVER_URL:turn:localhost:3478}"]
+      username: "${TURN_SERVER_USERNAME:osp}"
+      credential: "${TURN_SERVER_CREDENTIAL:osp}"
 
 log:
   level: info

@@ -1,5 +1,5 @@
-import { mkdirSync, createWriteStream, statSync } from "fs";
-import { join } from "path";
+import { mkdirSync, createWriteStream, statSync } from "node:fs";
+import { join } from "node:path";
 import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
@@ -16,7 +16,7 @@ interface ActiveRecording {
 }
 
 export class RecordingService {
-  private activeRecordings = new Map<string, ActiveRecording>();
+  private readonly activeRecordings = new Map<string, ActiveRecording>();
   /**
    * Start recording for a camera.
    * Tries gRPC video-pipeline service first, falls back to direct Supabase.
@@ -198,6 +198,34 @@ export class RecordingService {
   async stopRecording(recordingId: string): Promise<Record<string, unknown>> {
     const supabase = getSupabase();
 
+    // Production path: stop via video-pipeline so it finalizes + uploads to R2.
+    try {
+      const client = getVideoPipelineClient();
+      const result = await client.stopRecording(recordingId);
+      if (result.success) {
+        const { data: updated, error } = await supabase
+          .from("recordings")
+          .select("*")
+          .eq("id", recordingId)
+          .single();
+
+        if (error || !updated) {
+          throw new ApiError(
+            "RECORDING_STOP_FAILED",
+            "Recording stopped in video-pipeline but failed to load updated row",
+            500,
+          );
+        }
+
+        return updated as Record<string, unknown>;
+      }
+    } catch (err) {
+      if (!(err instanceof GrpcFallbackError)) {
+        throw err;
+      }
+      // Fall through to direct mode.
+    }
+
     const now = new Date().toISOString();
 
     const { data: recording, error: fetchError } = await supabase
@@ -303,12 +331,29 @@ export class RecordingService {
 
   /**
    * Generate a playback URL for a recording.
-   * Points to the file-serving endpoint that returns the saved MP4 file.
+   * Prefers the video-pipeline pre-signed URL (HLS playlist in R2).
+   * Falls back to the gateway's local file-serving endpoint.
    */
-  getPlaybackUrl(recordingId: string): string {
+  async getPlaybackUrl(recordingId: string, tenantId: string): Promise<string> {
     const gatewayUrl =
       process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
-    return `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
+
+    const fallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
+
+    try {
+      const client = getVideoPipelineClient();
+      const result = await client.getPlaybackURL(recordingId, tenantId);
+      if (result.success && result.playbackUrl) {
+        return result.playbackUrl;
+      }
+    } catch (err) {
+      if (err instanceof GrpcFallbackError) {
+        // Video-pipeline unavailable — keep using local playback.
+        return fallbackUrl;
+      }
+    }
+
+    return fallbackUrl;
   }
 
   /**
@@ -364,8 +409,6 @@ function computeRetentionDate(_tenantId: string): string {
 let recordingServiceInstance: RecordingService | null = null;
 
 export function getRecordingService(): RecordingService {
-  if (!recordingServiceInstance) {
-    recordingServiceInstance = new RecordingService();
-  }
+  recordingServiceInstance ??= new RecordingService();
   return recordingServiceInstance;
 }

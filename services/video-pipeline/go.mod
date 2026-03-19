@@ -1,6 +1,8 @@
 module github.com/MatiDes12/osp/services/video-pipeline
 
-go 1.22
+go 1.22.0
+
+toolchain go1.22.12
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
@@ -29,7 +31,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
