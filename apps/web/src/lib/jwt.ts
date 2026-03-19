@@ -23,3 +23,10 @@ export function isTokenExpired(token: string): boolean {
   if (!decoded) return true;
   return decoded.exp * 1000 < Date.now();
 }
+
+// Returns true if token expires within the next N seconds
+export function isTokenExpiringSoon(token: string, withinSeconds = 120): boolean {
+  const decoded = decodeJWT(token);
+  if (!decoded) return true;
+  return decoded.exp * 1000 < Date.now() + withinSeconds * 1000;
+}

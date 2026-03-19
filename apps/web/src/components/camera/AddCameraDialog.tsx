@@ -119,14 +119,17 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
     } else if (name.length > 100) {
       result.name = "Name must be 100 characters or fewer";
     }
-    if (!connectionUri.trim()) {
-      result.connectionUri = "Connection URI is required";
-    } else if (
-      !connectionUri.startsWith("rtsp://") &&
-      !connectionUri.startsWith("http") &&
-      !connectionUri.startsWith("ffmpeg:device")
-    ) {
-      result.connectionUri = "Must be a valid RTSP, ONVIF, or USB device URI";
+    // USB protocol: URI is auto-generated from device index, no manual validation needed
+    if (protocol !== "usb") {
+      if (!connectionUri.trim()) {
+        result.connectionUri = "Connection URI is required";
+      } else if (
+        !connectionUri.startsWith("rtsp://") &&
+        !connectionUri.startsWith("http") &&
+        !connectionUri.startsWith("ffmpeg:device")
+      ) {
+        result.connectionUri = "Must be a valid RTSP, ONVIF, or USB device URI";
+      }
     }
     return result;
   }, [name, connectionUri]);
