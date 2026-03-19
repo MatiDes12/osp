@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useCameras } from "@/hooks/use-cameras";
 import { useLocations } from "@/hooks/use-locations";
 import { useTags } from "@/hooks/use-tags";
@@ -9,11 +9,10 @@ import { CameraGrid } from "@/components/camera/CameraGrid";
 import { BulkActionBar } from "@/components/camera/BulkActionBar";
 import { AddCameraDialog } from "@/components/camera/AddCameraDialog";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/StatCard";
 import { ActivityTicker } from "@/components/dashboard/ActivityTicker";
 import { PageError } from "@/components/PageError";
-import { useDashboardStats } from "@/hooks/use-dashboard-stats";
-import { Camera, Wifi, Bell, Circle, MapPin, Tag, Check } from "lucide-react";
+import { MapPin, Tag, Check } from "lucide-react";
+import { CameraStatsBar } from "./camera-stats-bar";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -32,7 +31,6 @@ export default function CamerasPage() {
   const { cameras, loading, error, refetch, addCamera } = useCameras();
   const { locations, loading: locationsLoading } = useLocations();
   const { tags, loading: tagsLoading } = useTags();
-  const { stats: dashboardStats, loading: dashboardStatsLoading, changed } = useDashboardStats();
   const [search, setSearch] = useState("");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("all");
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
@@ -48,9 +46,18 @@ export default function CamerasPage() {
   // Camera tag assignments (camera_id -> tag[])
   const [cameraTagsMap, setCameraTagsMap] = useState<Map<string, CameraTag[]>>(new Map());
 
-  // Fetch active recording camera IDs
+  // Stable camera IDs string for dependency tracking (avoids re-running effects
+  // when cameras array reference changes but IDs stay the same)
+  const cameraIds = useMemo(
+    () => cameras.map((c) => c.id).sort().join(","),
+    [cameras],
+  );
+
+  // Fetch active recording camera IDs (once after initial load)
+  const hasFetchedRecordings = useRef(false);
   useEffect(() => {
-    if (loading) return;
+    if (loading || hasFetchedRecordings.current) return;
+    hasFetchedRecordings.current = true;
     let cancelled = false;
     async function fetchActiveRecordings() {
       try {
@@ -87,9 +94,9 @@ export default function CamerasPage() {
   const showOnboarding =
     !loading && !onboardingDismissed && cameras.length === 0;
 
-  // Fetch camera tag assignments
+  // Fetch camera tag assignments — depends on stable camera IDs, not array reference
   useEffect(() => {
-    if (cameras.length === 0 || tags.length === 0) return;
+    if (!cameraIds || tags.length === 0) return;
 
     let cancelled = false;
 
@@ -97,10 +104,11 @@ export default function CamerasPage() {
       try {
         const tagLookup = new Map(tags.map((t) => [t.id, t]));
         const tagMap = new Map<string, CameraTag[]>();
+        const ids = cameraIds.split(",");
 
-        for (const cam of cameras) {
+        for (const camId of ids) {
           try {
-            const res = await fetch(`${API_URL}/api/v1/cameras/${cam.id}/tags`, {
+            const res = await fetch(`${API_URL}/api/v1/cameras/${camId}/tags`, {
               headers: getAuthHeaders(),
             });
             if (!res.ok) continue;
@@ -113,7 +121,7 @@ export default function CamerasPage() {
                 if (tag) camTags.push(tag);
               }
               if (camTags.length > 0) {
-                tagMap.set(cam.id, camTags);
+                tagMap.set(camId, camTags);
               }
             }
           } catch {
@@ -131,7 +139,7 @@ export default function CamerasPage() {
 
     fetchAssignments();
     return () => { cancelled = true; };
-  }, [cameras, tags]);
+  }, [cameraIds, tags]);
 
   const handleToggleTagFilter = useCallback((tagId: string) => {
     setSelectedTagIds((prev) => {
@@ -204,63 +212,21 @@ export default function CamerasPage() {
   const handleAddCamera = useCallback(
     async (data: {
       name: string;
-      protocol: "rtsp" | "onvif" | "usb";
+      protocol: string;
       connectionUri: string;
       location?: { label?: string };
     }) => {
-      await addCamera(data);
+      await addCamera(data as Parameters<typeof addCamera>[0]);
     },
     [addCamera],
   );
 
   const allSelected = filteredCameras.length > 0 && selectedCameraIds.size === filteredCameras.length;
 
-  // Derive total/online from cameras list to keep in sync, use dashboard hook for events/recordings
-  const totalCameras = cameras.length;
-  const camerasOnline = cameras.filter((c) => c.status === "online").length;
-
   return (
     <div>
-      {/* Stats overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {dashboardStatsLoading || loading ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard
-              label="Total Cameras"
-              value={totalCameras}
-              icon={Camera}
-              flash={changed.totalCameras}
-            />
-            <StatCard
-              label="Online"
-              value={`${camerasOnline}/${totalCameras}`}
-              icon={Wifi}
-              color="text-green-400"
-              flash={changed.camerasOnline}
-            />
-            <StatCard
-              label="Events Today"
-              value={dashboardStats.eventsToday}
-              icon={Bell}
-              flash={changed.eventsToday}
-            />
-            <StatCard
-              label="Active Recordings"
-              value={dashboardStats.activeRecordings}
-              icon={Circle}
-              color="text-red-400"
-              flash={changed.activeRecordings}
-            />
-          </>
-        )}
-      </div>
+      {/* Stats overview — isolated component so WebSocket-driven updates don't re-render the grid */}
+      <CameraStatsBar cameras={cameras} loading={loading} />
 
       {/* Activity ticker */}
       <ActivityTicker className="mb-6" />

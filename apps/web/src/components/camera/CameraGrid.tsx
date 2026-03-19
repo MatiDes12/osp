@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Camera as CameraIcon, Plus } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { CameraCard, CameraCardSkeleton } from "./CameraCard";
@@ -33,7 +33,9 @@ const LAYOUT_OPTIONS: readonly { readonly value: GridLayout; readonly label: str
   { value: 16, label: "4x4" },
 ];
 
-export function CameraGrid({
+const EMPTY_TAGS: readonly CameraTag[] = [];
+
+export const CameraGrid = memo(function CameraGrid({
   cameras,
   loading = false,
   onAddCamera,
@@ -118,11 +120,11 @@ export function CameraGrid({
             selectable={selectable}
             selected={selectedIds?.has(camera.id) ?? false}
             onToggleSelect={onToggleSelect}
-            tags={cameraTagsMap?.get(camera.id) ?? []}
+            tags={cameraTagsMap?.get(camera.id) ?? EMPTY_TAGS}
             isActivelyRecording={activeRecordingCameraIds?.has(camera.id) ?? false}
           />
         ))}
       </div>
     </div>
   );
-}
+});

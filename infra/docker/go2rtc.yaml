@@ -32,5 +32,5 @@ streams:
     - rtsp://192.168.4.20:8554/stream
   52a34051-f062-4108-b2e0-62da1b5cdbb3:
     - rtsp://172.17.16.1:8554/stream
-  e61dea4c-7924-4513-b8cc-ad9bab6bab56:
-    - rtsp://192.168.4.20:8554/stream
+  330a1102-e0dd-4678-a93a-52617c9ecbec:
+    - rtsp://192.168.4.49:8554/stream

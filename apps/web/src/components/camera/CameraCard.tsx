@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Maximize2, Settings, MapPin, Check, Usb } from "lucide-react";
@@ -32,10 +32,11 @@ function formatTime(dateString: string | null): string {
 function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const prevUrlRef = useRef<string | null>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
-      // Don't clear existing snapshot immediately — avoids flash to black
+      // Don't clear existing snapshot — avoids flash to black
       // when camera briefly goes connecting->online
       return;
     }
@@ -43,6 +44,10 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
     let cancelled = false;
 
     const fetchSnapshot = async () => {
+      // Guard against overlapping fetches (e.g., slow network)
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
+
       try {
         const token = getToken();
         if (!token) return;
@@ -56,32 +61,37 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
           const blob = await res.blob();
           const nextUrl = URL.createObjectURL(blob);
 
-          // Preload the image in a hidden Image element before swapping.
-          // This prevents the flicker where the old image unloads before
-          // the new one is decoded.
+          // Preload and decode the image before swapping the visible src.
+          // Using decode() ensures the frame is fully rasterized, preventing
+          // any blank frame flash during the swap.
           const img = new Image();
-          img.onload = () => {
-            if (cancelled) {
-              URL.revokeObjectURL(nextUrl);
-              return;
-            }
-            // New image is fully decoded — safe to swap now
-            const oldUrl = prevUrlRef.current;
-            prevUrlRef.current = nextUrl;
-            setSnapshotUrl(nextUrl);
-            // Revoke old URL after a short delay to ensure the browser
-            // has fully painted the new frame
-            if (oldUrl) {
-              setTimeout(() => URL.revokeObjectURL(oldUrl), 200);
-            }
-          };
-          img.onerror = () => {
-            URL.revokeObjectURL(nextUrl);
-          };
           img.src = nextUrl;
+          try {
+            await img.decode();
+          } catch {
+            // decode() can fail for some formats — fall back to onload timing
+          }
+
+          if (cancelled) {
+            URL.revokeObjectURL(nextUrl);
+            return;
+          }
+
+          const oldUrl = prevUrlRef.current;
+          prevUrlRef.current = nextUrl;
+          setSnapshotUrl(nextUrl);
+
+          // Revoke old URL after browser has painted the new frame
+          if (oldUrl) {
+            requestAnimationFrame(() => {
+              setTimeout(() => URL.revokeObjectURL(oldUrl), 100);
+            });
+          }
         }
       } catch {
         // Snapshot unavailable — keep current image, no flicker
+      } finally {
+        fetchingRef.current = false;
       }
     };
 
@@ -91,6 +101,7 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
     return () => {
       cancelled = true;
       clearInterval(interval);
+      fetchingRef.current = false;
       if (prevUrlRef.current) {
         URL.revokeObjectURL(prevUrlRef.current);
         prevUrlRef.current = null;
@@ -133,7 +144,7 @@ function getStatusConfig(status: string) {
   return (STATUS_CONFIG[status] ?? STATUS_CONFIG["offline"])!;
 }
 
-export function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [], isActivelyRecording = false }: CameraCardProps) {
+export const CameraCard = memo(function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [], isActivelyRecording = false }: CameraCardProps) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const isOnline = camera.status === "online";
@@ -156,14 +167,16 @@ export function CameraCard({ camera, selectable = false, selected = false, onTog
       className={`relative aspect-video bg-black ${selected ? "ring-2 ring-blue-500" : ""}`}
       onClick={selectable ? handleClick : undefined}
     >
-      {/* Snapshot preview */}
-      {snapshotUrl ? (
-        <img
-          src={snapshotUrl}
-          alt={`${camera.name} live preview`}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
+      {/* Snapshot preview — always render img to avoid mount/unmount flicker */}
+      <img
+        src={snapshotUrl ?? undefined}
+        alt={`${camera.name} live preview`}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${
+          snapshotUrl ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      {/* Placeholder shown when no snapshot is available */}
+      {!snapshotUrl && (
         <div className="absolute inset-0 flex items-center justify-center">
           {camera.status === "connecting" ? (
             <div className="h-6 w-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -355,7 +368,7 @@ export function CameraCard({ camera, selectable = false, selected = false, onTog
       {cardContent}
     </Link>
   );
-}
+});
 
 export function CameraCardSkeleton() {
   return (
