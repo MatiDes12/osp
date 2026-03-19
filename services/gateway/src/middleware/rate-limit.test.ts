@@ -141,6 +141,18 @@ describe("rateLimit middleware", () => {
     expect(res.status).toBe(200);
   });
 
+  it("fails closed when Redis is unavailable and failOpen is false", async () => {
+    mockExec.mockRejectedValue(new Error("Connection refused"));
+
+    const app = createTestApp({ maxRequests: 10, failOpen: false });
+    const res = await app.request("/api/test");
+
+    expect(res.status).toBe(503);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe("RATE_LIMIT_UNAVAILABLE");
+  });
+
   it("skips rate limiting when tenantId is not set", async () => {
     const app = new Hono<TenantEnv>();
     // No tenant context middleware -- tenantId is not set

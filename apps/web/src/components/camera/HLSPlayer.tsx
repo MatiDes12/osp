@@ -8,7 +8,7 @@ interface HLSPlayerProps {
   readonly url: string;
   readonly className?: string;
   readonly controls?: boolean;
-  readonly videoRef?: RefObject<HTMLVideoElement>;
+  readonly videoRef?: RefObject<HTMLVideoElement | null>;
   readonly muted?: boolean;
 }
 

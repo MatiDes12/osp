@@ -10,6 +10,7 @@ const logger = createLogger("rate-limit");
 export interface RateLimitConfig {
   readonly windowMs: number;
   readonly maxRequests: number;
+  readonly failOpen: boolean;
 }
 
 const DEFAULT_WINDOW_MS = 60_000;
@@ -24,6 +25,9 @@ const DEFAULT_WINDOW_MS = 60_000;
 export function rateLimit(config?: Partial<RateLimitConfig>) {
   const windowMs = config?.windowMs ?? DEFAULT_WINDOW_MS;
   const windowSec = Math.ceil(windowMs / 1000);
+  const failOpen =
+    config?.failOpen
+    ?? (process.env["RATE_LIMIT_FAIL_OPEN"] ?? "true").toLowerCase() !== "false";
 
   return createMiddleware<TenantEnv>(async (c, next) => {
     const tenantId = c.get("tenantId");
@@ -77,11 +81,28 @@ export function rateLimit(config?: Partial<RateLimitConfig>) {
         );
       }
     } catch (err) {
-      // Fail-open: if Redis is unavailable, allow the request
-      logger.warn("Rate limit check failed, allowing request", {
+      logger.warn("Rate limit check failed", {
         tenantId,
+        failOpen: String(failOpen),
         error: String(err),
       });
+
+      if (!failOpen) {
+        return c.json(
+          {
+            success: false,
+            data: null,
+            error: {
+              code: "RATE_LIMIT_UNAVAILABLE",
+              message: "Rate limiter unavailable. Please try again shortly.",
+              requestId: c.get("requestId") ?? "unknown",
+              timestamp: new Date().toISOString(),
+            },
+            meta: null,
+          },
+          503,
+        );
+      }
     }
 
     await next();
@@ -94,6 +115,9 @@ export function rateLimit(config?: Partial<RateLimitConfig>) {
  */
 function normalizeEndpoint(path: string): string {
   return path
-    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "/:id")
-    .replace(/\/\d+/g, "/:id");
+    .replaceAll(
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+      "/:id",
+    )
+    .replaceAll(/\/\d+/g, "/:id");
 }

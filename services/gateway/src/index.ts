@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { resolve } from "path";
+import { resolve } from "node:path";
 
 // Load .env from project root (two levels up from services/gateway/)
 config({ path: resolve(process.cwd(), "../../.env") });
@@ -9,6 +9,8 @@ config({ path: resolve(process.cwd(), ".env") });
 // Validate env before importing anything else
 import { validateEnv } from "./lib/env.js";
 validateEnv();
+import { initSentry, captureException } from "./lib/sentry.js";
+initSentry("osp-gateway");
 
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
@@ -25,8 +27,8 @@ import { CameraHealthChecker } from "./services/health-checker.js";
 const logger = createLogger("gateway");
 const startTime = performance.now();
 
-const port = parseInt(process.env["GATEWAY_PORT"] ?? "3000", 10);
-const wsPort = parseInt(process.env["WS_PORT"] ?? "3002", 10);
+const port = Number.parseInt(process.env["GATEWAY_PORT"] ?? "3000", 10);
+const wsPort = Number.parseInt(process.env["WS_PORT"] ?? "3002", 10);
 
 logger.info("OSP API Gateway initializing...");
 
@@ -77,10 +79,13 @@ async function start(): Promise<void> {
   });
 }
 
-start().catch((err) => {
+try {
+  await start();
+} catch (err) {
+  captureException(err, { phase: "startup" });
   logger.error("Failed to start gateway", { error: err as Error });
   process.exit(1);
-});
+}
 
 // Graceful shutdown
 function shutdown(): void {
@@ -96,12 +101,14 @@ process.on("SIGTERM", shutdown);
 
 // Catch unhandled rejections and exceptions.
 process.on("unhandledRejection", (reason) => {
+  captureException(reason, { type: "unhandledRejection" });
   logger.error("Unhandled promise rejection", {
     error: reason instanceof Error ? reason : new Error(String(reason)),
   });
 });
 
 process.on("uncaughtException", (err) => {
+  captureException(err, { type: "uncaughtException" });
   logger.error("Uncaught exception", { error: err });
   process.exit(1);
 });

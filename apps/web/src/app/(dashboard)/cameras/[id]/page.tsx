@@ -149,6 +149,7 @@ export default function CameraDetailPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackOffset, setPlaybackOffset] = useState(0);
   const playbackVideoRef = useRef<HTMLVideoElement>(null);
+  const seekRequestIdRef = useRef(0);
 
   const fetchCamera = useCallback(async () => {
     setLoading(true);
@@ -312,8 +313,19 @@ export default function CameraDetailPage() {
   // Timeline seek handler — find recording containing the timestamp and play from offset
   const handleTimelineSeek = useCallback(
     async (timestamp: string) => {
+      const requestId = ++seekRequestIdRef.current;
+
+      const applyPlaybackTarget = (url: string, offsetSec: number) => {
+        if (requestId !== seekRequestIdRef.current) return;
+        setPlaybackUrl(url);
+        setPlaybackOffset(Math.max(0, offsetSec));
+      };
+
       try {
         const seekDate = timestamp.split("T")[0] ?? "";
+        const seekMs = new Date(timestamp).getTime();
+        if (Number.isNaN(seekMs)) return;
+
         const res = await fetch(
           `${API_URL}/api/v1/recordings/timeline?cameraId=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(seekDate)}`,
           { headers: getAuthHeaders() },
@@ -321,17 +333,19 @@ export default function CameraDetailPage() {
         const json = await res.json();
         if (!json.success || !json.data?.segments) return;
 
-        const seekMs = new Date(timestamp).getTime();
         const segments = json.data.segments as {
           startTime: string;
-          endTime: string;
+          endTime: string | null;
           recordingId: string;
         }[];
 
         // Find the segment that contains the seeked timestamp
         const match = segments.find((seg) => {
           const start = new Date(seg.startTime).getTime();
-          const end = new Date(seg.endTime).getTime();
+          const end = seg.endTime
+            ? new Date(seg.endTime).getTime()
+            : Number.POSITIVE_INFINITY;
+          if (Number.isNaN(start) || Number.isNaN(end)) return false;
           return seekMs >= start && seekMs <= end;
         });
 
@@ -352,8 +366,7 @@ export default function CameraDetailPage() {
               const rows = Array.isArray(recJson.data) ? recJson.data : [recJson.data];
               const recs = transformRecordings(rows as Record<string, unknown>[]);
               if (recs.length > 0 && recs[0]!.playbackUrl) {
-                setPlaybackUrl(recs[0]!.playbackUrl);
-                setPlaybackOffset(0);
+                applyPlaybackTarget(recs[0]!.playbackUrl, 0);
               }
             }
           }
@@ -371,8 +384,7 @@ export default function CameraDetailPage() {
           const recs = transformRecordings(rows as Record<string, unknown>[]);
           if (recs.length > 0 && recs[0]!.playbackUrl) {
             const offsetSec = (seekMs - new Date(match.startTime).getTime()) / 1000;
-            setPlaybackUrl(recs[0]!.playbackUrl);
-            setPlaybackOffset(Math.max(0, offsetSec));
+            applyPlaybackTarget(recs[0]!.playbackUrl, offsetSec);
           }
         }
       } catch {
@@ -386,7 +398,8 @@ export default function CameraDetailPage() {
   useEffect(() => {
     if (!playbackUrl || !playbackVideoRef.current) return;
     const video = playbackVideoRef.current;
-    const handleCanPlay = () => {
+
+    const seekAndPlay = () => {
       if (playbackOffset > 0) {
         video.currentTime = playbackOffset;
       }
@@ -394,8 +407,15 @@ export default function CameraDetailPage() {
         // Autoplay blocked — user can click to play
       });
     };
-    video.addEventListener("canplay", handleCanPlay, { once: true });
-    return () => video.removeEventListener("canplay", handleCanPlay);
+
+    // If the media is already loaded, apply seek immediately (same recording seeks).
+    if (video.readyState >= 1) {
+      seekAndPlay();
+      return () => {};
+    }
+
+    video.addEventListener("loadedmetadata", seekAndPlay, { once: true });
+    return () => video.removeEventListener("loadedmetadata", seekAndPlay);
   }, [playbackUrl, playbackOffset]);
 
   const handleClosePlayback = useCallback(() => {
