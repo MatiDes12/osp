@@ -35,7 +35,8 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
 
   useEffect(() => {
     if (!enabled) {
-      setSnapshotUrl(null);
+      // Don't clear existing snapshot immediately — avoids flash to black
+      // when camera briefly goes connecting->online
       return;
     }
 
@@ -53,17 +54,34 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
 
         if (res.ok && !cancelled) {
           const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
+          const nextUrl = URL.createObjectURL(blob);
 
-          // Revoke the previous object URL to avoid memory leaks
-          if (prevUrlRef.current) {
-            URL.revokeObjectURL(prevUrlRef.current);
-          }
-          prevUrlRef.current = url;
-          setSnapshotUrl(url);
+          // Preload the image in a hidden Image element before swapping.
+          // This prevents the flicker where the old image unloads before
+          // the new one is decoded.
+          const img = new Image();
+          img.onload = () => {
+            if (cancelled) {
+              URL.revokeObjectURL(nextUrl);
+              return;
+            }
+            // New image is fully decoded — safe to swap now
+            const oldUrl = prevUrlRef.current;
+            prevUrlRef.current = nextUrl;
+            setSnapshotUrl(nextUrl);
+            // Revoke old URL after a short delay to ensure the browser
+            // has fully painted the new frame
+            if (oldUrl) {
+              setTimeout(() => URL.revokeObjectURL(oldUrl), 200);
+            }
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(nextUrl);
+          };
+          img.src = nextUrl;
         }
       } catch {
-        // Snapshot unavailable — keep current image or show placeholder
+        // Snapshot unavailable — keep current image, no flicker
       }
     };
 

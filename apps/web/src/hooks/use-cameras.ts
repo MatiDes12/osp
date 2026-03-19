@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   Camera,
   ApiResponse,
@@ -39,9 +39,15 @@ export function useCameras(): UseCamerasReturn {
   const [cameras, setCameras] = useState<readonly Camera[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasFetchedRef = useRef(false);
 
   const fetchCameras = useCallback(async () => {
-    setLoading(true);
+    // Only show loading spinner on the initial fetch.
+    // Refetches update data in place without unmounting the grid,
+    // which prevents snapshot flicker and state loss in CameraCards.
+    if (!hasFetchedRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await fetch(`${API_URL}/api/v1/cameras`, {
@@ -58,6 +64,7 @@ export function useCameras(): UseCamerasReturn {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
       setLoading(false);
+      hasFetchedRef.current = true;
     }
   }, []);
 
