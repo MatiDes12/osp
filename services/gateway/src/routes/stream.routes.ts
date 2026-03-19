@@ -253,6 +253,104 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
   );
 });
 
+// POST /api/v1/streams/test - Test a connection URI before adding a camera
+// Registers a temp stream in go2rtc, waits for connection, returns a snapshot
+streamRoutes.post("/test", requireAuth("viewer"), async (c) => {
+  const body = await c.req.json();
+  const connectionUri = body.connectionUri as string;
+  const protocol = (body.protocol ?? "rtsp") as string;
+
+  if (!connectionUri) {
+    throw new ApiError("VALIDATION_ERROR", "connectionUri is required", 422);
+  }
+
+  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const testStreamName = `__test_${Date.now()}`;
+
+  try {
+    // Register temp stream
+    const addUrl = `${go2rtcUrl}/api/streams?name=${encodeURIComponent(testStreamName)}&src=${encodeURIComponent(connectionUri)}`;
+    const addRes = await fetch(addUrl, {
+      method: "PUT",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!addRes.ok) {
+      throw new ApiError("CAMERA_CONNECTION_FAILED", "Failed to register stream in go2rtc", 502);
+    }
+
+    // Wait up to 5s for go2rtc to connect to the source
+    let connected = false;
+    let codec = "unknown";
+    let resolution = "unknown";
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((r) => setTimeout(r, 500));
+
+      const statusRes = await fetch(
+        `${go2rtcUrl}/api/streams?src=${encodeURIComponent(testStreamName)}`,
+        { signal: AbortSignal.timeout(2000) },
+      ).catch(() => null);
+
+      if (statusRes?.ok) {
+        const data = (await statusRes.json()) as Record<string, unknown>;
+        const producers = data?.producers;
+        if (Array.isArray(producers) && producers.length > 0) {
+          const producer = producers[0] as Record<string, unknown>;
+          const medias = producer?.medias as string[] | undefined;
+          if (medias?.length) {
+            // Parse codec and resolution from media string e.g. "video, H264, 1920x1080"
+            const videoMedia = medias.find((m: string) => m.includes("video"));
+            if (videoMedia) {
+              const parts = videoMedia.split(",").map((s: string) => s.trim());
+              codec = parts[1] ?? "H264";
+              resolution = parts[2] ?? "unknown";
+            }
+          }
+          connected = true;
+          break;
+        }
+      }
+    }
+
+    if (!connected) {
+      throw new ApiError(
+        "CAMERA_STREAM_TIMEOUT",
+        "Camera did not respond within timeout. Check the URL/credentials.",
+        504,
+      );
+    }
+
+    // Grab a snapshot to confirm video is flowing
+    let snapshotUrl: string | null = null;
+    const snapRes = await fetch(
+      `${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(testStreamName)}`,
+      { signal: AbortSignal.timeout(3000) },
+    ).catch(() => null);
+
+    if (snapRes?.ok) {
+      // Return as base64 data URL so the browser can display it directly
+      const buf = Buffer.from(await snapRes.arrayBuffer());
+      snapshotUrl = `data:image/jpeg;base64,${buf.toString("base64")}`;
+    }
+
+    return c.json(
+      createSuccessResponse({
+        connected: true,
+        codec,
+        resolution,
+        snapshotUrl,
+        protocol,
+      }),
+    );
+  } finally {
+    // Always clean up the test stream
+    fetch(`${go2rtcUrl}/api/streams?src=${encodeURIComponent(testStreamName)}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
+});
+
 // GET /api/v1/cameras/:id/recording.mp4 - Proxy MP4 stream from go2rtc for playback
 streamRoutes.get("/:id/recording.mp4", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");

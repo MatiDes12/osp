@@ -57,6 +57,12 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
   const [submitting, setSubmitting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
+  const [testDetails, setTestDetails] = useState<{
+    codec?: string;
+    resolution?: string;
+    snapshotUrl?: string;
+    error?: string;
+  } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Scan state
@@ -81,6 +87,7 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
     setErrors({});
     setSubmitError(null);
     setTestResult(null);
+    setTestDetails(null);
     setTesting(false);
     setMode("manual");
     setSubnet("");
@@ -136,16 +143,46 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
   const handleTestConnection = useCallback(async () => {
     const validationErrors = validate();
-    if (validationErrors.connectionUri) {
+    if (Object.values(validationErrors).some(Boolean)) {
       setErrors(validationErrors);
       return;
     }
     setTesting(true);
     setTestResult(null);
-    // Simulate connection test
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setTesting(false);
-    setTestResult("success");
+    setTestDetails(null);
+    setTestDetails(null);
+
+    // Resolve the URI (same logic as submit)
+    const resolvedUri =
+      protocol === "usb" && !connectionUri.trim()
+        ? `ffmpeg:device?video=${usbDeviceIndex}#video=h264`
+        : connectionUri.trim();
+
+    try {
+      const res = await fetch(`${API_URL}/api/v1/streams/test`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ connectionUri: resolvedUri, protocol }),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        setTestResult("error");
+        setTestDetails({ error: json.error?.message ?? "Connection failed" });
+      } else {
+        setTestResult("success");
+        setTestDetails({
+          codec: json.data?.codec,
+          resolution: json.data?.resolution,
+          snapshotUrl: json.data?.snapshotUrl,
+        });
+      }
+    } catch (err) {
+      setTestResult("error");
+      setTestDetails({ error: err instanceof Error ? err.message : "Network error" });
+    } finally {
+      setTesting(false);
+    }
   }, [validate]);
 
   const handleSubmit = useCallback(
@@ -706,11 +743,30 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
               )}
               {testing ? "Testing..." : "Test Connection"}
             </button>
-            {testResult === "success" && (
-              <p className="text-xs text-green-400">Connection successful</p>
+            {testResult === "success" && testDetails && (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 space-y-2">
+                <p className="text-xs font-medium text-green-400">✓ Connection successful</p>
+                <div className="flex gap-3 text-xs text-zinc-400">
+                  {testDetails.codec && <span>Codec: <span className="text-zinc-200">{testDetails.codec}</span></span>}
+                  {testDetails.resolution && <span>Resolution: <span className="text-zinc-200">{testDetails.resolution}</span></span>}
+                </div>
+                {testDetails.snapshotUrl && (
+                  <img
+                    src={testDetails.snapshotUrl}
+                    alt="Live snapshot"
+                    className="w-full rounded-md border border-zinc-700 object-cover"
+                    style={{ maxHeight: "160px" }}
+                  />
+                )}
+              </div>
             )}
-            {testResult === "error" && (
-              <p className="text-xs text-red-400">Connection failed</p>
+            {testResult === "error" && testDetails && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                <p className="text-xs font-medium text-red-400">✗ Connection failed</p>
+                {testDetails.error && (
+                  <p className="text-xs text-red-300 mt-1">{testDetails.error}</p>
+                )}
+              </div>
             )}
 
             {/* Submit error */}
