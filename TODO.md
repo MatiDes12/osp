@@ -78,6 +78,9 @@ cd apps/web && pnpm dev                  # Web on :3001
 - ✅ API docs at /docs (Swagger UI)
 - ✅ Forgot password + reset password flow
 - ✅ Error boundaries + toast notifications
+- ✅ Event clip thumbnails endpoint and generation
+- ✅ PTZ commands forwarded to camera-ingest gRPC (real ONVIF SOAP)
+- ✅ R2 recording storage in gateway direct mode (upload + presigned playback)
 
 ### Mobile App (React Native/Expo)
 - ✅ Auth flow (login/register) wired to real API
@@ -356,19 +359,9 @@ pnpm build  # Creates .dmg / .exe / .deb
 
 ---
 
-#### TODO-11: R2 / S3 storage for recordings
-**Status**: Recordings are saved to local disk (`./recordings/`). R2 upload code exists in Go `video-pipeline` service but isn't called from the gateway.
-**What's needed**:
-- Configure `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, etc. in `.env`
-- After recording stops, upload the MP4 to R2
-- Generate pre-signed URLs for playback
-- Update recording `storage_path` with R2 key
-
-**Files**:
-- `services/gateway/src/services/recording.service.ts` — add R2 upload after stopRecording
-- `services/gateway/src/routes/recording.routes.ts` — generate pre-signed URL in GET /:id
-
-**Effort**: 4-8 hours
+#### ✅ TODO-11: R2 / S3 storage for recordings
+**Status**: Done — gateway now uploads to R2 when video-pipeline is unavailable (direct mode).
+**Implementation**: `lib/r2.ts` — AWS SDK S3 client for R2 upload + presigned URLs. In direct stopRecording, upload MP4 to R2 and set `storage_path` to R2 key. `getPlaybackUrl` generates presigned URL when recording is in R2 and video-pipeline is down.
 
 ---
 
@@ -444,21 +437,18 @@ pnpm build  # Creates .dmg / .exe / .deb
 **What**: Lightweight Go binary that runs locally, syncs events/recordings to cloud
 **Effort**: 40-80 hours
 
-#### TODO-20: ONVIF PTZ (real commands)
-**Status**: PTZ buttons call `POST /cameras/:id/ptz` which logs the command.
-**What's needed**: Forward PTZ commands to the Go `camera-ingest` service which sends ONVIF SOAP requests.
-**Files**: `services/camera-ingest/internal/ptz/controller.go` — code exists, needs gRPC wiring
-**Effort**: 4-8 hours
+#### ✅ TODO-20: ONVIF PTZ (real commands)
+**Status**: Done — PTZ route forwards to camera-ingest gRPC; real ONVIF SOAP commands when service is up.
+**Implementation**: `POST /cameras/:id/ptz` calls `getCameraIngestClient().ptzCommand()`. Maps API actions (move/zoom/preset/stop) to proto enum. Graceful fallback when camera-ingest unavailable. Requires camera added to camera-ingest with ONVIF URL for PTZ to work.
 
 #### TODO-21: Webhook delivery tracking
 **Status**: Webhooks are fired but there's no retry on failure, no delivery log.
 **What to add**: Track webhook delivery attempts in a DB table, retry failed webhooks with exponential backoff.
 **Effort**: 4-8 hours
 
-#### TODO-22: Video clip thumbnails
-**Status**: Event clips are saved as MP4. The events page has a "View Clip" button.
-**What's missing**: Thumbnail image generated from the clip (first frame).
-**How**: After clip is saved, extract frame with FFmpeg: `ffmpeg -i clip.mp4 -vframes 1 thumb.jpg`
+#### ✅ TODO-22: Video clip thumbnails
+**Status**: Done — clip thumbnails are generated and available from `GET /api/v1/events/:id/thumbnail`.
+**Implementation**: After clip is saved, gateway extracts the first frame with FFmpeg (`-frames:v 1`) into a sidecar `.jpg`.
 
 #### TODO-23: Multi-monitor camera wall
 **Why**: Enterprise command center needs 4-6 monitors showing all cameras

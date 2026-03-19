@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getRecordingService } from "../services/recording.service.js";
+import { isR2StoragePath } from "../lib/r2.js";
 import { createSuccessResponse } from "@osp/shared";
 import { Readable } from "node:stream";
 
@@ -181,7 +182,21 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
   }
 
   const filePath = recording.storage_path as string;
-  if (!filePath || !existsSync(filePath)) {
+  if (!filePath) {
+    throw new ApiError(
+      "RECORDING_FILE_NOT_FOUND",
+      "Recording has no storage path",
+      404,
+    );
+  }
+  if (isR2StoragePath(filePath)) {
+    throw new ApiError(
+      "RECORDING_R2_NOT_CONFIGURED",
+      "Recording is in R2 storage but R2 is not configured for playback",
+      503,
+    );
+  }
+  if (!existsSync(filePath)) {
     throw new ApiError(
       "RECORDING_FILE_NOT_FOUND",
       "Recording file not found on disk",

@@ -725,6 +725,49 @@ export const openApiSpec = {
       },
     },
 
+    "/api/v1/rules/webhook-attempts": {
+      get: {
+        tags: ["Rules"],
+        summary: "List webhook delivery attempts",
+        description: "Admin-only. Returns tracked webhook delivery attempts with optional rule/event/status filters.",
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: "ruleId", in: "query", required: false, schema: { type: "string", format: "uuid" } },
+          { name: "eventId", in: "query", required: false, schema: { type: "string", format: "uuid" } },
+          { name: "status", in: "query", required: false, schema: { type: "string", enum: ["delivered", "failed"] } },
+          { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+        ],
+        responses: {
+          200: {
+            description: "Webhook delivery attempts",
+            content: {
+              "application/json": {
+                schema: successEnvelope({
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", format: "uuid" },
+                      tenant_id: { type: "string", format: "uuid" },
+                      rule_id: { type: "string", format: "uuid" },
+                      event_id: { type: "string", format: "uuid", nullable: true },
+                      url: { type: "string" },
+                      attempt_number: { type: "integer" },
+                      delivery_status: { type: "string", enum: ["delivered", "failed"] },
+                      response_status: { type: "integer", nullable: true },
+                      error_message: { type: "string", nullable: true },
+                      created_at: { type: "string", format: "date-time" },
+                    },
+                  },
+                }),
+              },
+            },
+          },
+        },
+      },
+    },
+
     "/api/v1/rules/{id}": {
       get: {
         tags: ["Rules"],

@@ -35,7 +35,11 @@ export class StreamService {
   private readonly go2rtcUrl: string;
 
   constructor(go2rtcUrl?: string) {
-    this.go2rtcUrl = go2rtcUrl ?? process.env["GO2RTC_URL"] ?? GO2RTC_DEFAULT_URL;
+    this.go2rtcUrl =
+      go2rtcUrl
+      ?? process.env["GO2RTC_API_URL"]
+      ?? process.env["GO2RTC_URL"]
+      ?? GO2RTC_DEFAULT_URL;
   }
 
   async addStream(cameraId: string, rtspUrl: string): Promise<void> {
@@ -287,8 +291,6 @@ function buildIceServers(): {
 let streamServiceInstance: StreamService | null = null;
 
 export function getStreamService(): StreamService {
-  if (!streamServiceInstance) {
-    streamServiceInstance = new StreamService();
-  }
+  streamServiceInstance ??= new StreamService();
   return streamServiceInstance;
 }

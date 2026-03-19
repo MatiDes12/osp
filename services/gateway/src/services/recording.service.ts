@@ -4,9 +4,36 @@ import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getVideoPipelineClient, GrpcFallbackError } from "../grpc/index.js";
+import {
+  isR2Configured,
+  isR2StoragePath,
+  uploadToR2,
+  getPresignedPlaybackUrl,
+} from "../lib/r2.js";
 import type { RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("recording-service");
+
+async function maybeUploadToR2(
+  localPath: string | undefined,
+  recordingId: string,
+  tenantId: string,
+  cameraId: string,
+): Promise<string | undefined> {
+  if (!localPath || !isR2Configured()) return localPath;
+  try {
+    const r2Key = `tenants/${tenantId}/cameras/${cameraId}/recordings/${recordingId}.mp4`;
+    await uploadToR2(localPath, r2Key);
+    logger.info("Recording uploaded to R2", { recordingId, r2Key });
+    return r2Key;
+  } catch (err) {
+    logger.warn("R2 upload failed, keeping local path", {
+      recordingId,
+      error: String(err),
+    });
+    return localPath;
+  }
+}
 
 interface ActiveRecording {
   readonly abortController: AbortController;
@@ -230,7 +257,7 @@ export class RecordingService {
 
     const { data: recording, error: fetchError } = await supabase
       .from("recordings")
-      .select("id, camera_id, start_time, status")
+      .select("id, camera_id, tenant_id, start_time, status")
       .eq("id", recordingId)
       .single();
 
@@ -274,14 +301,21 @@ export class RecordingService {
       }
     }
 
+    const finalStoragePath = await maybeUploadToR2(
+      storagePath,
+      recordingId,
+      recording.tenant_id as string,
+      recording.camera_id as string,
+    );
+
     const updatePayload: Record<string, unknown> = {
       status: "complete",
       end_time: now,
       duration_sec: durationSec,
       size_bytes: sizeBytes,
     };
-    if (storagePath) {
-      updatePayload["storage_path"] = storagePath;
+    if (finalStoragePath) {
+      updatePayload["storage_path"] = finalStoragePath;
     }
 
     const { data: updated, error } = await supabase
@@ -332,6 +366,7 @@ export class RecordingService {
   /**
    * Generate a playback URL for a recording.
    * Prefers the video-pipeline pre-signed URL (HLS playlist in R2).
+   * If video-pipeline is down but recording is in R2, generates gateway presigned URL.
    * Falls back to the gateway's local file-serving endpoint.
    */
   async getPlaybackUrl(recordingId: string, tenantId: string): Promise<string> {
@@ -348,9 +383,29 @@ export class RecordingService {
       }
     } catch (err) {
       if (err instanceof GrpcFallbackError) {
-        // Video-pipeline unavailable — keep using local playback.
+        // Video-pipeline unavailable — check if recording is in R2.
+        const supabase = getSupabase();
+        const { data: recording } = await supabase
+          .from("recordings")
+          .select("storage_path")
+          .eq("id", recordingId)
+          .eq("tenant_id", tenantId)
+          .single();
+
+        const storagePath = recording?.storage_path as string | undefined;
+        if (storagePath && isR2StoragePath(storagePath) && isR2Configured()) {
+          try {
+            return await getPresignedPlaybackUrl(storagePath);
+          } catch (r2Err) {
+            logger.warn("R2 presign failed, using local fallback", {
+              recordingId,
+              error: String(r2Err),
+            });
+          }
+        }
         return fallbackUrl;
       }
+      throw err;
     }
 
     return fallbackUrl;

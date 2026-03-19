@@ -36,7 +36,7 @@ export interface DiscoveredCamera {
 }
 
 export interface PTZCommand {
-  action: string; // PTZ_ACTION_MOVE | PTZ_ACTION_STOP | PTZ_ACTION_GOTO_PRESET
+  action: string | number; // PTZ_ACTION_MOVE=1 | PTZ_ACTION_STOP=2 | PTZ_ACTION_GOTO_PRESET=3
   pan: number;
   tilt: number;
   zoom: number;

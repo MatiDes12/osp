@@ -1,6 +1,7 @@
 import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "node:fs";
 import { join } from "node:path";
 import { Readable } from "node:stream";
+import { spawn } from "node:child_process";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Env } from "../app.js";
@@ -361,6 +362,8 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
             .update({ clip_path: clipPath })
             .eq("id", eventId);
 
+          await generateClipThumbnail(clipPath);
+
           ruleLogger.info("Event clip saved", {
             eventId,
             cameraId,
@@ -610,6 +613,47 @@ eventRoutes.get("/:id/clip", requireAuth("viewer"), async (c) => {
   });
 });
 
+// Stream event clip thumbnail
+eventRoutes.get("/:id/thumbnail", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const eventId = c.req.param("id");
+  const supabase = getSupabase();
+
+  const { data: event, error } = await supabase
+    .from("events")
+    .select("id, tenant_id, clip_path")
+    .eq("id", eventId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !event) {
+    throw new ApiError("EVENT_NOT_FOUND", "Event not found", 404);
+  }
+
+  const clipPath = event.clip_path as string | null;
+  if (!clipPath || !existsSync(clipPath)) {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+
+  const thumbPath = getThumbnailPathFromClipPath(clipPath);
+  if (!existsSync(thumbPath)) {
+    throw new ApiError("THUMBNAIL_NOT_FOUND", "Event thumbnail not found on disk", 404);
+  }
+
+  const stats = statSync(thumbPath);
+  const nodeStream = createReadStream(thumbPath);
+  const webStream = Readable.toWeb(nodeStream) as ReadableStream;
+
+  return new Response(webStream, {
+    status: 200,
+    headers: {
+      "Content-Length": String(stats.size),
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
+});
+
 // Bulk acknowledge events
 eventRoutes.post("/bulk-acknowledge", requireAuth("operator"), async (c) => {
   const tenantId = c.get("tenantId");
@@ -640,3 +684,49 @@ eventRoutes.post("/bulk-acknowledge", requireAuth("operator"), async (c) => {
     }),
   );
 });
+
+function getThumbnailPathFromClipPath(clipPath: string): string {
+  if (clipPath.endsWith(".mp4")) {
+    return clipPath.slice(0, -4) + ".jpg";
+  }
+  return `${clipPath}.jpg`;
+}
+
+async function generateClipThumbnail(clipPath: string): Promise<void> {
+  const thumbPath = getThumbnailPathFromClipPath(clipPath);
+  await new Promise<void>((resolvePromise) => {
+    const ffmpeg = spawn(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        clipPath,
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        thumbPath,
+      ],
+      { stdio: "ignore" },
+    );
+
+    ffmpeg.on("error", () => {
+      resolvePromise();
+    });
+    ffmpeg.on("close", () => {
+      resolvePromise();
+    });
+  });
+
+  if (!existsSync(thumbPath)) {
+    ruleLogger.warn("Clip thumbnail generation failed", {
+      clipPath,
+    });
+    return;
+  }
+
+  ruleLogger.info("Event clip thumbnail saved", {
+    clipPath,
+    thumbPath,
+  });
+}

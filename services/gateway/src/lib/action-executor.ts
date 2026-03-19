@@ -318,6 +318,7 @@ async function handleWebhook(
   event: EventContext,
   tenantId: string,
 ): Promise<void> {
+  const supabase = getSupabase();
   const url = action.config["url"] as string | undefined;
   if (!url) {
     logger.warn("Webhook action has no URL configured", {
@@ -358,26 +359,140 @@ async function handleWebhook(
     }
   }
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
+  const maxRetries = Math.max(
+    1,
+    Math.min(
+      5,
+      Number(
+        (action.config["max_retries"] as number | string | undefined) ?? 3,
+      ),
+    ),
+  );
+  const timeoutMs = Math.max(
+    1_000,
+    Math.min(
+      30_000,
+      Number(
+        (action.config["timeout_ms"] as number | string | undefined) ?? 10_000,
+      ),
+    ),
+  );
+  const baseBackoffMs = Math.max(
+    100,
+    Math.min(
+      30_000,
+      Number(
+        (action.config["retry_backoff_ms"] as number | string | undefined) ?? 1_000,
+      ),
+    ),
+  );
 
-    logger.info("Webhook delivered", {
-      ruleId: matchedRule.ruleId,
-      url,
-      status: String(response.status),
-    });
-  } catch (err) {
-    logger.error("Webhook delivery failed", {
-      ruleId: matchedRule.ruleId,
-      url,
-      error: String(err),
-    });
+  const payloadJson = JSON.stringify(payload);
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    let responseStatus: number | null = null;
+    let responseBody = "";
+    let deliveryError: string | null = null;
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: payloadJson,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      responseStatus = response.status;
+      responseBody = await response.text();
+      const delivered = response.ok;
+
+      await recordWebhookAttempt(
+        supabase,
+        tenantId,
+        matchedRule.ruleId,
+        event.id,
+        url,
+        payload,
+        headers,
+        attempt,
+        delivered ? "delivered" : "failed",
+        responseStatus,
+        responseBody,
+        null,
+      );
+
+      if (delivered) {
+        logger.info("Webhook delivered", {
+          ruleId: matchedRule.ruleId,
+          url,
+          status: String(response.status),
+          attempt: String(attempt),
+        });
+        return;
+      }
+
+      deliveryError = `Webhook returned status ${response.status}`;
+    } catch (err) {
+      deliveryError = String(err);
+      await recordWebhookAttempt(
+        supabase,
+        tenantId,
+        matchedRule.ruleId,
+        event.id,
+        url,
+        payload,
+        headers,
+        attempt,
+        "failed",
+        responseStatus,
+        responseBody,
+        deliveryError,
+      );
+    }
+
+    if (attempt >= maxRetries) {
+      logger.error("Webhook delivery failed after retries", {
+        ruleId: matchedRule.ruleId,
+        url,
+        maxRetries: String(maxRetries),
+        error: deliveryError ?? "unknown",
+      });
+      return;
+    }
+
+    const delayMs = baseBackoffMs * 2 ** (attempt - 1);
+    await sleep(delayMs);
   }
+}
+
+async function recordWebhookAttempt(
+  supabase: ReturnType<typeof getSupabase>,
+  tenantId: string,
+  ruleId: string,
+  eventId: string,
+  url: string,
+  payload: Record<string, unknown>,
+  headers: Record<string, string>,
+  attemptNumber: number,
+  deliveryStatus: "delivered" | "failed",
+  responseStatus: number | null,
+  responseBody: string,
+  errorMessage: string | null,
+): Promise<void> {
+  const maxResponseBodyLength = 10_000;
+  const safeResponseBody = responseBody.slice(0, maxResponseBodyLength);
+  await supabase.from("webhook_delivery_attempts").insert({
+    tenant_id: tenantId,
+    rule_id: ruleId,
+    event_id: eventId,
+    url,
+    request_payload: payload,
+    request_headers: headers,
+    attempt_number: attemptNumber,
+    delivery_status: deliveryStatus,
+    response_status: responseStatus,
+    response_body: safeResponseBody || null,
+    error_message: errorMessage,
+  });
 }
 
 /**
@@ -453,4 +568,10 @@ function interpolateTemplate(
     /\{\{(\w+)\}\}/g,
     (_, key: string) => replacements[key] ?? `{{${key}}}`,
   );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, ms);
+  });
 }

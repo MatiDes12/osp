@@ -4,10 +4,65 @@ import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { evaluateRules } from "../lib/rule-evaluator.js";
-import { CreateRuleSchema, UpdateRuleSchema } from "@osp/shared";
-import { createSuccessResponse } from "@osp/shared";
+import {
+  CreateRuleSchema,
+  UpdateRuleSchema,
+  createSuccessResponse,
+} from "@osp/shared";
 
 export const ruleRoutes = new Hono<Env>();
+
+// List webhook delivery attempts for rules (admin visibility)
+ruleRoutes.get("/webhook-attempts", requireAuth("admin"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  const page = Number.parseInt(c.req.query("page") ?? "1", 10);
+  const limit = Math.min(
+    Number.parseInt(c.req.query("limit") ?? "20", 10),
+    100,
+  );
+  const ruleId = c.req.query("ruleId");
+  const eventId = c.req.query("eventId");
+  const status = c.req.query("status");
+  const offset = (page - 1) * limit;
+
+  let query = supabase
+    .from("webhook_delivery_attempts")
+    .select("*", { count: "exact" })
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (ruleId) {
+    query = query.eq("rule_id", ruleId);
+  }
+  if (eventId) {
+    query = query.eq("event_id", eventId);
+  }
+  if (status === "delivered" || status === "failed") {
+    query = query.eq("delivery_status", status);
+  }
+
+  const { data: attempts, count, error } = await query;
+
+  if (error) {
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Failed to fetch webhook delivery attempts",
+      500,
+    );
+  }
+
+  return c.json(
+    createSuccessResponse(attempts ?? [], {
+      total: count ?? 0,
+      page,
+      limit,
+      hasMore: (count ?? 0) > offset + limit,
+    }),
+  );
+});
 
 // List alert rules
 ruleRoutes.get("/", requireAuth("viewer"), async (c) => {

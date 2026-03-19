@@ -5,6 +5,10 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getStreamService } from "../services/stream.service.js";
 import { getRecordingService } from "../services/recording.service.js";
+import {
+  getCameraIngestClient,
+  GrpcFallbackError,
+} from "../grpc/camera-ingest.client.js";
 import { createLogger } from "../lib/logger.js";
 import {
   CreateCameraSchema,
@@ -14,7 +18,7 @@ import {
   PTZCommandSchema,
   createSuccessResponse,
 } from "@osp/shared";
-import type { RecordingTrigger } from "@osp/shared";
+import type { PTZCommandInput, RecordingTrigger } from "@osp/shared";
 
 const logger = createLogger("camera-routes");
 
@@ -512,6 +516,57 @@ cameraRoutes.get("/:id/record/status", requireAuth("viewer"), async (c) => {
 
 // ── PTZ ──
 
+/** Proto enum values for PTZAction. */
+const PTZ_ACTION_MOVE = 1;
+const PTZ_ACTION_STOP = 2;
+const PTZ_ACTION_GOTO_PRESET = 3;
+
+function mapPTZCommandToGrpc(
+  command: PTZCommandInput,
+): { action: number; pan: number; tilt: number; zoom: number; speed: number; presetId: string } {
+  const speed = command.speed ?? 0.5;
+
+  switch (command.action) {
+    case "stop":
+      return {
+        action: PTZ_ACTION_STOP,
+        pan: 0,
+        tilt: 0,
+        zoom: 0,
+        speed: 0,
+        presetId: "",
+      };
+    case "preset":
+      return {
+        action: PTZ_ACTION_GOTO_PRESET,
+        pan: 0,
+        tilt: 0,
+        zoom: 0,
+        speed: 0,
+        presetId: command.presetId ?? "1",
+      };
+    case "zoom":
+      return {
+        action: PTZ_ACTION_MOVE,
+        pan: 0,
+        tilt: 0,
+        zoom: command.zoom ?? 0,
+        speed,
+        presetId: "",
+      };
+    case "move":
+    default:
+      return {
+        action: PTZ_ACTION_MOVE,
+        pan: command.pan ?? 0,
+        tilt: command.tilt ?? 0,
+        zoom: command.zoom ?? 0,
+        speed,
+        presetId: "",
+      };
+  }
+}
+
 cameraRoutes.post("/:id/ptz", requireAuth("operator"), async (c) => {
   const tenantId = c.get("tenantId");
   const cameraId = c.req.param("id");
@@ -531,26 +586,55 @@ cameraRoutes.post("/:id/ptz", requireAuth("operator"), async (c) => {
     throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
   }
 
-  // MVP: Log the PTZ command for now. The Go camera-ingest service will
-  // handle real ONVIF PTZ SOAP calls in the future.
-  logger.info("PTZ command received", {
-    cameraId,
-    tenantId,
-    action: command.action,
-    pan: command.pan,
-    tilt: command.tilt,
-    zoom: command.zoom,
-    presetId: command.presetId,
-    speed: command.speed,
-  });
+  if (!(camera.ptz_capable as boolean)) {
+    throw new ApiError("CAMERA_PTZ_UNSUPPORTED", "Camera does not support PTZ", 400);
+  }
 
-  return c.json(
-    createSuccessResponse({
-      cameraId,
-      command,
-      status: "accepted",
-    }),
-  );
+  // Forward to camera-ingest gRPC for real ONVIF PTZ SOAP commands
+  try {
+    const client = getCameraIngestClient();
+    const grpcCmd = mapPTZCommandToGrpc(command);
+    await client.ptzCommand(cameraId, {
+      action: grpcCmd.action,
+      pan: grpcCmd.pan,
+      tilt: grpcCmd.tilt,
+      zoom: grpcCmd.zoom,
+      speed: grpcCmd.speed,
+      presetId: grpcCmd.presetId,
+    });
+    return c.json(
+      createSuccessResponse({
+        cameraId,
+        command,
+        status: "accepted",
+      }),
+    );
+  } catch (err) {
+    if (err instanceof GrpcFallbackError) {
+      logger.warn("PTZ forwarded but camera-ingest unavailable", {
+        cameraId,
+        action: command.action,
+      });
+      return c.json(
+        createSuccessResponse({
+          cameraId,
+          command,
+          status: "accepted",
+          message: "PTZ service unavailable; command not executed",
+        }),
+      );
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (
+      msg.includes("not found") ||
+      msg.includes("no ONVIF") ||
+      msg.includes("preset_id")
+    ) {
+      throw new ApiError("CAMERA_PTZ_UNSUPPORTED", msg, 400);
+    }
+    logger.error("PTZ command failed", { cameraId, action: command.action, error: msg });
+    throw new ApiError("CAMERA_PTZ_FAILED", msg, 500);
+  }
 });
 
 // ── Zones ──
