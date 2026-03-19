@@ -21,23 +21,30 @@ export const CameraConfigSchema = z.object({
   audioEnabled: z.boolean().default(false),
 });
 
-export const CreateCameraSchema = z.object({
-  name: z.string().min(1).max(100),
-  protocol: z.enum(["rtsp", "onvif", "usb"]),
-  connectionUri: z
-    .string()
-    .min(1)
-    .max(500)
-    .refine(
-      (uri) =>
-        uri.startsWith("rtsp://") ||
-        uri.startsWith("http") ||
-        uri.startsWith("ffmpeg:device"),
-      "Must be a valid RTSP, ONVIF, or USB device URI",
-    ),
-  location: CameraLocationSchema.optional(),
-  config: CameraConfigSchema.optional(),
-});
+export const CreateCameraSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    protocol: z.enum(["rtsp", "onvif", "usb"]),
+    connectionUri: z.string().max(500).default(""),
+    usbDeviceIndex: z.number().int().min(0).max(9).optional(),
+    location: CameraLocationSchema.optional(),
+    config: CameraConfigSchema.optional(),
+  })
+  .transform((data) => {
+    // For USB protocol, auto-build the URI if empty
+    if (data.protocol === "usb" && !data.connectionUri) {
+      const idx = data.usbDeviceIndex ?? 0;
+      return { ...data, connectionUri: `ffmpeg:device?video=${idx}#video=h264` };
+    }
+    return data;
+  })
+  .refine(
+    (data) =>
+      data.connectionUri.startsWith("rtsp://") ||
+      data.connectionUri.startsWith("http") ||
+      data.connectionUri.startsWith("ffmpeg:device"),
+    { message: "Must be a valid RTSP, ONVIF, or USB device URI", path: ["connectionUri"] },
+  );
 
 export const UpdateCameraSchema = z.object({
   name: z.string().min(1).max(100).optional(),

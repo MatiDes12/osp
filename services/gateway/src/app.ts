@@ -103,6 +103,7 @@ app.route("/health", healthRoutes);
 app.route("/api/v1/auth", authRoutes);
 app.route("/api/v1/cameras", cameraRoutes);
 app.route("/api/v1/cameras", streamRoutes);
+app.route("/api/v1/streams", streamRoutes);
 app.route("/api/v1/events", eventRoutes);
 app.route("/api/v1/recordings", recordingRoutes);
 app.route("/api/v1/rules", ruleRoutes);
