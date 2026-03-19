@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Maximize2, Settings, MapPin, Check } from "lucide-react";
+import { Maximize2, Settings, MapPin, Check, Usb } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { getToken } from "@/hooks/use-auth";
 import type { CameraTag } from "@/hooks/use-tags";
@@ -226,6 +226,12 @@ export function CameraCard({ camera, selectable = false, selected = false, onTog
 
       {/* Top-right: Badges */}
       <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+        {camera.protocol === "usb" && (
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 backdrop-blur-sm">
+            <Usb className="h-2.5 w-2.5" />
+            USB
+          </span>
+        )}
         {camera.capabilities.resolution && (
           <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-zinc-900/80 text-zinc-300 backdrop-blur-sm">
             {camera.capabilities.resolution.includes("1080") ||

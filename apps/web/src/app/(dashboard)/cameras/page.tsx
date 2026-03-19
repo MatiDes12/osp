@@ -204,7 +204,7 @@ export default function CamerasPage() {
   const handleAddCamera = useCallback(
     async (data: {
       name: string;
-      protocol: "rtsp" | "onvif";
+      protocol: "rtsp" | "onvif" | "usb";
       connectionUri: string;
       location?: { label?: string };
     }) => {

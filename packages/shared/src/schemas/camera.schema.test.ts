@@ -54,7 +54,16 @@ describe("CreateCameraSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("protocol must be rtsp or onvif", () => {
+  it("accepts valid USB input with ffmpeg device URI", () => {
+    const result = CreateCameraSchema.safeParse({
+      ...validInput,
+      protocol: "usb",
+      connectionUri: "ffmpeg:device?video=0#video=h264",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("protocol must be rtsp, onvif, or usb", () => {
     const result = CreateCameraSchema.safeParse({
       ...validInput,
       protocol: "webrtc",

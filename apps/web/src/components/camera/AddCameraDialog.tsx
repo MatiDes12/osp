@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, type FormEvent } from "react";
-import { Camera, X, Loader2, Wifi, Search, Radio, Plus, ChevronRight } from "lucide-react";
+import { Camera, X, Loader2, Wifi, Search, Radio, Plus, ChevronRight, Usb, Monitor } from "lucide-react";
 import type { DiscoveredCamera } from "@osp/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -24,7 +24,7 @@ interface AddCameraDialogProps {
   readonly onClose: () => void;
   readonly onSubmit: (data: {
     name: string;
-    protocol: "rtsp" | "onvif";
+    protocol: "rtsp" | "onvif" | "usb";
     connectionUri: string;
     location?: { label?: string };
   }) => Promise<void>;
@@ -39,6 +39,8 @@ interface FormErrors {
 interface ScanState {
   scanning: boolean;
   cameras: DiscoveredCamera[];
+  usbCameras: DiscoveredCamera[];
+  networkCameras: DiscoveredCamera[];
   scanDurationMs: number | null;
   subnetScanned: string | null;
   error: string | null;
@@ -47,7 +49,8 @@ interface ScanState {
 export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProps) {
   const [mode, setMode] = useState<DialogMode>("manual");
   const [name, setName] = useState("");
-  const [protocol, setProtocol] = useState<"rtsp" | "onvif">("rtsp");
+  const [protocol, setProtocol] = useState<"rtsp" | "onvif" | "usb">("rtsp");
+  const [usbDeviceIndex, setUsbDeviceIndex] = useState("0");
   const [connectionUri, setConnectionUri] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
@@ -61,6 +64,8 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
   const [scan, setScan] = useState<ScanState>({
     scanning: false,
     cameras: [],
+    usbCameras: [],
+    networkCameras: [],
     scanDurationMs: null,
     subnetScanned: null,
     error: null,
@@ -72,6 +77,7 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
     setProtocol("rtsp");
     setConnectionUri("");
     setLocationLabel("");
+    setUsbDeviceIndex("0");
     setErrors({});
     setSubmitError(null);
     setTestResult(null);
@@ -81,6 +87,8 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
     setScan({
       scanning: false,
       cameras: [],
+      usbCameras: [],
+      networkCameras: [],
       scanDurationMs: null,
       subnetScanned: null,
       error: null,
@@ -115,9 +123,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       result.connectionUri = "Connection URI is required";
     } else if (
       !connectionUri.startsWith("rtsp://") &&
-      !connectionUri.startsWith("http")
+      !connectionUri.startsWith("http") &&
+      !connectionUri.startsWith("ffmpeg:device")
     ) {
-      result.connectionUri = "Must be a valid RTSP or ONVIF URL";
+      result.connectionUri = "Must be a valid RTSP, ONVIF, or USB device URI";
     }
     return result;
   }, [name, connectionUri]);
@@ -148,15 +157,21 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       setSubmitError(null);
       setSubmitting(true);
       try {
+        // For USB protocol, auto-build the connection URI if not already set
+        const resolvedUri =
+          protocol === "usb" && !connectionUri.trim()
+            ? `ffmpeg:device?video=${usbDeviceIndex}#video=h264`
+            : connectionUri.trim();
+
         const data: {
           name: string;
-          protocol: "rtsp" | "onvif";
+          protocol: "rtsp" | "onvif" | "usb";
           connectionUri: string;
           location?: { label?: string };
         } = {
           name: name.trim(),
           protocol,
-          connectionUri: connectionUri.trim(),
+          connectionUri: resolvedUri,
         };
         if (locationLabel.trim()) {
           data.location = { label: locationLabel.trim() };
@@ -181,11 +196,16 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       scanning: true,
       error: null,
       cameras: [],
+      usbCameras: [],
+      networkCameras: [],
       scanDurationMs: null,
     }));
 
     try {
-      const body = subnet.trim() ? { subnet: subnet.trim() } : {};
+      const body: Record<string, string> = { mode: "all" };
+      if (subnet.trim()) {
+        body.subnet = subnet.trim();
+      }
       const res = await fetch(`${API_URL}/api/v1/cameras/discover`, {
         method: "POST",
         headers: getAuthHeaders(),
@@ -204,15 +224,19 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
       const data = json.data as {
         cameras: DiscoveredCamera[];
+        usb: DiscoveredCamera[];
+        network: DiscoveredCamera[];
         scanDurationMs: number;
-        subnetScanned: string;
+        subnetScanned?: string;
       };
 
       setScan({
         scanning: false,
         cameras: data.cameras,
+        usbCameras: data.usb ?? [],
+        networkCameras: data.network ?? [],
         scanDurationMs: data.scanDurationMs,
-        subnetScanned: data.subnetScanned,
+        subnetScanned: data.subnetScanned ?? null,
         error: null,
       });
     } catch (err) {
@@ -226,10 +250,16 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
   const handleSelectDiscovered = useCallback(
     (cam: DiscoveredCamera) => {
-      const rtspUrl = selectedPath[cam.ip] ?? cam.rtspUrl;
-      setConnectionUri(rtspUrl);
-      setName(cam.manufacturer ? `${cam.manufacturer} - ${cam.ip}` : `Camera ${cam.ip}`);
-      setProtocol("rtsp");
+      if (cam.type === "usb") {
+        setConnectionUri(cam.rtspUrl);
+        setName(cam.name ?? `USB Camera`);
+        setProtocol("usb");
+      } else {
+        const rtspUrl = selectedPath[cam.ip] ?? cam.rtspUrl;
+        setConnectionUri(rtspUrl);
+        setName(cam.manufacturer ? `${cam.manufacturer} - ${cam.ip}` : `Camera ${cam.ip}`);
+        setProtocol("rtsp");
+      }
       setMode("manual");
     },
     [selectedPath],
@@ -293,7 +323,7 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
             }`}
           >
             <Radio className="h-3.5 w-3.5" />
-            Scan Network
+            Detect Cameras
           </button>
         </div>
 
@@ -339,9 +369,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
               <div className="flex items-center gap-3 px-3 py-4 rounded-md bg-blue-500/5 border border-blue-500/20">
                 <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
                 <div>
-                  <p className="text-sm text-blue-300">Scanning network...</p>
+                  <p className="text-sm text-blue-300">Detecting cameras...</p>
                   <p className="text-xs text-zinc-500 mt-0.5">
-                    Probing ports 554, 8554, 8080 on the local subnet. This may take up to 30 seconds.
+                    Scanning USB devices and network ports (554, 8554, 8080, 37777, 34567, 8000). This may take up to 30 seconds.
                   </p>
                 </div>
               </div>
@@ -356,11 +386,13 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
             {/* Scan results */}
             {!scan.scanning && scan.scanDurationMs !== null && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-zinc-500">
-                    Found {scan.cameras.length} device{scan.cameras.length !== 1 ? "s" : ""} on{" "}
-                    <span className="text-zinc-400">{scan.subnetScanned}.0/24</span>
+                    Found {scan.cameras.length} device{scan.cameras.length !== 1 ? "s" : ""}
+                    {scan.subnetScanned ? (
+                      <> on <span className="text-zinc-400">{scan.subnetScanned}.0/24</span></>
+                    ) : null}
                   </p>
                   <p className="text-xs text-zinc-600">
                     {(scan.scanDurationMs / 1000).toFixed(1)}s
@@ -370,72 +402,137 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                 {scan.cameras.length === 0 ? (
                   <div className="text-center py-8">
                     <Wifi className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
-                    <p className="text-sm text-zinc-500">No RTSP cameras found on this subnet</p>
+                    <p className="text-sm text-zinc-500">No cameras found</p>
                     <p className="text-xs text-zinc-600 mt-1">
                       Try a different subnet or add the camera manually
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {scan.cameras.map((cam) => (
-                      <div
-                        key={`${cam.ip}:${cam.port}`}
-                        className={`rounded-md border px-3 py-2.5 transition-colors ${
-                          cam.alreadyAdded
-                            ? "border-zinc-800 bg-zinc-900/50 opacity-60"
-                            : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-zinc-200">
-                                {cam.ip}:{cam.port}
-                              </span>
-                              {cam.manufacturer && (
-                                <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400">
-                                  {cam.manufacturer}
-                                </span>
-                              )}
-                              {cam.alreadyAdded && (
-                                <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/15 text-green-400">
-                                  Added
-                                </span>
+                  <div className="space-y-4 max-h-72 overflow-y-auto">
+                    {/* USB Cameras section */}
+                    {scan.usbCameras.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Usb className="h-3.5 w-3.5 text-purple-400" />
+                          <span className="text-xs font-medium text-purple-400 uppercase tracking-wider">
+                            USB Cameras ({scan.usbCameras.length})
+                          </span>
+                        </div>
+                        {scan.usbCameras.map((cam) => (
+                          <div
+                            key={`usb-${cam.name}`}
+                            className={`rounded-md border px-3 py-2.5 transition-colors ${
+                              cam.alreadyAdded
+                                ? "border-zinc-800 bg-zinc-900/50 opacity-60"
+                                : "border-purple-500/20 bg-zinc-950 hover:border-purple-500/40"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Monitor className="h-3.5 w-3.5 text-zinc-400" />
+                                  <span className="text-sm font-medium text-zinc-200">
+                                    {cam.name ?? `USB Camera`}
+                                  </span>
+                                  <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-400">
+                                    USB
+                                  </span>
+                                  {cam.alreadyAdded && (
+                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/15 text-green-400">
+                                      Added
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-zinc-500 mt-1">
+                                  {cam.rtspUrl}
+                                </p>
+                              </div>
+                              {!cam.alreadyAdded && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectDiscovered(cam)}
+                                  className="ml-3 shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors cursor-pointer"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Add
+                                </button>
                               )}
                             </div>
-                            {/* RTSP path selector */}
-                            {cam.possiblePaths && cam.possiblePaths.length > 0 && (
-                              <select
-                                value={selectedPath[cam.ip] ?? cam.rtspUrl}
-                                onChange={(e) =>
-                                  setSelectedPath((prev) => ({
-                                    ...prev,
-                                    [cam.ip]: e.target.value,
-                                  }))
-                                }
-                                className="mt-1.5 w-full text-xs rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              >
-                                {cam.possiblePaths.map((path) => (
-                                  <option key={path} value={path}>
-                                    {path}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
                           </div>
-                          {!cam.alreadyAdded && (
-                            <button
-                              type="button"
-                              onClick={() => handleSelectDiscovered(cam)}
-                              className="ml-3 shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors cursor-pointer"
-                            >
-                              <Plus className="h-3 w-3" />
-                              Add
-                            </button>
-                          )}
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Network Cameras section */}
+                    {scan.networkCameras.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Wifi className="h-3.5 w-3.5 text-blue-400" />
+                          <span className="text-xs font-medium text-blue-400 uppercase tracking-wider">
+                            Network Cameras ({scan.networkCameras.length})
+                          </span>
+                        </div>
+                        {scan.networkCameras.map((cam) => (
+                          <div
+                            key={`${cam.ip}:${cam.port}`}
+                            className={`rounded-md border px-3 py-2.5 transition-colors ${
+                              cam.alreadyAdded
+                                ? "border-zinc-800 bg-zinc-900/50 opacity-60"
+                                : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-zinc-200">
+                                    {cam.ip}:{cam.port}
+                                  </span>
+                                  {cam.manufacturer && (
+                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400">
+                                      {cam.manufacturer}
+                                    </span>
+                                  )}
+                                  {cam.alreadyAdded && (
+                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/15 text-green-400">
+                                      Added
+                                    </span>
+                                  )}
+                                </div>
+                                {/* RTSP path selector */}
+                                {cam.possiblePaths && cam.possiblePaths.length > 0 && (
+                                  <select
+                                    value={selectedPath[cam.ip] ?? cam.rtspUrl}
+                                    onChange={(e) =>
+                                      setSelectedPath((prev) => ({
+                                        ...prev,
+                                        [cam.ip]: e.target.value,
+                                      }))
+                                    }
+                                    className="mt-1.5 w-full text-xs rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    {cam.possiblePaths.map((path) => (
+                                      <option key={path} value={path}>
+                                        {path}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                              {!cam.alreadyAdded && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectDiscovered(cam)}
+                                  className="ml-3 shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors cursor-pointer"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Add
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -490,14 +587,21 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                 Protocol
               </label>
               <div className="flex rounded-md border border-zinc-800 bg-zinc-950 overflow-hidden">
-                {(["rtsp", "onvif"] as const).map((p) => (
+                {(["rtsp", "onvif", "usb"] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
-                    onClick={() => setProtocol(p)}
+                    onClick={() => {
+                      setProtocol(p);
+                      if (p === "usb") {
+                        setConnectionUri(`ffmpeg:device?video=${usbDeviceIndex}#video=h264`);
+                      }
+                    }}
                     className={`flex-1 px-3 py-2 text-sm font-medium uppercase tracking-wide transition-colors cursor-pointer ${
                       protocol === p
-                        ? "bg-blue-500/15 text-blue-400 border-b-2 border-blue-500"
+                        ? p === "usb"
+                          ? "bg-purple-500/15 text-purple-400 border-b-2 border-purple-500"
+                          : "bg-blue-500/15 text-blue-400 border-b-2 border-blue-500"
                         : "text-zinc-400 hover:text-zinc-200"
                     }`}
                   >
@@ -506,6 +610,36 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                 ))}
               </div>
             </div>
+
+            {/* USB device index selector (shown when protocol is USB) */}
+            {protocol === "usb" && (
+              <div>
+                <label
+                  htmlFor="usb-device-index"
+                  className="block text-sm font-medium text-zinc-300 mb-1.5"
+                >
+                  Device Index
+                </label>
+                <select
+                  id="usb-device-index"
+                  value={usbDeviceIndex}
+                  onChange={(e) => {
+                    setUsbDeviceIndex(e.target.value);
+                    setConnectionUri(`ffmpeg:device?video=${e.target.value}#video=h264`);
+                  }}
+                  className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-purple-500 transition-colors"
+                >
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <option key={i} value={String(i)}>
+                      Device {i}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Select the USB camera device index (typically 0 for built-in webcam)
+                </p>
+              </div>
+            )}
 
             {/* Connection URI */}
             <div>
@@ -523,7 +657,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                 placeholder={
                   protocol === "rtsp"
                     ? "rtsp://192.168.1.100:554/stream"
-                    : "http://192.168.1.100:80/onvif/device_service"
+                    : protocol === "usb"
+                      ? "ffmpeg:device?video=0#video=h264"
+                      : "http://192.168.1.100:80/onvif/device_service"
                 }
                 className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               />

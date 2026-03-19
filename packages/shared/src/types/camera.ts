@@ -76,6 +76,8 @@ export interface DiscoveredCamera {
   alreadyAdded: boolean;
   /** Common RTSP paths found on this host */
   possiblePaths?: string[];
+  /** How the camera was discovered */
+  type: "usb" | "network" | "onvif";
 }
 
 export interface StreamInfo {

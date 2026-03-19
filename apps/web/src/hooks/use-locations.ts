@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Location } from "@osp/shared";
+import type { Location, FloorPlanObject } from "@osp/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -28,6 +28,7 @@ function transformLocation(raw: Record<string, unknown>): Location {
     lat: (raw.lat as number) ?? null,
     lng: (raw.lng as number) ?? null,
     timezone: (raw.timezone as string) ?? "UTC",
+    floorPlan: (raw.floor_plan ?? raw.floorPlan ?? []) as FloorPlanObject[],
     cameraCount: (raw.camera_count ?? raw.cameraCount) as number | undefined,
     createdAt: (raw.created_at ?? raw.createdAt) as string,
     updatedAt: (raw.updated_at ?? raw.updatedAt) as string,

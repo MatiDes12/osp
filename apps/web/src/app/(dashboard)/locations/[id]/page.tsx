@@ -186,8 +186,8 @@ export default function LocationDetailPage({
         <FloorPlanEditor
           locationId={location.id}
           locationName={location.name}
-          objects={location.floorPlan ?? []}
-          onSave={handleSaveFloorPlan}
+          objects={(location.floorPlan ?? []) as any}
+          onSave={handleSaveFloorPlan as any}
           cameras={cameras}
         />
       </div>

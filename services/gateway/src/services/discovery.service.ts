@@ -5,7 +5,13 @@ import type { DiscoveredCamera } from "@osp/shared";
 
 const logger = createLogger("discovery-service");
 
+const GO2RTC_URL = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+
 const RTSP_PORTS = [554, 8554, 8080];
+/** Additional ports used by wired IP cameras */
+const WIRED_CAMERA_PORTS = [37777, 34567, 8000];
+/** Maximum USB device indices to probe */
+const MAX_USB_DEVICE_INDEX = 5;
 const TCP_CONNECT_TIMEOUT_MS = 1_000;
 /** Maximum concurrent TCP probes to avoid overwhelming the network */
 const MAX_CONCURRENT_PROBES = 50;
@@ -169,6 +175,99 @@ function guessManufacturer(serverHeader: string | undefined): string | undefined
 
 export class DiscoveryService {
   /**
+   * Discover USB cameras accessible via go2rtc's ffmpeg device input.
+   *
+   * Probes device indices 0 through MAX_USB_DEVICE_INDEX by registering
+   * temporary streams in go2rtc and checking if they acquire producers.
+   */
+  async discoverUSBCameras(): Promise<DiscoveredCamera[]> {
+    logger.info("Starting USB camera discovery", { maxIndex: MAX_USB_DEVICE_INDEX });
+    const cameras: DiscoveredCamera[] = [];
+
+    for (let i = 0; i < MAX_USB_DEVICE_INDEX; i++) {
+      const testName = `__usb_probe_${i}`;
+      const source = `ffmpeg:device?video=${i}#video=h264`;
+
+      try {
+        // Register a temporary probe stream in go2rtc
+        await fetch(
+          `${GO2RTC_URL}/api/streams?name=${testName}&src=${encodeURIComponent(source)}`,
+          { method: "PUT", signal: AbortSignal.timeout(3000) },
+        );
+
+        // Give go2rtc a moment to attempt device connection
+        await new Promise((r) => setTimeout(r, 1500));
+
+        // Check whether the stream acquired any producers (device exists)
+        const statusRes = await fetch(
+          `${GO2RTC_URL}/api/streams?src=${testName}`,
+          { signal: AbortSignal.timeout(2000) },
+        );
+
+        if (statusRes.ok) {
+          const data = (await statusRes.json()) as Record<string, unknown>;
+          const producers = data?.producers;
+          const hasProducers =
+            Array.isArray(producers) && producers.length > 0;
+
+          if (hasProducers) {
+            cameras.push({
+              ip: "localhost",
+              port: 0,
+              manufacturer: "USB Camera",
+              model: `Device ${i}`,
+              name: `USB Camera ${i}`,
+              rtspUrl: source,
+              alreadyAdded: false,
+              possiblePaths: [source],
+              type: "usb",
+            });
+            logger.info("USB camera found", { index: i, source });
+          }
+        }
+
+        // Clean up the temporary probe stream
+        await fetch(`${GO2RTC_URL}/api/streams?src=${testName}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      } catch {
+        // Device index does not exist or go2rtc cannot access it
+      }
+    }
+
+    logger.info("USB camera discovery complete", { found: cameras.length });
+    return cameras;
+  }
+
+  /**
+   * Run all discovery methods in parallel: USB cameras and network scan.
+   */
+  async discoverAll(subnetBase?: string): Promise<{
+    usb: DiscoveredCamera[];
+    network: DiscoveredCamera[];
+    scanDurationMs: number;
+  }> {
+    const start = Date.now();
+
+    const [usbResult, networkResult] = await Promise.allSettled([
+      this.discoverUSBCameras(),
+      this.scanNetwork(subnetBase),
+    ]);
+
+    const usb = usbResult.status === "fulfilled" ? usbResult.value : [];
+    const network =
+      networkResult.status === "fulfilled"
+        ? networkResult.value.cameras
+        : [];
+
+    return {
+      usb,
+      network,
+      scanDurationMs: Date.now() - start,
+    };
+  }
+
+  /**
    * Scan the local network for RTSP-capable cameras.
    *
    * @param subnetBase - e.g. "192.168.4". Auto-detected if omitted.
@@ -185,14 +284,15 @@ export class DiscoveryService {
       return { cameras: [], scanDurationMs: 0, subnetScanned: "unknown" };
     }
 
-    logger.info("Starting network scan", { subnet, ports: RTSP_PORTS });
+    const allPorts = [...RTSP_PORTS, ...WIRED_CAMERA_PORTS];
+    logger.info("Starting network scan", { subnet, ports: allPorts });
     const startTime = Date.now();
 
-    // Build probe task list: every IP x every port
+    // Build probe task list: every IP x every port (RTSP + wired camera ports)
     const tasks: Array<{ ip: string; port: number }> = [];
     for (let i = 1; i <= 254; i++) {
       const ip = `${subnet}.${i}`;
-      for (const port of RTSP_PORTS) {
+      for (const port of allPorts) {
         tasks.push({ ip, port });
       }
     }
@@ -228,6 +328,7 @@ export class DiscoveryService {
           possiblePaths: COMMON_RTSP_PATHS.map(
             (path) => `rtsp://${ip}:${primaryPort}${path}`,
           ),
+          type: "network",
         });
       },
     );

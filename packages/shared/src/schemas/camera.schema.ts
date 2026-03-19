@@ -23,14 +23,17 @@ export const CameraConfigSchema = z.object({
 
 export const CreateCameraSchema = z.object({
   name: z.string().min(1).max(100),
-  protocol: z.enum(["rtsp", "onvif"]),
+  protocol: z.enum(["rtsp", "onvif", "usb"]),
   connectionUri: z
     .string()
     .min(1)
     .max(500)
     .refine(
-      (uri) => uri.startsWith("rtsp://") || uri.startsWith("http"),
-      "Must be a valid RTSP or ONVIF URL",
+      (uri) =>
+        uri.startsWith("rtsp://") ||
+        uri.startsWith("http") ||
+        uri.startsWith("ffmpeg:device"),
+      "Must be a valid RTSP, ONVIF, or USB device URI",
     ),
   location: CameraLocationSchema.optional(),
   config: CameraConfigSchema.optional(),

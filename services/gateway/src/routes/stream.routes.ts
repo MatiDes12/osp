@@ -293,12 +293,16 @@ streamRoutes.get("/:id/recording.mp4", requireAuth("viewer"), async (c) => {
   });
 });
 
-// POST /api/v1/cameras/discover - Network RTSP port scan discovery
+// POST /api/v1/cameras/discover - Discover cameras (USB + network scan)
+// Accepts optional body: { subnet?: string, mode?: "all" | "usb" | "network" }
 streamRoutes.post("/discover", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
   const body = await c.req.json().catch(() => ({}));
-  const subnet = (body as { subnet?: string }).subnet;
+  const { subnet, mode = "all" } = body as {
+    subnet?: string;
+    mode?: "all" | "usb" | "network";
+  };
 
   // Get existing cameras to mark already-added ones
   const { data: existingCameras } = await supabase
@@ -313,25 +317,54 @@ streamRoutes.post("/discover", requireAuth("admin"), async (c) => {
   );
 
   const discoveryService = new DiscoveryService();
-  const { cameras, scanDurationMs, subnetScanned } =
-    await discoveryService.scanNetwork(subnet);
 
-  // Mark cameras that are already added by checking all possible paths
-  const marked = cameras.map((cam) => {
-    const isAdded =
-      existingUris.has(cam.rtspUrl) ||
-      (cam.possiblePaths ?? []).some((p) => existingUris.has(p));
-    return { ...cam, alreadyAdded: isAdded };
-  });
+  const markAlreadyAdded = (cameras: import("@osp/shared").DiscoveredCamera[]) =>
+    cameras.map((cam) => {
+      const isAdded =
+        existingUris.has(cam.rtspUrl) ||
+        (cam.possiblePaths ?? []).some((p) => existingUris.has(p));
+      return { ...cam, alreadyAdded: isAdded };
+    });
+
+  let usb: import("@osp/shared").DiscoveredCamera[] = [];
+  let network: import("@osp/shared").DiscoveredCamera[] = [];
+  let scanDurationMs = 0;
+  let subnetScanned: string | undefined;
+
+  if (mode === "all") {
+    const result = await discoveryService.discoverAll(subnet);
+    usb = markAlreadyAdded(result.usb);
+    network = markAlreadyAdded(result.network);
+    scanDurationMs = result.scanDurationMs;
+  } else if (mode === "usb") {
+    const start = Date.now();
+    usb = markAlreadyAdded(await discoveryService.discoverUSBCameras());
+    scanDurationMs = Date.now() - start;
+  } else {
+    const result = await discoveryService.scanNetwork(subnet);
+    network = markAlreadyAdded(result.cameras);
+    scanDurationMs = result.scanDurationMs;
+    subnetScanned = result.subnetScanned;
+  }
+
+  // Backward-compatible: include flat cameras array (usb + network combined)
+  const cameras = [...usb, ...network];
 
   logger.info("Discovery scan completed", {
     tenantId,
-    camerasFound: marked.length,
+    mode,
+    usbFound: usb.length,
+    networkFound: network.length,
     scanDurationMs,
-    subnetScanned,
   });
 
   return c.json(
-    createSuccessResponse({ cameras: marked, scanDurationMs, subnetScanned }),
+    createSuccessResponse({
+      cameras,
+      usb,
+      network,
+      scanDurationMs,
+      subnetScanned,
+    }),
   );
 });
