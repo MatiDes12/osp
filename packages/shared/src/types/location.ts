@@ -13,6 +13,7 @@ export interface FloorPlanObject {
   furnitureType?: string;
   wallHeight?: number;
   locked?: boolean;
+  floorLevel?: number; // Floor level (0 = ground, 1 = 1st floor, etc.)
 }
 
 export interface Location {

@@ -10,6 +10,7 @@ import {
   Suspense,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { getToken } from "@/hooks/use-auth";
 
 // Lazy-load Three.js 3D view (heavy dependency, only loaded when user clicks "3D")
 const FloorPlan3DViewLazy = lazy(() =>
@@ -83,6 +84,7 @@ export interface FloorObject {
   furnitureType?: string;
   wallHeight?: number;  // for 3D
   locked?: boolean;
+  floorLevel?: number;  // Floor level (0 = ground, 1 = 1st floor, etc.)
 }
 
 interface FloorPlanEditorProps {
@@ -520,6 +522,87 @@ function drawObjIso(
 }
 
 // ---------------------------------------------------------------------------
+//  Live Snapshot Hook (auto-refreshes every 10s)
+// ---------------------------------------------------------------------------
+
+function useSnapshotUrl(cameraId: string | undefined, enabled: boolean): string | null {
+  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+  const prevUrlRef = useRef<string | null>(null);
+  const fetchingRef = useRef(false);
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+  useEffect(() => {
+    if (!enabled || !cameraId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchSnapshot = async () => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
+
+      try {
+        const token = getToken();
+        if (!token) return;
+
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+
+        if (res.ok && !cancelled) {
+          const blob = await res.blob();
+          const nextUrl = URL.createObjectURL(blob);
+
+          const img = new Image();
+          img.src = nextUrl;
+          try {
+            await img.decode();
+          } catch {
+            // decode() can fail for some formats
+          }
+
+          if (cancelled) {
+            URL.revokeObjectURL(nextUrl);
+            return;
+          }
+
+          const oldUrl = prevUrlRef.current;
+          prevUrlRef.current = nextUrl;
+          setSnapshotUrl(nextUrl);
+
+          if (oldUrl) {
+            requestAnimationFrame(() => {
+              setTimeout(() => URL.revokeObjectURL(oldUrl), 100);
+            });
+          }
+        }
+      } catch {
+        // Snapshot unavailable
+      } finally {
+        fetchingRef.current = false;
+      }
+    };
+
+    fetchSnapshot();
+    const interval = setInterval(fetchSnapshot, 10_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      fetchingRef.current = false;
+      if (prevUrlRef.current) {
+        URL.revokeObjectURL(prevUrlRef.current);
+        prevUrlRef.current = null;
+      }
+    };
+  }, [cameraId, enabled, API_URL]);
+
+  return snapshotUrl;
+}
+
+// ---------------------------------------------------------------------------
 //  Camera Live Preview Popup
 // ---------------------------------------------------------------------------
 
@@ -542,7 +625,8 @@ function CameraPopup({
 }) {
   const sx = obj.x * zoom + ox;
   const sy = obj.y * zoom + oy;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+  const isOnline = camera?.status === "online";
+  const snapshotUrl = useSnapshotUrl(camera?.id, isOnline);
 
   return (
     <div
@@ -551,15 +635,15 @@ function CameraPopup({
     >
       {/* Live preview */}
       <div className="relative aspect-video bg-black">
-        {camera && camera.status === "online" ? (
+        {snapshotUrl ? (
           <img
-            src={`${API_URL}/api/v1/cameras/${camera.id}/snapshot`}
-            alt={camera.name}
+            src={snapshotUrl}
+            alt={camera?.name ?? "Camera"}
             className="w-full h-full object-cover"
           />
         ) : (
           <div className="flex items-center justify-center h-full text-zinc-600 text-xs">
-            {camera ? "Camera Offline" : "Not Linked"}
+            {!camera ? "Not Linked" : !isOnline ? "Camera Offline" : "Loading..."}
           </div>
         )}
         <button
@@ -612,6 +696,7 @@ export function FloorPlanEditor({
 
   const [tool, setTool] = useState<Tool>("select");
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
+  const [currentFloor, setCurrentFloor] = useState<number>(0); // Current floor level (0 = ground, 1 = 1st floor, etc.)
   const [objects, setObjects] = useState<FloorObject[]>([...initialObjects] as FloorObject[]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -635,6 +720,9 @@ export function FloorPlanEditor({
   const [measureStart, setMeasureStart] = useState<Point | null>(null);
   const [measureEnd, setMeasureEnd] = useState<Point | null>(null);
 
+  // Preview rect while dragging to show dimensions
+  const [previewRect, setPreviewRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
   // Undo/redo
   const [history, setHistory] = useState<FloorObject[][]>([[...initialObjects] as FloorObject[]]);
   const [histIdx, setHistIdx] = useState(0);
@@ -645,6 +733,12 @@ export function FloorPlanEditor({
   const panStartRef = useRef<Point>({ x: 0, y: 0 });
   const dragIdRef = useRef<string | null>(null);
   const dragOffRef = useRef<Point>({ x: 0, y: 0 });
+
+  // Filter objects by current floor level
+  const visibleObjects = useMemo(
+    () => objects.filter((o) => (o.floorLevel ?? 0) === currentFloor),
+    [objects, currentFloor],
+  );
 
   const selectedObj = useMemo(() => objects.find((o) => o.id === selectedId), [objects, selectedId]);
   const popupObj = useMemo(() => objects.find((o) => o.id === popupCameraId), [objects, popupCameraId]);
@@ -691,8 +785,9 @@ export function FloorPlanEditor({
 
   const hitTest = useCallback(
     (wx: number, wy: number): FloorObject | null => {
-      for (let i = objects.length - 1; i >= 0; i--) {
-        const o = objects[i]!;
+      // Only check objects on current floor
+      for (let i = visibleObjects.length - 1; i >= 0; i--) {
+        const o = visibleObjects[i]!;
         if (o.type === "camera") {
           if ((wx - o.x) ** 2 + (wy - o.y) ** 2 < 18 ** 2) return o;
         } else if (o.type === "label") {
@@ -705,7 +800,7 @@ export function FloorPlanEditor({
       }
       return null;
     },
-    [objects],
+    [visibleObjects],
   );
 
   // ── Mouse down ─────────────────────────────────────────────────────
@@ -751,6 +846,7 @@ export function FloorPlanEditor({
           id: uid(), type: "camera",
           x: s.x, y: s.y, w: 0, h: 0, rotation: 0,
           label: "New Camera",
+          floorLevel: currentFloor,
         };
         commit([...objects, cam]);
         setSelectedId(cam.id);
@@ -821,6 +917,21 @@ export function FloorPlanEditor({
         setObjects((prev) =>
           prev.map((o) => (o.id === dragIdRef.current ? { ...o, x: s.x, y: s.y } : o)),
         );
+        return;
+      }
+
+      // For drawing tools (room, wall, etc.), show preview rectangle
+      if (["room", "wall", "door", "window"].includes(tool)) {
+        const s = { x: snap(w.x, snapEnabled), y: snap(w.y, snapEnabled) };
+        const start = drawStartRef.current;
+        const dw = s.x - start.x;
+        const dh = s.y - start.y;
+        setPreviewRect({
+          x: Math.min(start.x, s.x),
+          y: Math.min(start.y, s.y),
+          w: Math.abs(dw),
+          h: Math.abs(dh),
+        });
       }
     },
     [tool, toWorld, hitTest, snapEnabled, measureStart],
@@ -831,6 +942,7 @@ export function FloorPlanEditor({
     (e: ReactMouseEvent<HTMLCanvasElement>) => {
       if (!drawingRef.current) return;
       drawingRef.current = false;
+      setPreviewRect(null); // Clear preview
 
       if (tool === "pan" || tool === "select") {
         if (dragIdRef.current) {
@@ -858,16 +970,18 @@ export function FloorPlanEditor({
             x: Math.min(start.x, s.x), y: Math.min(start.y, s.y),
             w: Math.abs(dw), h: Math.abs(dh),
             rotation: 0, color: roomColor, label: "Room",
+            floorLevel: currentFloor,
           };
           break;
         case "wall":
-          obj = { id: uid(), type: "wall", x: start.x, y: start.y, w: dw, h: dh, rotation: 0 };
+          obj = { id: uid(), type: "wall", x: start.x, y: start.y, w: dw, h: dh, rotation: 0, floorLevel: currentFloor };
           break;
         case "door":
           obj = {
             id: uid(), type: "door",
             x: start.x, y: start.y,
             w: Math.max(Math.abs(dw), GRID_SIZE * 2), h: 0, rotation: 0,
+            floorLevel: currentFloor,
           };
           break;
         case "window":
@@ -875,6 +989,7 @@ export function FloorPlanEditor({
             id: uid(), type: "window",
             x: start.x, y: start.y,
             w: Math.max(Math.abs(dw), GRID_SIZE * 2), h: 0, rotation: 0,
+            floorLevel: currentFloor,
           };
           break;
         default:
@@ -976,12 +1091,12 @@ export function FloorPlanEditor({
 
       if (viewMode === "2d") {
         drawGrid2D(ctx!, r.width, r.height, zoom, offset.x, offset.y, showGrid);
-        for (const obj of objects) {
+        for (const obj of visibleObjects) {
           drawObj2D(ctx!, obj, zoom, offset.x, offset.y, obj.id === selectedId, obj.id === hoveredId);
         }
       } else {
         // Iso / 3D view
-        for (const obj of objects) {
+        for (const obj of visibleObjects) {
           drawObjIso(ctx!, obj, zoom, offset.x, offset.y, obj.id === selectedId);
         }
       }
@@ -991,11 +1106,34 @@ export function FloorPlanEditor({
         drawMeasureLine(ctx!, measureStart, measureEnd, zoom, offset.x, offset.y);
       }
 
+      // Preview rectangle while dragging
+      if (previewRect && viewMode === "2d") {
+        const sx = previewRect.x * zoom + offset.x;
+        const sy = previewRect.y * zoom + offset.y;
+        const sw = previewRect.w * zoom;
+        const sh = previewRect.h * zoom;
+
+        ctx!.strokeStyle = "#3b82f6";
+        ctx!.lineWidth = 2;
+        ctx!.setLineDash([5, 5]);
+        ctx!.strokeRect(sx, sy, sw, sh);
+        ctx!.setLineDash([]);
+
+        // Show dimensions overlay
+        ctx!.fillStyle = "rgba(59, 130, 246, 0.9)";
+        ctx!.font = "bold 11px monospace";
+        const dimText = `${Math.abs(Math.round(previewRect.w))} × ${Math.abs(Math.round(previewRect.h))}`;
+        const textWidth = ctx!.measureText(dimText).width;
+        ctx!.fillRect(sx + sw / 2 - textWidth / 2 - 4, sy + sh / 2 - 10, textWidth + 8, 20);
+        ctx!.fillStyle = "#fff";
+        ctx!.fillText(dimText, sx + sw / 2 - textWidth / 2, sy + sh / 2 + 4);
+      }
+
       raf = requestAnimationFrame(render);
     }
     render();
     return () => cancelAnimationFrame(raf);
-  }, [objects, zoom, offset, selectedId, hoveredId, showGrid, viewMode, measureStart, measureEnd]);
+  }, [visibleObjects, zoom, offset, selectedId, hoveredId, showGrid, viewMode, measureStart, measureEnd, previewRect]);
 
   // ── Object property updates ────────────────────────────────────────
   const updateObj = useCallback(
@@ -1057,6 +1195,25 @@ export function FloorPlanEditor({
               } ${m === "2d" ? "rounded-l-md" : m === "3d" ? "rounded-r-md" : ""}`}
             >
               {m}
+            </button>
+          ))}
+        </div>
+
+        {/* Floor level selector */}
+        <div className="flex items-center gap-1 mr-2">
+          <span className="text-[10px] text-zinc-600 mr-1">Floor:</span>
+          {[0, 1, 2, 3, 4].map((floor) => (
+            <button
+              key={floor}
+              onClick={() => setCurrentFloor(floor)}
+              title={floor === 0 ? "Ground Floor" : `Floor ${floor}`}
+              className={`px-2.5 py-1 text-[10px] font-bold rounded transition-colors cursor-pointer ${
+                currentFloor === floor
+                  ? "bg-purple-500/20 text-purple-400 border border-purple-500/40"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 border border-transparent"
+              }`}
+            >
+              {floor === 0 ? "G" : floor}
             </button>
           ))}
         </div>
@@ -1176,7 +1333,7 @@ export function FloorPlanEditor({
                 </div>
               </div>
             }>
-              <FloorPlan3DViewLazy objects={objects} cameras={cameras} />
+              <FloorPlan3DViewLazy objects={visibleObjects} cameras={cameras} />
             </Suspense>
           </div>
         ) : (
@@ -1384,7 +1541,7 @@ export function FloorPlanEditor({
               onChange={(e) => setLabelInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && labelInput.trim()) {
-                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim() };
+                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim(), floorLevel: currentFloor };
                   commit([...objects, obj]);
                   setLabelDialogOpen(false);
                 }
@@ -1398,7 +1555,7 @@ export function FloorPlanEditor({
               <button
                 onClick={() => {
                   if (!labelInput.trim()) return;
-                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim() };
+                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim(), floorLevel: currentFloor };
                   commit([...objects, obj]);
                   setLabelDialogOpen(false);
                 }}
@@ -1428,6 +1585,7 @@ export function FloorPlanEditor({
                       x: pendingLabelPos.x, y: pendingLabelPos.y,
                       w: ft.w, h: ft.h, rotation: 0,
                       furnitureType: ft.id, label: ft.label,
+                      floorLevel: currentFloor,
                     };
                     commit([...objects, obj]);
                     setFurniturePicker(false);

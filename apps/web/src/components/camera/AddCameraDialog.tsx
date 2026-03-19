@@ -208,6 +208,7 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
           protocol: "rtsp" | "onvif" | "usb";
           connectionUri: string;
           location?: { label?: string };
+          usbDeviceIndex?: number;
         } = {
           name: name.trim(),
           protocol,
@@ -215,6 +216,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
         };
         if (locationLabel.trim()) {
           data.location = { label: locationLabel.trim() };
+        }
+        // Include USB device index for USB protocol
+        if (protocol === "usb") {
+          data.usbDeviceIndex = parseInt(usbDeviceIndex, 10);
         }
         await onSubmit(data);
         resetForm();

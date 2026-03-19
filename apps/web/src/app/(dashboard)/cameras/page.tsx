@@ -215,6 +215,7 @@ export default function CamerasPage() {
       protocol: string;
       connectionUri: string;
       location?: { label?: string };
+      usbDeviceIndex?: number;
     }) => {
       await addCamera(data as Parameters<typeof addCamera>[0]);
     },

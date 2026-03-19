@@ -3,6 +3,7 @@ import { publishEvent } from "./event-publisher.js";
 import { createLogger } from "./logger.js";
 import { sendEmail } from "./email.js";
 import { alertEmailTemplate } from "./email-templates.js";
+import { getRecordingService } from "../services/recording.service.js";
 import type { RuleAction } from "@osp/shared";
 import type { MatchedRule } from "./rule-evaluator.js";
 
@@ -327,41 +328,53 @@ async function handleWebhook(
 
 /**
  * Triggers a recording for the camera that generated the event.
+ * Uses the RecordingService to actually start go2rtc recording.
  */
 async function handleStartRecording(
   action: RuleAction,
   event: EventContext,
   tenantId: string,
 ): Promise<void> {
-  const supabase = getSupabase();
-  const durationSec = (action.config["duration_sec"] as number) ?? 60;
+  const durationSec = (action.config["duration_sec"] as number) ?? (action.config["duration"] as number) ?? 60;
+  const durationMs = durationSec * 1000;
 
-  const { error } = await supabase.from("recordings").insert({
-    camera_id: event.cameraId,
-    tenant_id: tenantId,
-    trigger: "rule",
-    status: "recording",
-    start_time: new Date().toISOString(),
-    metadata: {
-      triggeredBy: "rule_engine",
+  try {
+    const recordingService = getRecordingService();
+    const recordingId = await recordingService.startTimedRecording(
+      event.cameraId,
+      tenantId,
+      "rule",
+      durationMs,
+    );
+
+    logger.info("Recording started via rule", {
+      recordingId,
+      cameraId: event.cameraId,
+      durationSec: String(durationSec),
       eventId: event.id,
       eventType: event.type,
-      durationSec,
-    },
-  });
+    });
 
-  if (error) {
+    // Update recording metadata with rule info
+    const supabase = getSupabase();
+    await supabase
+      .from("recordings")
+      .update({
+        metadata: {
+          triggeredBy: "rule_engine",
+          eventId: event.id,
+          eventType: event.type,
+          durationSec,
+        },
+      })
+      .eq("id", recordingId);
+  } catch (err) {
     logger.error("Failed to start recording", {
       cameraId: event.cameraId,
-      error: String(error),
+      error: String(err),
     });
-    return;
+    throw err; // Re-throw to let executeActions handle it
   }
-
-  logger.info("Recording started via rule", {
-    cameraId: event.cameraId,
-    durationSec: String(durationSec),
-  });
 }
 
 /**
