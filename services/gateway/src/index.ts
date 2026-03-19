@@ -6,6 +6,10 @@ config({ path: resolve(process.cwd(), "../../.env") });
 // Also try current directory (for Docker / direct invocation)
 config({ path: resolve(process.cwd(), ".env") });
 
+// Validate env before importing anything else
+import { validateEnv } from "./lib/env.js";
+validateEnv();
+
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { startWebSocketServer, stopWebSocketServer } from "./ws/server.js";

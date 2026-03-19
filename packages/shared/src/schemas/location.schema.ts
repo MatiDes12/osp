@@ -15,6 +15,7 @@ const FloorPlanObjectSchema = z.object({
   furnitureType: z.string().optional(),
   wallHeight: z.number().optional(),
   locked: z.boolean().optional(),
+  floorLevel: z.number().int().min(0).optional(),
 });
 
 export const CreateLocationSchema = z.object({
