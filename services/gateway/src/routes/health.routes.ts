@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { get } from "../lib/config.js";
 import { getSupabase } from "../lib/supabase.js";
 import { getRedis } from "../lib/redis.js";
 import { getConnectedClientCount } from "../ws/server.js";
@@ -62,7 +63,7 @@ async function checkRedis(): Promise<ServiceCheck> {
 }
 
 async function checkGo2rtc(): Promise<ServiceCheck> {
-  const url = process.env["GO2RTC_API_URL"] ?? "http://localhost:1984";
+  const url = get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
   const start = performance.now();
   try {
     const res = await fetch(`${url}/api/streams`, {
@@ -96,7 +97,7 @@ async function checkGrpcService(
   getStub: () => ReturnType<typeof getRawCameraIngestStub>,
   envVar: string,
 ): Promise<GrpcServiceCheck> {
-  const address = process.env[envVar];
+  const address = get(envVar);
   if (!address) {
     return { status: "not_configured", latency_ms: 0 };
   }

@@ -5,7 +5,9 @@ import type { DiscoveredCamera } from "@osp/shared";
 
 const logger = createLogger("discovery-service");
 
-const GO2RTC_URL = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+import { get } from "../lib/config.js";
+
+const getGo2RtcUrl = () => get("GO2RTC_URL") ?? "http://localhost:1984";
 
 const RTSP_PORTS = [554, 8554, 8080];
 /** Additional ports used by wired IP cameras */
@@ -191,7 +193,7 @@ export class DiscoveryService {
       try {
         // Register a temporary probe stream in go2rtc
         await fetch(
-          `${GO2RTC_URL}/api/streams?name=${testName}&src=${encodeURIComponent(source)}`,
+          `${getGo2RtcUrl()}/api/streams?name=${testName}&src=${encodeURIComponent(source)}`,
           { method: "PUT", signal: AbortSignal.timeout(3000) },
         );
 
@@ -200,7 +202,7 @@ export class DiscoveryService {
 
         // Check whether the stream acquired any producers (device exists)
         const statusRes = await fetch(
-          `${GO2RTC_URL}/api/streams?src=${testName}`,
+          `${getGo2RtcUrl()}/api/streams?src=${testName}`,
           { signal: AbortSignal.timeout(2000) },
         );
 
@@ -227,7 +229,7 @@ export class DiscoveryService {
         }
 
         // Clean up the temporary probe stream
-        await fetch(`${GO2RTC_URL}/api/streams?src=${testName}`, {
+        await fetch(`${getGo2RtcUrl()}/api/streams?src=${testName}`, {
           method: "DELETE",
         }).catch(() => {});
       } catch {

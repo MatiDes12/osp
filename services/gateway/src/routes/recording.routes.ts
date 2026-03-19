@@ -4,6 +4,7 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
+import { get } from "../lib/config.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { isR2StoragePath } from "../lib/r2.js";
 import { createSuccessResponse } from "@osp/shared";
@@ -173,7 +174,7 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
     tenantId,
   );
   const gatewayUrl =
-    process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
+    get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
   const localFallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
 
   // If playbackUrl is a remote, pre-signed HLS URL (R2), redirect clients.

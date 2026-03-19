@@ -273,7 +273,7 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
       "A team member";
     const tenantName = (tenantData?.name as string) ?? "your organization";
 
-    const webUrl = process.env["WEB_URL"] ?? "http://localhost:3001";
+    const webUrl = (await import("../lib/config.js")).get("WEB_URL") ?? "http://localhost:3001";
     const inviteUrl = `${webUrl}/invite/${invitation?.id as string}`;
 
     const html = inviteEmailTemplate({

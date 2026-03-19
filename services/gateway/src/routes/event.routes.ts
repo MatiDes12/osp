@@ -11,6 +11,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { publishEvent } from "../lib/event-publisher.js";
 import { evaluateRules } from "../lib/rule-evaluator.js";
 import { executeActions } from "../lib/action-executor.js";
+import { get } from "../lib/config.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { createLogger } from "../lib/logger.js";
 import {
@@ -208,8 +209,7 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
         if (cameraStatus?.status !== "online") return;
 
-        const go2rtcUrl =
-          process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+        const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
 
         const snapshotRes = await fetch(
           `${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(input.cameraId)}`,
@@ -331,8 +331,8 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     const cameraId = input.cameraId;
     (async () => {
       try {
-        const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
-        const recordingsDir = process.env["RECORDINGS_DIR"] ?? "./recordings";
+        const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
+        const recordingsDir = get("RECORDINGS_DIR") ?? "./recordings";
         const clipDir = join(recordingsDir, tenantId, "clips");
         mkdirSync(clipDir, { recursive: true });
 

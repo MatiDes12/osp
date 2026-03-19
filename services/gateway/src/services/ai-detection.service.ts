@@ -1,3 +1,4 @@
+import { get } from "../lib/config.js";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("ai-detection");
@@ -14,8 +15,8 @@ export class AIDetectionService {
   private apiKey: string | undefined;
 
   constructor() {
-    this.provider = process.env["AI_PROVIDER"] ?? "none";
-    this.apiKey = process.env["OPENAI_API_KEY"];
+    this.provider = get("AI_PROVIDER") ?? "none";
+    this.apiKey = get("OPENAI_API_KEY");
   }
 
   isConfigured(): boolean {
@@ -108,7 +109,7 @@ export function getAIDetectionService(): AIDetectionService {
   if (!instance) {
     instance = new AIDetectionService();
     if (instance.isConfigured()) {
-      logger.info("AI detection configured", { provider: process.env["AI_PROVIDER"] });
+      logger.info("AI detection configured", { provider: instance.getStatus().provider });
     }
   }
   return instance;

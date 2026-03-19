@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import type { TenantEnv } from "./tenant.js";
+import { get } from "../lib/config.js";
 import { PLAN_LIMITS } from "@osp/shared";
 import type { TenantPlan } from "@osp/shared";
 import { getRedis } from "../lib/redis.js";
@@ -27,7 +28,7 @@ export function rateLimit(config?: Partial<RateLimitConfig>) {
   const windowSec = Math.ceil(windowMs / 1000);
   const failOpen =
     config?.failOpen
-    ?? (process.env["RATE_LIMIT_FAIL_OPEN"] ?? "true").toLowerCase() !== "false";
+    ?? (get("RATE_LIMIT_FAIL_OPEN") ?? "true").toLowerCase() !== "false";
 
   return createMiddleware<TenantEnv>(async (c, next) => {
     const tenantId = c.get("tenantId");

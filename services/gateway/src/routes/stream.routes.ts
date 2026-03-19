@@ -3,6 +3,7 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
+import { get } from "../lib/config.js";
 import { getStreamService } from "../services/stream.service.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
@@ -47,15 +48,15 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
   // Use the gateway WHEP proxy for better dev reliability (Docker/CORS/LAN issues).
   // This only proxies signaling; media still flows via WebRTC ICE.
   const gatewayPublicUrl =
-    process.env["GATEWAY_PUBLIC_URL"] ??
-    process.env["NEXT_PUBLIC_API_URL"] ??
+    get("GATEWAY_PUBLIC_URL") ??
+    get("NEXT_PUBLIC_API_URL") ??
     "http://localhost:3000";
   const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
 
   const go2rtcPublicUrl =
-    process.env["GO2RTC_PUBLIC_URL"] ??
-    process.env["GO2RTC_API_URL"] ??
-    process.env["GO2RTC_URL"] ??
+    get("GO2RTC_PUBLIC_URL") ??
+    get("GO2RTC_API_URL") ??
+    get("GO2RTC_URL") ??
     "http://localhost:1984";
   const fallbackHlsUrl = `${go2rtcPublicUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
 
@@ -92,7 +93,7 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
     throw new ApiError("INVALID_REQUEST", "SDP offer body is required", 400);
   }
 
-  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
   const whepUrl = `${go2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
@@ -264,7 +265,7 @@ streamRoutes.post("/test", requireAuth("viewer"), async (c) => {
     throw new ApiError("VALIDATION_ERROR", "connectionUri is required", 422);
   }
 
-  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
   const testStreamName = `__test_${Date.now()}`;
 
   try {
@@ -369,7 +370,7 @@ streamRoutes.get("/:id/recording.mp4", requireAuth("viewer"), async (c) => {
     throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
   }
 
-  const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
+  const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
   const duration = c.req.query("duration") ?? "30";
   const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}&duration=${duration}`;
 

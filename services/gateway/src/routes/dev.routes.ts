@@ -29,7 +29,7 @@ const DIM = "\x1b[2m";
 const BOLD = "\x1b[1m";
 
 devRoutes.post("/client-log", async (c) => {
-  if (process.env["NODE_ENV"] !== "development") {
+  if ((await import("../lib/config.js")).get("NODE_ENV") !== "development") {
     return c.body(null, 204);
   }
 
@@ -68,7 +68,7 @@ const SimulateMotionSchema = z.object({
 
 // POST /api/v1/dev/simulate-motion
 devRoutes.post("/simulate-motion", async (c) => {
-  if (process.env["NODE_ENV"] !== "development") {
+  if ((await import("../lib/config.js")).get("NODE_ENV") !== "development") {
     throw new ApiError(
       "DEV_ONLY",
       "This endpoint is only available in development mode",

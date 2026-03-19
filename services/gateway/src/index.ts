@@ -9,6 +9,7 @@ config({ path: resolve(process.cwd(), ".env") });
 // Validate env before importing anything else
 import { validateEnv } from "./lib/env.js";
 validateEnv();
+import { loadConfig, get } from "./lib/config.js";
 import { initSentry, captureException } from "./lib/sentry.js";
 initSentry("osp-gateway");
 
@@ -27,15 +28,16 @@ import { CameraHealthChecker } from "./services/health-checker.js";
 const logger = createLogger("gateway");
 const startTime = performance.now();
 
-const port = Number.parseInt(process.env["GATEWAY_PORT"] ?? "3000", 10);
-const wsPort = Number.parseInt(process.env["WS_PORT"] ?? "3002", 10);
+// Ports read after loadConfig() in start()
 
 logger.info("OSP API Gateway initializing...");
 
 // Check external dependencies before serving.
 async function checkDependencies(): Promise<void> {
+  await loadConfig();
+
   // Redis
-  const redisUrl = process.env["REDIS_URL"] ?? "redis://localhost:6379";
+  const redisUrl = get("REDIS_URL") ?? "redis://localhost:6379";
   try {
     // Lightweight check — just verify the URL is parseable.
     new URL(redisUrl);
@@ -44,12 +46,12 @@ async function checkDependencies(): Promise<void> {
     logConnectionStatus(logger, "Redis", false, "Invalid REDIS_URL");
   }
 
-  // Supabase
+  // Supabase (bootstrap - always from env)
   const supabaseUrl = process.env["SUPABASE_URL"] ?? "";
   logConnectionStatus(logger, "Supabase", supabaseUrl.length > 0, supabaseUrl || "NOT SET");
 
   // go2rtc
-  const go2rtcUrl = process.env["GO2RTC_API_URL"] ?? "http://localhost:1984";
+  const go2rtcUrl = get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
   logConnectionStatus(logger, "go2rtc", true, go2rtcUrl);
 }
 
@@ -64,6 +66,9 @@ async function start(): Promise<void> {
   // Start periodic camera health checks (every 30s)
   healthChecker.start();
 
+  const port = Number.parseInt(get("GATEWAY_PORT") ?? "3000", 10);
+  const wsPort = Number.parseInt(get("WS_PORT") ?? "3002", 10);
+
   serve({
     fetch: app.fetch,
     port,
@@ -75,7 +80,7 @@ async function start(): Promise<void> {
     websocket: `ws://localhost:${wsPort}`,
     boot_time: `${bootTime}ms`,
     node: process.version,
-    env: process.env["NODE_ENV"] ?? "development",
+    env: get("NODE_ENV") ?? "development",
   });
 }
 

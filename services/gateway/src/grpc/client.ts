@@ -28,19 +28,21 @@ const PROTO_LOADER_OPTIONS: protoLoader.Options = {
 };
 
 // ---------------------------------------------------------------------------
-//  Service addresses (from env, with sensible defaults)
+//  Service addresses (from config or env, with sensible defaults)
 // ---------------------------------------------------------------------------
 
+import { get } from "../lib/config.js";
+
 function getCameraIngestAddress(): string {
-  return process.env["CAMERA_INGEST_GRPC_URL"] ?? "localhost:50051";
+  return get("CAMERA_INGEST_GRPC_URL") ?? "localhost:50051";
 }
 
 function getVideoPipelineAddress(): string {
-  return process.env["VIDEO_PIPELINE_GRPC_URL"] ?? "localhost:50052";
+  return get("VIDEO_PIPELINE_GRPC_URL") ?? "localhost:50052";
 }
 
 function getEventEngineAddress(): string {
-  return process.env["EVENT_ENGINE_GRPC_URL"] ?? "localhost:50053";
+  return get("EVENT_ENGINE_GRPC_URL") ?? "localhost:50053";
 }
 
 // ---------------------------------------------------------------------------

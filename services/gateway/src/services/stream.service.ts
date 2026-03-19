@@ -1,3 +1,4 @@
+import { get } from "../lib/config.js";
 import { getRedis } from "../lib/redis.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
@@ -37,8 +38,8 @@ export class StreamService {
   constructor(go2rtcUrl?: string) {
     this.go2rtcUrl =
       go2rtcUrl
-      ?? process.env["GO2RTC_API_URL"]
-      ?? process.env["GO2RTC_URL"]
+      ?? get("GO2RTC_API_URL")
+      ?? get("GO2RTC_URL")
       ?? GO2RTC_DEFAULT_URL;
   }
 
@@ -272,9 +273,9 @@ function buildIceServers(): {
   servers.push({ urls: ["stun:stun.l.google.com:19302"] });
 
   // Optional TURN server from environment
-  const turnUrl = process.env["TURN_SERVER_URL"];
-  const turnUser = process.env["TURN_SERVER_USERNAME"];
-  const turnCredential = process.env["TURN_SERVER_CREDENTIAL"];
+  const turnUrl = get("TURN_SERVER_URL");
+  const turnUser = get("TURN_SERVER_USERNAME");
+  const turnCredential = get("TURN_SERVER_CREDENTIAL");
 
   if (turnUrl && turnUser && turnCredential) {
     servers.push({

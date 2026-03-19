@@ -11,13 +11,14 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createReadStream } from "node:fs";
 import { createLogger } from "./logger.js";
+import { get } from "./config.js";
 
 const logger = createLogger("r2");
 
 function getR2Endpoint(): string {
-  const endpoint = process.env["R2_ENDPOINT"];
+  const endpoint = get("R2_ENDPOINT");
   if (endpoint) return endpoint;
-  const accountId = process.env["R2_ACCOUNT_ID"];
+  const accountId = get("R2_ACCOUNT_ID");
   if (accountId) {
     return `https://${accountId}.r2.cloudflarestorage.com`;
   }
@@ -26,9 +27,9 @@ function getR2Endpoint(): string {
 
 function isR2Configured(): boolean {
   return !!(
-    process.env["R2_ACCESS_KEY_ID"] &&
-    process.env["R2_SECRET_ACCESS_KEY"] &&
-    process.env["R2_BUCKET_NAME"] &&
+    get("R2_ACCESS_KEY_ID") &&
+    get("R2_SECRET_ACCESS_KEY") &&
+    get("R2_BUCKET_NAME") &&
     getR2Endpoint()
   );
 }
@@ -42,8 +43,8 @@ function getR2Client(): S3Client {
       region: "auto",
       endpoint,
       credentials: {
-        accessKeyId: process.env["R2_ACCESS_KEY_ID"] ?? "",
-        secretAccessKey: process.env["R2_SECRET_ACCESS_KEY"] ?? "",
+        accessKeyId: get("R2_ACCESS_KEY_ID") ?? "",
+        secretAccessKey: get("R2_SECRET_ACCESS_KEY") ?? "",
       },
       forcePathStyle: true,
     });
@@ -63,7 +64,7 @@ export async function uploadToR2(
   if (!isR2Configured()) {
     throw new Error("R2 is not configured");
   }
-  const bucket = process.env["R2_BUCKET_NAME"] ?? "";
+  const bucket = get("R2_BUCKET_NAME") ?? "";
   const client = getR2Client();
   const body = createReadStream(localPath);
 
@@ -88,7 +89,7 @@ export async function getPresignedPlaybackUrl(
   if (!isR2Configured()) {
     throw new Error("R2 is not configured");
   }
-  const bucket = process.env["R2_BUCKET_NAME"] ?? "";
+  const bucket = get("R2_BUCKET_NAME") ?? "";
   const client = getR2Client();
 
   const url = await getSignedUrl(

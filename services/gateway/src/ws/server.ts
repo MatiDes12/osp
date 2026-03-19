@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket as WsWebSocket } from "ws";
 import type { IncomingMessage } from "http";
+import { get } from "../lib/config.js";
 import { getRedis } from "../lib/redis.js";
 import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
@@ -315,7 +316,7 @@ async function handleConnection(
  * pub/sub for cross-instance event distribution.
  */
 export function startWebSocketServer(): void {
-  const port = parseInt(process.env["WS_PORT"] ?? "3002", 10);
+  const port = Number.parseInt(get("WS_PORT") ?? "3002", 10);
 
   wss = new WebSocketServer({ port });
 

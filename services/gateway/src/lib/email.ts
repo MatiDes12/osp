@@ -1,11 +1,18 @@
 import { Resend } from "resend";
 import { createLogger } from "./logger.js";
+import { get } from "./config.js";
 
 const logger = createLogger("email");
 
-const resend = process.env["RESEND_API_KEY"]
-  ? new Resend(process.env["RESEND_API_KEY"])
-  : null;
+let resendClient: Resend | null | undefined;
+
+function getResend(): Resend | null {
+  if (resendClient === undefined) {
+    const key = get("RESEND_API_KEY");
+    resendClient = key ? new Resend(key) : null;
+  }
+  return resendClient;
+}
 
 export interface SendEmailParams {
   readonly to: readonly string[];
@@ -14,6 +21,7 @@ export interface SendEmailParams {
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<void> {
+  const resend = getResend();
   if (!resend) {
     logger.info("[email] (no RESEND_API_KEY, logging instead)", {
       subject: params.subject,
@@ -22,7 +30,7 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     return;
   }
 
-  const from = process.env["EMAIL_FROM"] ?? "OSP <alerts@osp.dev>";
+  const from = get("EMAIL_FROM") ?? "OSP <alerts@osp.dev>";
 
   try {
     const { error } = await resend.emails.send({

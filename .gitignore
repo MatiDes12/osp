@@ -51,6 +51,7 @@ pnpm-debug.log*
 
 # Supabase
 infra/supabase/.temp/
+infra/supabase/seed/config_secrets_seed.sql
 
 # Claude Code (keep CLAUDE.md, ignore local settings)
 .claude/settings.local.json

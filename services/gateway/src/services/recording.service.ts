@@ -4,6 +4,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getVideoPipelineClient, GrpcFallbackError } from "../grpc/index.js";
+import { get } from "../lib/config.js";
 import {
   isR2Configured,
   isR2StoragePath,
@@ -148,8 +149,8 @@ export class RecordingService {
     const recordingId = recording.id as string;
 
     // Start background video capture from go2rtc
-    const go2rtcUrl = process.env["GO2RTC_URL"] ?? "http://localhost:1984";
-    const recordingsDir = process.env["RECORDINGS_DIR"] ?? "./recordings";
+    const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
+    const recordingsDir = get("RECORDINGS_DIR") ?? "./recordings";
 
     const dir = join(recordingsDir, tenantId, cameraId);
     mkdirSync(dir, { recursive: true });
@@ -371,7 +372,7 @@ export class RecordingService {
    */
   async getPlaybackUrl(recordingId: string, tenantId: string): Promise<string> {
     const gatewayUrl =
-      process.env["GATEWAY_PUBLIC_URL"] ?? "http://localhost:3000";
+      get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
 
     const fallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
 

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { get } from "./lib/config.js";
 import { ZodError } from "zod";
 import { requestId } from "./middleware/request-id.js";
 import { errorHandler, ApiError } from "./middleware/error-handler.js";
@@ -19,6 +20,7 @@ import { tagRoutes, cameraTagRoutes } from "./routes/tag.routes.js";
 import { devRoutes } from "./routes/dev.routes.js";
 import { docsRoutes } from "./routes/docs.routes.js";
 import { userRoutes } from "./routes/user.routes.js";
+import { configRoutes } from "./routes/config.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -47,7 +49,7 @@ app.use("*", errorHandler());
 app.use(
   "/health/*",
   cors({
-    origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
+    origin: (get("GATEWAY_CORS_ORIGINS") ?? "http://localhost:3001").split(","),
     allowMethods: ["GET"],
     allowHeaders: ["Content-Type"],
     maxAge: 86400,
@@ -56,7 +58,7 @@ app.use(
 app.use(
   "/docs/*",
   cors({
-    origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
+    origin: (get("GATEWAY_CORS_ORIGINS") ?? "http://localhost:3001").split(","),
     allowMethods: ["GET"],
     allowHeaders: ["Content-Type"],
     maxAge: 86400,
@@ -65,7 +67,7 @@ app.use(
 app.use(
   "/api/*",
   cors({
-    origin: (process.env["GATEWAY_CORS_ORIGINS"] ?? "http://localhost:3001").split(","),
+    origin: (get("GATEWAY_CORS_ORIGINS") ?? "http://localhost:3001").split(","),
     allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
@@ -114,6 +116,7 @@ app.route("/api/v1/tags", tagRoutes);
 app.route("/api/v1/cameras", cameraTagRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
 app.route("/api/v1/users", userRoutes);
+app.route("/api/v1/config", configRoutes);
 app.route("/api/v1/dev", devRoutes);
 
 // 404 fallback

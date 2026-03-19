@@ -9,6 +9,7 @@ import {
   getCameraIngestClient,
   GrpcFallbackError,
 } from "../grpc/camera-ingest.client.js";
+import { get } from "../lib/config.js";
 import { createLogger } from "../lib/logger.js";
 import {
   CreateCameraSchema,
@@ -28,7 +29,7 @@ export const cameraRoutes = new Hono<Env>();
 // Protected by shared service token.
 cameraRoutes.get("/internal/online", async (c) => {
   const token = c.req.header("X-Internal-Token");
-  const expectedToken = process.env["API_TOKEN"];
+  const expectedToken = get("API_TOKEN");
   if (!expectedToken || !token || token !== expectedToken) {
     throw new ApiError("AUTH_TOKEN_INVALID", "Invalid internal service token", 401);
   }

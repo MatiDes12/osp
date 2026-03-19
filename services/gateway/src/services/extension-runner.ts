@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import vm from "node:vm";
+import { get } from "../lib/config.js";
 import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("extension-runner");
@@ -21,12 +22,11 @@ export class ExtensionRunner {
   private readonly allowInlineSource: boolean;
 
   constructor() {
-    this.sandboxDir = process.env["EXTENSION_SANDBOX_DIR"] ?? "./extension_sandbox";
+    this.sandboxDir = get("EXTENSION_SANDBOX_DIR") ?? "./extension_sandbox";
     mkdirSync(this.sandboxDir, { recursive: true });
-    this.allowInlineSource =
-      process.env["EXTENSION_ALLOW_INLINE_SOURCE"] === "true";
+    this.allowInlineSource = get("EXTENSION_ALLOW_INLINE_SOURCE") === "true";
     if (this.allowInlineSource) {
-      const nodeEnv = process.env["NODE_ENV"] ?? "development";
+      const nodeEnv = get("NODE_ENV") ?? "development";
       if (nodeEnv === "production") {
         throw new Error(
           "EXTENSION_ALLOW_INLINE_SOURCE=true is forbidden in production",

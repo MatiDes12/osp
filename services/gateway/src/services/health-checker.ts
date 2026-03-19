@@ -3,6 +3,7 @@ import { publishEvent } from "../lib/event-publisher.js";
 import { createLogger } from "../lib/logger.js";
 import jpeg from "jpeg-js";
 import { getStreamService } from "./stream.service.js";
+import { get } from "../lib/config.js";
 import {
   computePixelDiffRatio,
   estimateIntensity,
@@ -50,16 +51,16 @@ export class CameraHealthChecker {
 
   constructor(checkIntervalMs = 30_000) {
     this.go2rtcUrl =
-      process.env["GO2RTC_API_URL"] ??
-      process.env["GO2RTC_URL"] ??
+      get("GO2RTC_API_URL") ??
+      get("GO2RTC_URL") ??
       "http://localhost:1984";
     this.checkIntervalMs = checkIntervalMs;
     this.motionIntervalMs = Number.parseInt(
-      process.env["MOTION_SAMPLE_INTERVAL_MS"] ?? "1000",
+      get("MOTION_SAMPLE_INTERVAL_MS") ?? "1000",
       10,
     );
     this.motionCooldownMs = Number.parseInt(
-      process.env["MOTION_COOLDOWN_MS"] ?? "10000",
+      get("MOTION_COOLDOWN_MS") ?? "10000",
       10,
     );
   }

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { Env } from "../app.js";
+import { get } from "../lib/config.js";
 import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { RegisterSchema, LoginSchema, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema } from "@osp/shared";
@@ -205,7 +206,7 @@ authRoutes.post("/forgot-password", async (c) => {
 
   // Supabase handles sending the reset email
   await authSupabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.WEB_URL ?? "http://localhost:3001"}/reset-password`,
+    redirectTo: `${get("WEB_URL") ?? "http://localhost:3001"}/reset-password`,
   });
 
   // Always return success (don't leak whether email exists)

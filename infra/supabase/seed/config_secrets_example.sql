@@ -1,0 +1,12 @@
+-- Example config_secrets rows. Run manually and replace placeholders.
+-- DB values override process.env. Bootstrap: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY must stay in env.
+
+-- INSERT INTO config_secrets (key, value, scope) VALUES
+--   ('REDIS_URL', 'redis://localhost:6379', 'global'),
+--   ('API_TOKEN', 'your-api-token', 'global'),
+--   ('RESEND_API_KEY', 're_xxxx', 'global'),
+--   ('R2_ACCESS_KEY_ID', 'your-r2-key', 'global'),
+--   ('R2_SECRET_ACCESS_KEY', 'your-r2-secret', 'global'),
+--   ('R2_BUCKET_NAME', 'osp-storage', 'global'),
+--   ('OPENAI_API_KEY', 'sk-xxxx', 'global')
+-- ON CONFLICT (key, tenant_id) DO NOTHING;
