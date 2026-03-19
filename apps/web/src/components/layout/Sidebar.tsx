@@ -8,6 +8,7 @@ import { getUserFromToken } from "@/hooks/use-auth";
 import {
   LayoutDashboard,
   Camera,
+  MonitorPlay,
   MapPin,
   Bell,
   Play,
@@ -33,6 +34,7 @@ interface NavItem {
 
 const NAV_ITEMS: readonly NavItem[] = [
   { href: "/cameras", label: "Cameras", icon: Camera },
+  { href: "/monitor", label: "Live Monitor", icon: MonitorPlay },
   { href: "/locations", label: "Locations", icon: MapPin },
   { href: "/events", label: "Events & Alerts", icon: Bell },
   { href: "/recordings", label: "Recordings", icon: Play },
