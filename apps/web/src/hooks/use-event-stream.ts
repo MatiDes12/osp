@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
 import type { OSPEvent } from "@osp/shared";
 import { showNotification } from "@/lib/notifications";
 import { shouldShowNotification } from "@/stores/notification-prefs";
@@ -78,85 +78,107 @@ function passesFilter(
   return true;
 }
 
-export function useEventStream(
-  options: UseEventStreamOptions = {},
-): UseEventStreamReturn {
-  const [events, setEvents] = useState<readonly OSPEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+// ============================================================================
+// SINGLETON WEBSOCKET CONNECTION — shared across all useEventStream calls
+// ============================================================================
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnectDelayRef = useRef(INITIAL_RECONNECT_DELAY_MS);
-  const mountedRef = useRef(true);
-  const optionsRef = useRef(options);
-  optionsRef.current = options;
+interface GlobalState {
+  events: readonly OSPEvent[];
+  connected: boolean;
+  error: string | null;
+}
 
-  const clearTimers = useCallback(() => {
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current);
-      pingIntervalRef.current = null;
+class EventStreamManager {
+  private ws: WebSocket | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+  private subscribers = new Set<() => void>();
+  private state: GlobalState = {
+    events: [],
+    connected: false,
+    error: null,
+  };
+
+  subscribe(callback: () => void): () => void {
+    this.subscribers.add(callback);
+    // Start connection when first subscriber joins
+    if (this.subscribers.size === 1 && !this.ws) {
+      this.connect();
     }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+    return () => {
+      this.subscribers.delete(callback);
+      // Keep connection alive even if no subscribers — prevents reconnect loops
+      // The connection will be reused when new subscribers join
+    };
+  }
+
+  getSnapshot(): GlobalState {
+    return this.state;
+  }
+
+  private setState(newState: Partial<GlobalState>) {
+    this.state = { ...this.state, ...newState };
+    this.notifySubscribers();
+  }
+
+  private notifySubscribers() {
+    this.subscribers.forEach((callback) => callback());
+  }
+
+  private clearTimers() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
     }
-  }, []);
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+  }
 
-  const scheduleReconnect = useCallback(
-    (connect: () => void) => {
-      if (!mountedRef.current) return;
-      const delay = reconnectDelayRef.current;
-      reconnectDelayRef.current = Math.min(
-        delay * 2,
-        MAX_RECONNECT_DELAY_MS,
-      );
-      reconnectTimeoutRef.current = setTimeout(() => {
-        if (mountedRef.current) {
-          connect();
-        }
-      }, delay);
-    },
-    [],
-  );
+  private scheduleReconnect() {
+    this.clearTimers();
+    this.reconnectTimeout = setTimeout(() => {
+      this.connect();
+    }, this.reconnectDelay);
+    this.reconnectDelay = Math.min(
+      this.reconnectDelay * 2,
+      MAX_RECONNECT_DELAY_MS,
+    );
+  }
 
-  const connect = useCallback(() => {
-    if (!mountedRef.current) return;
+  private connect() {
+    if (typeof window === "undefined") return;
 
     const token = localStorage.getItem("osp_access_token");
     if (!token) {
-      setError("Not authenticated");
+      this.setState({ error: "Not authenticated", connected: false });
       return;
     }
 
-    clearTimers();
+    this.clearTimers();
 
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
     }
 
     const wsUrl = `${getWsUrl()}?token=${encodeURIComponent(token)}`;
 
     try {
       const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+      this.ws = ws;
 
       ws.onopen = () => {
-        if (!mountedRef.current) {
-          ws.close();
-          return;
-        }
-        setConnected(true);
-        setError(null);
-        reconnectDelayRef.current = INITIAL_RECONNECT_DELAY_MS;
+        this.setState({ connected: true, error: null });
+        this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
 
         // Send subscribe message
         ws.send(JSON.stringify({ type: "subscribe" }));
 
         // Start ping/pong keepalive
-        pingIntervalRef.current = setInterval(() => {
+        this.pingInterval = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "ping" }));
           }
@@ -164,7 +186,6 @@ export function useEventStream(
       };
 
       ws.onmessage = (messageEvent) => {
-        if (!mountedRef.current) return;
         try {
           const message = JSON.parse(
             typeof messageEvent.data === "string" ? messageEvent.data : "",
@@ -172,31 +193,27 @@ export function useEventStream(
 
           if (message.type === "event" && message.data) {
             const event = message.data;
-            if (passesFilter(event, optionsRef.current)) {
-              setEvents((prev) => {
-                const updated = [event, ...prev];
-                return updated.length > MAX_EVENTS
-                  ? updated.slice(0, MAX_EVENTS)
-                  : updated;
-              });
+            const updated = [event, ...this.state.events];
+            this.setState({
+              events: updated.length > MAX_EVENTS
+                ? updated.slice(0, MAX_EVENTS)
+                : updated,
+            });
 
-              // Show browser notification respecting user preferences
-              if (shouldShowNotification(event.severity)) {
-                const title = event.type === "motion" ? "Motion Detected" : `Event: ${event.type}`;
-                showNotification(title, {
-                  body: `Camera: ${event.cameraName || "Unknown"}`,
-                  tag: `event-${event.id}`,
-                  onClick: () => {
-                    window.location.href = `/cameras/${event.cameraId}`;
-                  },
-                });
-              }
+            // Show browser notification respecting user preferences
+            if (shouldShowNotification(event.severity)) {
+              const title = event.type === "motion" ? "Motion Detected" : `Event: ${event.type}`;
+              showNotification(title, {
+                body: `Camera: ${event.cameraName || "Unknown"}`,
+                tag: `event-${event.id}`,
+                onClick: () => {
+                  window.location.href = `/cameras/${event.cameraId}`;
+                },
+              });
             }
           }
-          // pong, connected, subscribed, and error messages are handled
-          // silently; errors from the server are logged but don't break state
           if (message.type === "error") {
-            console.warn("[useEventStream] Server error:", message);
+            console.warn("[EventStreamManager] Server error:", message);
           }
         } catch {
           // Ignore malformed messages
@@ -204,39 +221,52 @@ export function useEventStream(
       };
 
       ws.onclose = () => {
-        if (!mountedRef.current) return;
-        setConnected(false);
-        clearTimers();
-        scheduleReconnect(connect);
+        this.setState({ connected: false });
+        this.clearTimers();
+        this.scheduleReconnect();
       };
 
       ws.onerror = () => {
-        if (!mountedRef.current) return;
-        setError("WebSocket connection error");
+        this.setState({ error: "WebSocket connection error" });
         // onclose will fire after onerror, triggering reconnect
       };
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create WebSocket",
-      );
-      scheduleReconnect(connect);
+      this.setState({
+        error: err instanceof Error ? err.message : "Failed to create WebSocket",
+      });
+      this.scheduleReconnect();
     }
-  }, [clearTimers, scheduleReconnect]);
+  }
+}
 
-  useEffect(() => {
-    mountedRef.current = true;
-    connect();
+// Global singleton instance
+const globalEventStream = new EventStreamManager();
 
-    return () => {
-      mountedRef.current = false;
-      clearTimers();
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+// ============================================================================
+// HOOK — subscribes to the singleton connection
+// ============================================================================
 
-  return { events, connected, error };
+export function useEventStream(
+  options: UseEventStreamOptions = {},
+): UseEventStreamReturn {
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  // Subscribe to the singleton global state
+  const globalState = useSyncExternalStore(
+    (callback) => globalEventStream.subscribe(callback),
+    () => globalEventStream.getSnapshot(),
+    () => globalEventStream.getSnapshot(),
+  );
+
+  // Filter events client-side based on options
+  const filteredEvents = globalState.events.filter((event) =>
+    passesFilter(event, optionsRef.current),
+  );
+
+  return {
+    events: filteredEvents,
+    connected: globalState.connected,
+    error: globalState.error,
+  };
 }
