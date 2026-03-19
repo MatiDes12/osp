@@ -1,6 +1,10 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { StyleSheet, Text, TouchableOpacity, View, Image } from "react-native";
 import type { Camera, CameraStatus } from "@osp/shared/types";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
+import { getAccessToken } from "@/lib/auth";
+
+const GO2RTC_URL = process.env.EXPO_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
 
 interface CameraCardProps {
   readonly camera: Camera;
@@ -44,6 +48,31 @@ function formatLastSeen(lastSeenAt: string | null): string {
 
 export function CameraCard({ camera, onPress }: CameraCardProps) {
   const statusColor = STATUS_COLORS[camera.status];
+  const isOnline = camera.status === "online";
+  const [snapshotUri, setSnapshotUri] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const load = async () => {
+      try {
+        const token = await getAccessToken();
+        const ts = Date.now();
+        setSnapshotUri(
+          `${GO2RTC_URL}/api/frame.jpeg?src=${encodeURIComponent(camera.id)}&ts=${ts}&token=${token ?? ""}`,
+        );
+      } catch {
+        // ignore
+      }
+    };
+
+    load();
+    intervalRef.current = setInterval(load, 5_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [camera.id, isOnline]);
 
   return (
     <TouchableOpacity
@@ -52,7 +81,15 @@ export function CameraCard({ camera, onPress }: CameraCardProps) {
       activeOpacity={0.7}
     >
       <View style={styles.thumbnail}>
-        <Text style={styles.thumbnailText}>{camera.name.charAt(0).toUpperCase()}</Text>
+        {snapshotUri ? (
+          <Image
+            source={{ uri: snapshotUri }}
+            style={styles.snapshot}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={styles.thumbnailText}>{camera.name.charAt(0).toUpperCase()}</Text>
+        )}
       </View>
 
       <View style={styles.info}>
@@ -88,10 +125,14 @@ const styles = StyleSheet.create({
     margin: spacing.xs,
   },
   thumbnail: {
-    height: 100,
+    height: 110,
     backgroundColor: "#111114",
     alignItems: "center",
     justifyContent: "center",
+  },
+  snapshot: {
+    width: "100%",
+    height: "100%",
   },
   thumbnailText: {
     color: colors.textMuted,
