@@ -76,10 +76,10 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
 
-  // Verify camera belongs to tenant
+  // Verify camera belongs to tenant (also fetch connection_uri for auto-registration)
   const { data: camera, error } = await supabase
     .from("cameras")
-    .select("id")
+    .select("id, connection_uri, status")
     .eq("id", cameraId)
     .eq("tenant_id", tenantId)
     .single();
@@ -97,6 +97,45 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   const whepUrl = `${go2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
+
+  // Check if the stream is registered in go2rtc. If not, register it now.
+  // This handles the case where go2rtc was restarted and lost its dynamic streams.
+  const streamCheckRes = await fetch(
+    `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
+    { signal: AbortSignal.timeout(3000) },
+  ).catch(() => null);
+
+  const streamMissing = !streamCheckRes || streamCheckRes.status === 404;
+  const connectionUri = camera.connection_uri as string | null;
+
+  if (streamMissing && connectionUri) {
+    logger.info("Stream not in go2rtc, auto-registering", { cameraId });
+    const streamService = getStreamService();
+    try {
+      await streamService.addStream(cameraId, connectionUri);
+      // Give go2rtc up to 3s to connect to the source
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const check = await fetch(
+          `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
+          { signal: AbortSignal.timeout(2000) },
+        ).catch(() => null);
+        if (check?.ok) {
+          const data = await check.json().catch(() => ({})) as Record<string, unknown>;
+          const producers = data?.producers;
+          if (Array.isArray(producers) && producers.length > 0) {
+            logger.info("Stream connected after auto-registration", { cameraId });
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn("Auto-registration failed, proceeding anyway", {
+        cameraId,
+        error: String(err),
+      });
+    }
+  }
 
   // go2rtc may need a moment to connect to the RTSP source on first request.
   // Retry up to 3 times with a short delay.

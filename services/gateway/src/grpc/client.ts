@@ -206,10 +206,34 @@ export function unaryCall<TReq, TRes>(
 export function isServiceUnavailable(err: unknown): boolean {
   if (err instanceof Error && "code" in err) {
     const code = (err as grpc.ServiceError).code;
-    return (
+    const details = (err as grpc.ServiceError).details ?? "";
+    const message = err.message ?? "";
+
+    // Standard connectivity failures
+    if (
       code === grpc.status.UNAVAILABLE ||
       code === grpc.status.DEADLINE_EXCEEDED
-    );
+    ) {
+      return true;
+    }
+
+    // INTERNAL errors caused by proto/marshalling incompatibility — the Go
+    // service is running but doesn't match this gateway's proto definition.
+    // Treat as "service not usable" so callers fall back to direct HTTP.
+    if (
+      code === grpc.status.INTERNAL &&
+      (details.includes("unmarshal") ||
+        details.includes("marshal") ||
+        message.includes("unmarshal") ||
+        message.includes("proto"))
+    ) {
+      return true;
+    }
+
+    // UNIMPLEMENTED = method doesn't exist on the running service version
+    if (code === grpc.status.UNIMPLEMENTED) {
+      return true;
+    }
   }
   return false;
 }

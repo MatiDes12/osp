@@ -23,19 +23,5 @@ log:
   level: info
 
 streams:
-  demo-cam-1:
-    - ffmpeg:testsrc=size=1280x720:rate=15#video=h264
-  demo-cam-2:
-    - ffmpeg:testsrc2=size=1920x1080:rate=25#video=h264
-  248c5f1d-ac05-447a-8543-9db0942482b1:
-    - rtsp://192.168.4.20:8554/stream
-  b707e953-eae5-40f8-a622-f36a1ab8038d:
-    - rtsp://192.168.4.20:8554/stream
-  b3641916-861c-496e-95c5-1d6a43cdca4d:
-    - rtsp://192.168.4.23:8554/stream
-  5eb621c3-3640-48be-b129-6bcb67dfd7da:
-    - rtsp://192.168.4.20:8554/stream
-  52a34051-f062-4108-b2e0-62da1b5cdbb3:
-    - rtsp://172.17.16.1:8554/stream
-  330a1102-e0dd-4678-a93a-52617c9ecbec:
-    - rtsp://192.168.4.49:8554/stream
+  55f488ac-27c1-4090-a105-2debbbec231a:
+    - rtsp://192.168.4.64:8554/stream

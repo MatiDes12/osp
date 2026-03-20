@@ -27,7 +27,7 @@ interface StreamInfo {
 type PlayerState = "loading" | "connecting" | "live" | "fallback" | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-const WEBRTC_TIMEOUT_MS = 5000;
+const WEBRTC_TIMEOUT_MS = 15000;
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
@@ -143,7 +143,9 @@ export function LiveViewPlayer({
 
         pc.oniceconnectionstatechange = () => {
           const iceState = pc.iceConnectionState;
-          if (iceState === "failed" || iceState === "disconnected") {
+          if (iceState === "failed") {
+            // Only hard-fail on "failed" — "disconnected" is transient and
+            // often recovers on its own (especially on first LAN connection).
             fallbackToHLS(info);
           }
         };

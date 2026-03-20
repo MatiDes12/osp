@@ -121,10 +121,12 @@ export class CameraHealthChecker {
     try {
       const supabase = getSupabase();
       const streamService = getStreamService();
+      // Include all non-disabled cameras — go2rtc loses dynamic streams on restart
+      // so we need to re-register cameras regardless of their last-known status.
       const { data: cameras, error } = await supabase
         .from("cameras")
         .select("id, tenant_id, status, connection_uri")
-        .in("status", ["online", "connecting"]);
+        .neq("status", "disabled");
 
       if (error || !cameras) {
         logger.warn("Startup stream sync failed to fetch cameras", {
