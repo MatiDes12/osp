@@ -21,6 +21,7 @@ import { devRoutes } from "./routes/dev.routes.js";
 import { docsRoutes } from "./routes/docs.routes.js";
 import { userRoutes } from "./routes/user.routes.js";
 import { configRoutes } from "./routes/config.routes.js";
+import { analyticsRoutes } from "./routes/analytics.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -95,6 +96,7 @@ app.get("/", (c) => {
       locations: "/api/v1/locations",
       tags: "/api/v1/tags",
       extensions: "/api/v1/extensions",
+      analytics: "/api/v1/analytics",
     },
     docs: "/docs",
   });
@@ -117,6 +119,7 @@ app.route("/api/v1/cameras", cameraTagRoutes);
 app.route("/api/v1/extensions", extensionRoutes);
 app.route("/api/v1/users", userRoutes);
 app.route("/api/v1/config", configRoutes);
+app.route("/api/v1/analytics", analyticsRoutes);
 app.route("/api/v1/dev", devRoutes);
 
 // 404 fallback

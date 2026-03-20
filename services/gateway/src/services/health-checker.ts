@@ -1,8 +1,10 @@
+import { rmSync } from "node:fs";
 import { getSupabase } from "../lib/supabase.js";
 import { publishEvent } from "../lib/event-publisher.js";
 import { createLogger } from "../lib/logger.js";
 import jpeg from "jpeg-js";
 import { getStreamService } from "./stream.service.js";
+import { getRecordingService } from "./recording.service.js";
 import { get } from "../lib/config.js";
 import {
   computePixelDiffRatio,
@@ -41,12 +43,19 @@ interface Go2rtcStream {
 export class CameraHealthChecker {
   private interval: ReturnType<typeof setInterval> | null = null;
   private motionInterval: ReturnType<typeof setInterval> | null = null;
+  private clipCleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private static readonly CLIP_RETENTION_DAYS = 7;
+  private static readonly CLIP_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000; // 1 hour
   private readonly go2rtcUrl: string;
   private readonly checkIntervalMs: number;
   private readonly motionIntervalMs: number;
   private readonly motionCooldownMs: number;
   private readonly previousFrames = new Map<string, RgbaFrame>();
   private readonly lastMotionAt = new Map<string, number>();
+  // Per-camera motion recording state
+  private readonly motionRecordingIds = new Map<string, string>();           // cameraId → active recordingId
+  private readonly motionStopTimers = new Map<string, ReturnType<typeof setTimeout>>(); // cameraId → stop timer
+  private readonly motionTailMs: number;
   private motionDetectionInFlight = false;
 
   constructor(checkIntervalMs = 30_000) {
@@ -61,6 +70,11 @@ export class CameraHealthChecker {
     );
     this.motionCooldownMs = Number.parseInt(
       get("MOTION_COOLDOWN_MS") ?? "10000",
+      10,
+    );
+    // How long to keep recording after the last motion frame (default 10 s)
+    this.motionTailMs = Number.parseInt(
+      get("MOTION_TAIL_MS") ?? "10000",
       10,
     );
   }
@@ -85,6 +99,12 @@ export class CameraHealthChecker {
     this.motionInterval = setInterval(() => {
       void this.detectMotion();
     }, this.motionIntervalMs);
+
+    // Clip cleanup: delete event clips older than retention period (hourly)
+    void this.cleanupOldClips();
+    this.clipCleanupInterval = setInterval(() => {
+      void this.cleanupOldClips();
+    }, CameraHealthChecker.CLIP_CLEANUP_INTERVAL_MS);
   }
 
   stop(): void {
@@ -96,8 +116,15 @@ export class CameraHealthChecker {
       clearInterval(this.motionInterval);
       this.motionInterval = null;
     }
+    if (this.clipCleanupInterval) {
+      clearInterval(this.clipCleanupInterval);
+      this.clipCleanupInterval = null;
+    }
     this.previousFrames.clear();
     this.lastMotionAt.clear();
+    for (const timer of this.motionStopTimers.values()) clearTimeout(timer);
+    this.motionStopTimers.clear();
+    this.motionRecordingIds.clear();
     logger.info("Camera health checker stopped");
   }
 
@@ -155,6 +182,58 @@ export class CameraHealthChecker {
       logger.warn("Startup stream sync crashed", {
         error: String(err),
       });
+    }
+  }
+
+  private async cleanupOldClips(): Promise<void> {
+    try {
+      const supabase = getSupabase();
+      const cutoff = new Date(
+        Date.now() - CameraHealthChecker.CLIP_RETENTION_DAYS * 24 * 60 * 60 * 1_000,
+      ).toISOString();
+
+      // Fetch expired clips that still have a local file path
+      const { data: expiredEvents, error } = await supabase
+        .from("events")
+        .select("id, clip_path")
+        .not("clip_path", "is", null)
+        .lt("created_at", cutoff);
+
+      if (error || !expiredEvents || expiredEvents.length === 0) return;
+
+      const ids: string[] = [];
+      let deleted = 0;
+      for (const row of expiredEvents as { id: string; clip_path: string }[]) {
+        const clipPath = row.clip_path;
+        // Only delete local file paths (not R2 keys)
+        if (clipPath && !clipPath.startsWith("tenants/")) {
+          try {
+            rmSync(clipPath, { force: true });
+            // Also delete sidecar thumbnail if it exists
+            rmSync(`${clipPath}.jpg`, { force: true });
+            deleted++;
+          } catch {
+            // File may already be missing — continue
+          }
+        }
+        ids.push(row.id);
+      }
+
+      if (ids.length > 0) {
+        await supabase
+          .from("events")
+          .update({ clip_path: null })
+          .in("id", ids);
+      }
+
+      if (deleted > 0) {
+        logger.info("Clip cleanup: deleted expired clips", {
+          count: String(deleted),
+          cutoff,
+        });
+      }
+    } catch (err) {
+      logger.warn("Clip cleanup failed", { error: String(err) });
     }
   }
 
@@ -472,6 +551,10 @@ export class CameraHealthChecker {
       return;
     }
 
+    // Motion recording with tail: start recording on first motion, reset the
+    // stop timer on every subsequent motion frame, stop 10 s after the last one.
+    void this.handleMotionRecording(camera);
+
     const eventMetadata = (created.metadata as Record<string, unknown>) ?? {};
     const ospEvent = {
       id: created.id as string,
@@ -498,6 +581,58 @@ export class CameraHealthChecker {
     } catch {
       // DB write succeeded, keep going
     }
+  }
+
+  /**
+   * Motion recording with tail logic:
+   *  - First motion frame → start recording
+   *  - Each subsequent motion frame → reset the stop timer (recording continues)
+   *  - MOTION_TAIL_MS after the last motion frame → stop recording
+   */
+  private handleMotionRecording(camera: CameraRow): void {
+    const cameraId = camera.id;
+
+    // Reset (or create) the stop timer every time motion fires.
+    const existingTimer = this.motionStopTimers.get(cameraId);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const stopTimer = setTimeout(() => {
+      this.motionStopTimers.delete(cameraId);
+      const recordingId = this.motionRecordingIds.get(cameraId);
+      if (!recordingId) return;
+      this.motionRecordingIds.delete(cameraId);
+      const recordingService = getRecordingService();
+      recordingService.stopRecording(recordingId).then(() => {
+        logger.info("Motion recording stopped (no motion in tail window)", {
+          cameraId,
+          recordingId,
+          tailMs: this.motionTailMs,
+        });
+      }).catch((err) => {
+        logger.warn("Failed to stop motion recording", {
+          cameraId,
+          recordingId,
+          error: String(err),
+        });
+      });
+    }, this.motionTailMs);
+
+    this.motionStopTimers.set(cameraId, stopTimer);
+
+    // If already recording, just let the timer reset above do the work.
+    if (this.motionRecordingIds.has(cameraId)) return;
+
+    // Start a new recording.
+    const recordingService = getRecordingService();
+    recordingService.startRecording(cameraId, camera.tenant_id, "motion").then((recordingId) => {
+      this.motionRecordingIds.set(cameraId, recordingId);
+      logger.info("Motion recording started", { cameraId, recordingId });
+    }).catch((err) => {
+      logger.warn("Failed to start motion recording", {
+        cameraId,
+        error: String(err),
+      });
+    });
   }
 
   private extractCameraSensitivity(config: CameraRow["config"]): number {

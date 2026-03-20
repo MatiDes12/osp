@@ -11,6 +11,12 @@ import {
 } from "@/stores/notification-prefs";
 import { requestNotificationPermission } from "@/lib/notifications";
 import {
+  isTauri,
+  getAutostartEnabled,
+  toggleAutostart,
+  showNativeNotification,
+} from "@/lib/tauri";
+import {
   Camera as CameraIcon,
   Users,
   Shield,
@@ -31,6 +37,7 @@ import {
   Loader2,
   Bell,
   Clock,
+  Monitor,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -57,7 +64,8 @@ type SettingsTab =
   | "extensions"
   | "tenant"
   | "billing"
-  | "apikeys";
+  | "apikeys"
+  | "desktop";
 
 const NAV_ITEMS: readonly {
   key: SettingsTab;
@@ -72,6 +80,7 @@ const NAV_ITEMS: readonly {
   { key: "tenant", label: "Tenant", icon: Building2 },
   { key: "billing", label: "Billing", icon: CreditCard },
   { key: "apikeys", label: "API Keys", icon: Key },
+  { key: "desktop", label: "Desktop App", icon: Monitor },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -156,6 +165,222 @@ function ExtensionCardSkeleton() {
       </div>
       <div className="h-3 w-full bg-zinc-800 rounded mb-2" />
       <div className="h-3 w-3/4 bg-zinc-800 rounded" />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Recording Settings Panel                                           */
+/* ------------------------------------------------------------------ */
+function RecordingSettingsPanel() {
+  const [motionTailSec, setMotionTailSec] = useState<number>(10);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/config/keys/MOTION_TAIL_MS`, { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.value != null) {
+          setMotionTailSec(Math.round(Number(json.data.value) / 1000));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/config/keys/MOTION_TAIL_MS`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ value: String(motionTailSec * 1000), scope: "global" }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setSaveError(json.error?.message ?? "Failed to save");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-xl font-bold text-zinc-50 mb-6">Recording Settings</h2>
+      <div className="space-y-4">
+        {/* Motion recording tail */}
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Motion Recording Tail</h3>
+          <p className="text-xs text-zinc-500 mb-4">
+            How long to keep recording after the last motion frame before stopping. Applies to all cameras using motion-triggered recording.
+          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <input
+              type="range"
+              min={1}
+              max={60}
+              value={motionTailSec}
+              disabled={loading}
+              onChange={(e) => setMotionTailSec(Number(e.target.value))}
+              className="flex-1 h-1.5 rounded-full appearance-none bg-zinc-700 accent-blue-500 cursor-pointer disabled:opacity-50"
+            />
+            <span className="text-sm font-mono text-zinc-300 w-14 text-right">{motionTailSec}s</span>
+          </div>
+          <div className="flex justify-between text-[10px] text-zinc-600 mb-4">
+            <span>1s</span>
+            <span>60s</span>
+          </div>
+          {saveError && <p className="text-xs text-red-400 mb-3">{saveError}</p>}
+          <button
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {saved ? "Saved!" : saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+
+        {/* Retention / quality stubs */}
+        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
+          <h3 className="text-sm font-semibold text-zinc-400 mb-1">Storage & Quality</h3>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Retention Period</label>
+            <select disabled className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60">
+              <option>30 days</option>
+            </select>
+            <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Storage Limit</label>
+            <select disabled className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60">
+              <option>Unlimited</option>
+            </select>
+            <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Desktop App Settings Panel                                         */
+/* ------------------------------------------------------------------ */
+function DesktopSettingsPanel() {
+  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+
+  useEffect(() => {
+    getAutostartEnabled().then(setAutostartEnabled);
+  }, []);
+
+  const handleAutostartToggle = async () => {
+    setToggling(true);
+    try {
+      const next = await toggleAutostart();
+      setAutostartEnabled(next);
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    await showNativeNotification("OSP Test", "Native notifications are working.");
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-zinc-50">Desktop App</h2>
+        <p className="text-sm text-zinc-500 mt-1">
+          Settings specific to the OSP desktop application.
+        </p>
+      </div>
+
+      {/* Auto-start */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-zinc-100">Start at Login</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Automatically launch OSP when you log in to your computer.
+            </p>
+          </div>
+          <button
+            onClick={() => void handleAutostartToggle()}
+            disabled={toggling || autostartEnabled === null}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-40 ${
+              autostartEnabled ? "bg-blue-500" : "bg-zinc-700"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                autostartEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Window behaviour */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
+        <p className="text-sm font-medium text-zinc-100">Window Behaviour</p>
+        <div className="flex items-start gap-3">
+          <Check className="h-4 w-4 text-green-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm text-zinc-300">Minimize to tray on close</p>
+            <p className="text-xs text-zinc-500">
+              Clicking × hides the window. OSP keeps running in the system tray.
+              Right-click the tray icon and choose <span className="text-zinc-300">Quit OSP</span> to exit fully.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-3">
+          <Check className="h-4 w-4 text-green-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm text-zinc-300">Tray tooltip with live camera count</p>
+            <p className="text-xs text-zinc-500">
+              Hover the tray icon to see how many cameras are online and how many unread alerts you have.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Native notifications */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-zinc-100">Native Notifications</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Event alerts are sent as OS-level notifications instead of browser notifications.
+            </p>
+          </div>
+          <button
+            onClick={() => void handleTestNotification()}
+            className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+          >
+            {testSent ? (
+              <><Check className="h-3.5 w-3.5 text-green-400" /> Sent</>
+            ) : (
+              <><Bell className="h-3.5 w-3.5" /> Test</>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -694,7 +919,7 @@ function SettingsPageInner() {
       {/* ── Left nav ──────────────────────────────────────────── */}
       <div className="w-56 shrink-0 bg-zinc-950 border-r border-zinc-800 py-4">
         <nav className="space-y-0.5 px-2">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => item.key !== "desktop" || isTauri()).map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.key;
             return (
@@ -1343,57 +1568,7 @@ function SettingsPageInner() {
 
         {/* ── Recording tab ──────────────────────────────────── */}
         {activeTab === "recording" && (
-          <div className="max-w-2xl">
-            <h2 className="text-xl font-bold text-zinc-50 mb-6">
-              Recording Settings
-            </h2>
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                  Retention Period
-                </label>
-                <select className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
-                  <option>7 days</option>
-                  <option>14 days</option>
-                  <option>30 days</option>
-                  <option>60 days</option>
-                  <option>90 days</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                  Storage Limit
-                </label>
-                <select className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
-                  <option>50 GB</option>
-                  <option>100 GB</option>
-                  <option>250 GB</option>
-                  <option>500 GB</option>
-                  <option>1 TB</option>
-                  <option>Unlimited</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                  Video Quality
-                </label>
-                <select className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
-                  <option>Original (highest quality)</option>
-                  <option>High (1080p)</option>
-                  <option>Medium (720p)</option>
-                  <option>Low (480p)</option>
-                </select>
-              </div>
-              <div className="pt-2 border-t border-zinc-800">
-                <button
-                  disabled
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white opacity-40 cursor-not-allowed"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </div>
+          <RecordingSettingsPanel />
         )}
 
         {/* ── Billing tab ────────────────────────────────────── */}
@@ -1468,6 +1643,9 @@ function SettingsPageInner() {
             </div>
           </div>
         )}
+
+        {/* ── Desktop App tab ─────────────────────────────────── */}
+        {activeTab === "desktop" && <DesktopSettingsPanel />}
       </div>
 
       {/* Delete camera confirmation */}

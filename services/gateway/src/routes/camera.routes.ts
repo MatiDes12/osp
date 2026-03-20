@@ -237,6 +237,85 @@ cameraRoutes.patch("/:id", requireAuth("admin"), async (c) => {
   return c.json(createSuccessResponse(camera));
 });
 
+// Update camera capabilities (e.g. enable/disable two-way audio)
+cameraRoutes.patch("/:id/capabilities", requireAuth("admin"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+  const supabase = getSupabase();
+
+  const body = (await c.req.json()) as Record<string, unknown>;
+
+  // Fetch current camera so we can merge capabilities and re-register if needed
+  const { data: camera, error: fetchError } = await supabase
+    .from("cameras")
+    .select("id, connection_uri, capabilities, audio_capable")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (fetchError || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  const current = (camera.capabilities as Record<string, unknown>) ?? {};
+  const merged = { ...current };
+
+  // Apply allowed capability overrides from the request body
+  const allowed = ["ptz", "audio", "twoWayAudio", "two_way_audio", "infrared", "resolution"] as const;
+  for (const key of allowed) {
+    if (key in body) merged[key] = body[key];
+  }
+
+  // Normalise: store as two_way_audio (snake_case) in DB, honour both spellings from client
+  const twoWayAudio = Boolean(
+    body["twoWayAudio"] ?? body["two_way_audio"] ?? current["twoWayAudio"] ?? current["two_way_audio"] ?? false,
+  );
+  merged["two_way_audio"] = twoWayAudio;
+  delete merged["twoWayAudio"]; // keep DB column consistent (snake_case)
+
+  const { data: updated, error: updateError } = await supabase
+    .from("cameras")
+    .update({
+      capabilities: merged,
+      audio_capable: Boolean(merged["audio"]) || twoWayAudio,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .select()
+    .single();
+
+  if (updateError || !updated) {
+    throw new ApiError("INTERNAL_ERROR", "Failed to update capabilities", 500);
+  }
+
+  // Re-register the go2rtc stream when twoWayAudio changes so the backchannel
+  // parameter is correctly applied (or removed) for the active stream.
+  const prevTwoWayAudio = Boolean(current["twoWayAudio"] ?? current["two_way_audio"] ?? false);
+  const connectionUri = camera.connection_uri as string | null;
+
+  if (prevTwoWayAudio !== twoWayAudio && connectionUri) {
+    try {
+      const streamService = getStreamService();
+      // Remove existing registration, then re-add with new settings
+      await streamService.removeStream(cameraId).catch(() => {});
+      await streamService.addStream(cameraId, connectionUri, { twoWayAudio });
+      logger.info("Re-registered go2rtc stream after capability change", {
+        cameraId,
+        twoWayAudio: String(twoWayAudio),
+      });
+    } catch (err) {
+      // Non-fatal: stream will pick up the change on next health-checker cycle
+      logger.warn("Failed to re-register stream after capability change", {
+        cameraId,
+        error: String(err),
+      });
+    }
+  }
+
+  return c.json(createSuccessResponse(updated));
+});
+
 // Delete camera
 cameraRoutes.delete("/:id", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");

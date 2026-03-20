@@ -54,6 +54,22 @@ export interface RuleAction {
   config: Record<string, unknown>;
 }
 
+export interface WebhookDeliveryAttempt {
+  id: string;
+  tenantId: string;
+  ruleId: string;
+  eventId: string | null;
+  url: string;
+  requestPayload: Record<string, unknown>;
+  requestHeaders: Record<string, string>;
+  attemptNumber: number;
+  deliveryStatus: "delivered" | "failed";
+  responseStatus: number | null;
+  responseBody: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
 export interface RuleSchedule {
   timezone: string;
   activePeriods: {

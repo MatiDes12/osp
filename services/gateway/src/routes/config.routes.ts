@@ -31,6 +31,24 @@ configRoutes.get("/keys", requireAuth("admin"), async (c) => {
   return c.json(createSuccessResponse({ keys }));
 });
 
+// Get a specific config value (admin only)
+configRoutes.get("/keys/:key", requireAuth("admin"), async (c) => {
+  const key = c.req.param("key");
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("config_secrets")
+    .select("key, value, scope")
+    .eq("key", key)
+    .is("tenant_id", null)
+    .maybeSingle();
+
+  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to get config", 500);
+  if (!data) {
+    return c.json(createSuccessResponse({ key, value: null }));
+  }
+  return c.json(createSuccessResponse({ key, value: data.value as string }));
+});
+
 // Set a config value (admin only)
 configRoutes.put("/keys/:key", requireAuth("admin"), async (c) => {
   const key = c.req.param("key");

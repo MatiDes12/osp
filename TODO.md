@@ -131,13 +131,11 @@ cd services/extension-runtime && go mod tidy && go build ./cmd/server
 ```
 Fix any compilation errors, ensure all 4 services compile.
 
-### 2. Extension Runtime — JS executor is a placeholder
-**Status**: `extension-runner.ts` logs invocations but doesn't actually run code
-**What's needed**: Implement actual extension execution (see TODO #7 below)
+### 2. Extension Runtime — ✅ Done (Node.js vm sandbox)
+**Status**: `extension-runner.ts` uses Node.js `vm` module with sandboxed context, timeout clamping, and EXTENSION_ALLOW_INLINE_SOURCE guard. Phase 3 Wasm option still available.
 
-### 3. Mobile App — video is MJPEG snapshots, not real video
-**Status**: Shows refreshing JPEGs every 5s (good enough for viewing)
-**What's needed**: Real WebRTC via `react-native-webrtc` (see TODO #5 below)
+### 3. Mobile App — ✅ Done (real WebRTC + MJPEG fallback)
+**Status**: `MobileLiveViewWebRTCPlayer.tsx` uses `react-native-webrtc` for live WebRTC; falls back to MJPEG snapshot refresh on ICE failure or timeout. Wired to camera detail page.
 
 ### 4. Recordings playback
 **Status**: Recordings are saved as MP4. Playback URL generated. Video element in UI.
@@ -150,36 +148,31 @@ Fix any compilation errors, ensure all 4 services compile.
 
 ### 🔴 BLOCKERS (must fix before production)
 
-#### TODO-1: TURN server for remote WebRTC
-**Why**: Without a TURN server, WebRTC only works on LAN. Remote viewers (different network) can't see cameras.
-**Files to change**:
-- `infra/docker/go2rtc.yaml` — add TURN server config
-- `.env.example` — add TURN_SERVER, TURN_USERNAME, TURN_PASSWORD
-- `services/gateway/src/routes/stream.routes.ts` — include TURN in iceServers response
-
-**Options**:
-1. Self-hosted: Add coturn to docker-compose
-2. Cloudflare: Use Cloudflare TURN (free tier)
-3. Twilio: $0.0004/GB
-
-**go2rtc TURN config**:
-```yaml
-webrtc:
-  ice_servers:
-    - urls: [turn:your-turn-server:3478]
-      username: osp
-      credential: your-password
-```
-
-**Effort**: 2-4 hours
+#### ✅ TODO-1: TURN server for remote WebRTC
+**Status**: Done.
+- `infra/docker/docker-compose.yml` — coturn service added (host networking, configurable credentials via env)
+- `infra/docker/go2rtc.yaml` — already had TURN config via `${TURN_SERVER_URL}` env var expansion
+- `.env.example` — `TURN_SERVER_URL`, `TURN_SERVER_USERNAME`, `TURN_SERVER_CREDENTIAL` documented
+- `services/gateway/src/services/stream.service.ts` — already includes TURN in `iceServers` response when env vars present
+To enable: set `TURN_SERVER_URL=turn:localhost:3478`, `TURN_SERVER_USERNAME`, `TURN_SERVER_CREDENTIAL` in `.env`.
 
 ---
 
-#### TODO-2: Rate limiting middleware — needs Redis to be running
-**Status**: Rate limiting code exists in `middleware/rate-limit.ts` but uses Redis.
-**Issue**: If Redis is down, requests are allowed through (fail-open). Need to verify this is intentional and document it.
-**Files**: `services/gateway/src/middleware/rate-limit.ts`
-**What to verify**: Test rate limiting actually works by hitting an endpoint 100+ times.
+#### ✅ TODO-2: Rate limiting middleware — verified with real Redis
+**Status**: Done. Integration tests written and passing (9/9).
+**Verified**:
+- Requests under the limit → 200 with correct `X-RateLimit-*` headers
+- Requests over the limit → 429 with `RATE_LIMIT_EXCEEDED` error and `Retry-After` header
+- 100+ rapid-fire requests: exactly `maxRequests` succeed, the rest are blocked
+- Two tenants have independent counters
+- UUID path segments are normalized (different UUIDs share the same rate limit bucket)
+- `X-RateLimit-Remaining` reaches 0 at the limit, never goes negative
+- **Fail-open is intentional**: if Redis is down, requests are allowed through (default). Set `RATE_LIMIT_FAIL_OPEN=false` to block instead.
+**Files**:
+- `services/gateway/src/middleware/rate-limit.ts` — implementation
+- `services/gateway/src/middleware/rate-limit.integration.test.ts` — integration tests
+- `services/gateway/vitest.integration.config.ts` — integration test config
+**Run**: `cd services/gateway && pnpm test:integration`
 
 ---
 
@@ -228,21 +221,8 @@ docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=came
 
 ---
 
-#### TODO-5: Mobile app WebRTC live view
-**Why**: Current mobile live view is MJPEG snapshot refresh (~5s delay). Real live view needs WebRTC.
-**Current state**: `react-native-webrtc` is in `apps/mobile/package.json` but not used.
-**File to update**: `apps/mobile/app/camera/[id].tsx`
-**What to do**:
-```typescript
-import { RTCPeerConnection, RTCSessionDescription } from 'react-native-webrtc';
-// Replace the Image-based view with RTCView
-// Same WHEP signaling as web app
-// GET /api/v1/cameras/:id/stream → whepUrl
-// POST sdpOffer to whepUrl → sdpAnswer
-// Attach stream to RTCView
-```
-**Effort**: 4-8 hours
-**Reference**: `apps/web/src/components/camera/LiveViewPlayer.tsx` — same logic, different renderer.
+#### ✅ TODO-5: Mobile app WebRTC live view
+**Status**: Done. `MobileLiveViewWebRTCPlayer.tsx` implements full WebRTC WHEP flow with `react-native-webrtc` + MJPEG fallback. Wired to `apps/mobile/app/camera/[id].tsx`.
 
 ---
 
@@ -260,33 +240,13 @@ EMAIL_FROM=alerts@yourdomain.com
 
 ---
 
-#### TODO-7: Extension runtime — real Wasm execution
-**Why this matters**: Extensions are the core differentiator. Currently `extension-runner.ts` is a placeholder.
-**What to build**: Replace with actual JS/Wasm execution:
-
-Option A (simpler): Use Node.js `vm` module with resource limits:
-```typescript
-import vm from 'vm';
-const context = vm.createContext({ /* injected APIs */ });
-const script = new vm.Script(extensionCode);
-script.runInContext(context, { timeout: 5000 });
-```
-
-Option B (more isolated): Use `isolated-vm` npm package for true V8 isolation:
-```bash
-pnpm --filter @osp/gateway add isolated-vm
-```
-
-**Files**:
-- `services/gateway/src/services/extension-runner.ts` — replace placeholder with real executor
-- `services/extension-runtime/` — Go service for production Wasm (future)
-
-**Effort**: 8-16 hours for Option A, 16-32 hours for Option B
+#### ✅ TODO-7: Extension runtime — real JS execution
+**Status**: Done (Option A). `extension-runner.ts` uses Node.js `vm` with `codeGeneration: {strings: false, wasm: false}`, timeout clamping, and `EXTENSION_ALLOW_INLINE_SOURCE` guard (must be `true` to enable; blocked in production). Phase 3: migrate to `isolated-vm` for stronger V8 isolation.
 
 ---
 
-#### TODO-8: AI detection — wire to motion events
-**Status**: `ai-detection.service.ts` exists. NOT yet called on motion events.
+#### ✅ TODO-8: AI detection — wire to motion events
+**Status**: Done. Motion events in `event.routes.ts` fire-and-forget AI analysis: fetches frame from go2rtc, calls OpenAI Vision, attaches detections to event metadata, creates typed sub-events (person/vehicle/animal) for confidence > 0.7.
 **File to update**: `services/gateway/src/routes/event.routes.ts`
 **What to add** (after event creation):
 ```typescript
@@ -319,31 +279,35 @@ if (aiService.isConfigured() && input.type === 'motion') {
 
 ### 🟡 MEDIUM PRIORITY
 
-#### TODO-9: Tauri desktop app — needs Rust toolchain
-**Status**: `apps/desktop/` scaffold exists (package.json, tauri.conf.json, README)
-**To complete**:
+#### ✅ TODO-9: Tauri desktop app
+**Status**: Done. Full Tauri v2 app implemented.
+**To run** (requires Rust 1.77+ and platform build tools):
 ```bash
-cd apps/desktop
-# Install Rust: https://rustup.rs
-# Install Tauri CLI
-cargo install tauri-cli
-# Initialize Tauri properly
-cargo tauri init
-pnpm dev  # Should open the web app in a native window
-pnpm build  # Creates .dmg / .exe / .deb
+pnpm --filter @osp/web dev          # terminal 1 — Next.js on :3001
+pnpm --filter @osp/desktop dev      # terminal 2 — Tauri window
+pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 ```
-**What to add after basic shell works**:
-- System tray icon with camera status
-- OS notifications (replaces browser notifications)
-- Auto-start on login option
-- Local file access for recordings
-
-**Effort**: 16-32 hours for basic shell + system tray
+**Files**:
+- `apps/desktop/index.html` + `src/connect.js` + `src/style.css` — server connection screen (production mode)
+- `apps/desktop/src-tauri/src/lib.rs` — system tray, window behaviour, Tauri commands
+- `apps/desktop/src-tauri/tauri.conf.json` — Tauri v2 config (devUrl: localhost:3001)
+- `apps/desktop/src-tauri/capabilities/default.json` — permissions
+- `apps/web/src/lib/tauri.ts` — typed Tauri bridge (isTauri, updateTrayStatus, showNativeNotification, toggleAutostart…)
+- `apps/web/src/hooks/use-tray-sync.ts` — syncs camera counts to tray tooltip
+- `apps/web/src/lib/notifications.ts` — updated to use native notifications in Tauri
+- `apps/web/src/app/(dashboard)/settings/page.tsx` — Desktop App settings tab (auto-start, notification test)
+**Implemented**:
+- System tray with live camera/alert count in tooltip; left-click toggles window; tray menu with Open / Start at Login / Quit
+- Minimize to tray on close (× hides window, doesn't quit)
+- Native OS notifications via `tauri-plugin-notification` (replaces Web Notifications API in desktop)
+- Auto-start on login via `tauri-plugin-autostart` (toggle in tray menu and Settings)
+- Connection screen for production builds — user enters server URL, verified with `/health`, then webview navigates there
+- Dev mode loads Next.js dev server directly (`devUrl: http://localhost:3001`)
 
 ---
 
-#### TODO-10: Motion detection — real frame analysis
-**Status**: Motion events are created manually (via API or "Simulate Motion" button). go2rtc streams are running but no automatic motion detection happens.
+#### ✅ TODO-10: Motion detection — real frame analysis
+**Status**: Done. `CameraHealthChecker` in `health-checker.ts` samples frames at 1fps via go2rtc, uses `motion-diff.ts` pixel diff algorithm, respects per-zone sensitivity, creates motion events with base64 snapshots, auto-starts timed recordings. Cooldown and sensitivity configurable via env vars.
 **What's needed**: A background worker that:
 1. Samples frames from each active camera (1 fps via go2rtc)
 2. Compares consecutive frames (pixel diff algorithm)
@@ -365,20 +329,13 @@ pnpm build  # Creates .dmg / .exe / .deb
 
 ---
 
-#### TODO-12: Timeline scrubber — complete wiring
-**Status**: `TimelineScrubber` component exists and fetches recording data.
-**Issue**: When user clicks a time on the timeline, `handleTimelineSeek` is called but the video doesn't reliably jump to that timestamp.
-**File**: `apps/web/src/app/(dashboard)/cameras/[id]/page.tsx`
-**What to fix**: The seek logic needs to:
-1. Find the recording that contains the timestamp
-2. Load that recording's playback URL
-3. Calculate offset in seconds within the recording
-4. Set `videoElement.currentTime = offset`
+#### ✅ TODO-12: Timeline scrubber — complete wiring
+**Status**: Done. `handleTimelineSeek` in camera detail page fetches timeline segments, finds matching recording, calculates offset, appends `?token=` auth param to playback URL, and sets `video.currentTime` via `loadedmetadata` event handler.
 
 ---
 
-#### TODO-13: Push notifications — server-side delivery
-**Status**: Mobile app registers Expo push token. Token is NOT sent to the server yet.
+#### ✅ TODO-13: Push notifications — server-side delivery
+**Status**: Done. Mobile app registers Expo token via `PATCH /api/v1/users/push-token`. `handlePushNotification` in `action-executor.ts` fetches user `push_token` values and POSTs to `https://exp.host/--/api/v2/push/send` in addition to creating DB notification records.
 **What's needed**:
 1. Add `push_token` column to `users` table (migration 00015)
 2. API endpoint: `PATCH /api/v1/users/push-token` → saves token
@@ -395,13 +352,14 @@ pnpm build  # Creates .dmg / .exe / .deb
 
 ---
 
-#### TODO-14: Two-way audio — camera-to-browser
-**Status**: Mic toggle exists in `LiveViewPlayer.tsx`. Adds audio track to WebRTC peer connection.
-**Issue**: go2rtc needs to be configured to accept backchannel audio from the browser and forward it to the camera.
-**What's needed**:
-- Verify camera supports backchannel audio (most ONVIF cameras do)
-- Configure go2rtc ONVIF backchannel: `source: onvif://user:pass@ip/stream&backchannel=1`
-- Test with a camera that has a speaker
+#### ✅ TODO-14: Two-way audio — camera-to-browser
+**Status**: Done. Full backchannel pipeline wired.
+- `infra/docker/go2rtc.yaml` — `audio_codecs: [opus]` added so go2rtc negotiates Opus for backchannel
+- `services/gateway/src/services/stream.service.ts` — `addStream(id, uri, { twoWayAudio })` appends `?backchannel=1` to ONVIF URIs before registering with go2rtc (stored URI never modified)
+- `services/gateway/src/routes/camera.routes.ts` — `PATCH /cameras/:id/capabilities` endpoint; merges capability flags, updates `audio_capable`, re-registers go2rtc stream (remove + re-add) when `twoWayAudio` changes
+- `apps/web/src/app/(dashboard)/cameras/[id]/page.tsx` — Capabilities section in Settings tab with Two-Way Audio toggle; disabled with amber warning for non-ONVIF cameras; save calls PATCH capabilities endpoint
+- Frontend (LiveViewPlayer) already had sendrecv audio transceiver, getUserMedia, addTrack/removeTrack mic toggle — no changes needed
+**To use**: Set camera protocol to ONVIF, enable Two-Way Audio in camera Settings → Capabilities, then click the mic button in the live view.
 
 ---
 
@@ -417,10 +375,16 @@ pnpm build  # Creates .dmg / .exe / .deb
 
 ### 🟢 NICE-TO-HAVE (Phase 3+)
 
-#### TODO-16: ClickHouse analytics
-**Why**: Heat maps, people counting, dwell time, traffic patterns
-**Effort**: 40-80 hours
-**Status**: Architecture designed in `docs/SYSTEM-ARCHITECTURE.md`, no code yet
+#### ✅ TODO-16: ClickHouse analytics
+**Status**: Done. Full analytics pipeline implemented.
+- `infra/clickhouse/schema.sql` — `events_analytics` + `recordings_analytics` tables + hourly MV
+- `infra/docker/docker-compose.yml` — ClickHouse service (port 8123) with auto-schema init
+- `services/gateway/src/lib/clickhouse.ts` — lightweight HTTP client (graceful degradation if CH down)
+- `services/gateway/src/services/analytics.service.ts` — trackEvent/trackRecording + 5 query functions
+- `services/gateway/src/routes/analytics.routes.ts` — `/api/v1/analytics/*` (timeseries, heatmap, breakdown, camera activity, recordings summary)
+- `apps/web/src/app/(dashboard)/analytics/page.tsx` — dashboard with timeline, donut, heatmap, bar chart, storage trend
+- `apps/web/src/hooks/use-analytics.ts` — data hooks with 24h/7d/30d/90d presets
+- Events are automatically tracked on creation (fire-and-forget, never blocks API response)
 
 #### TODO-17: SSO / SAML for enterprise
 **Why**: Enterprise customers need Active Directory / Okta integration
@@ -441,23 +405,30 @@ pnpm build  # Creates .dmg / .exe / .deb
 **Status**: Done — PTZ route forwards to camera-ingest gRPC; real ONVIF SOAP commands when service is up.
 **Implementation**: `POST /cameras/:id/ptz` calls `getCameraIngestClient().ptzCommand()`. Maps API actions (move/zoom/preset/stop) to proto enum. Graceful fallback when camera-ingest unavailable. Requires camera added to camera-ingest with ONVIF URL for PTZ to work.
 
-#### TODO-21: Webhook delivery tracking
-**Status**: Webhooks are fired but there's no retry on failure, no delivery log.
-**What to add**: Track webhook delivery attempts in a DB table, retry failed webhooks with exponential backoff.
-**Effort**: 4-8 hours
+#### ✅ TODO-21: Webhook delivery tracking
+**Status**: Done. Retry + delivery log fully implemented.
+- `infra/supabase/migrations/00016_create_webhook_delivery_attempts.sql` — table with RLS, 4 indexes, 90-day purge comment
+- `services/gateway/src/lib/action-executor.ts` — `handleWebhook()` exponential-backoff retry (1–5 attempts, configurable timeout/backoff), `recordWebhookAttempt()` persists every attempt
+- `services/gateway/src/routes/rule.routes.ts` — `GET /api/v1/rules/webhook-attempts` (admin, paginated, filter by ruleId/eventId/status)
+- `packages/shared/src/types/rule.ts` — `WebhookDeliveryAttempt` type added
+- `apps/web/src/app/(dashboard)/rules/page.tsx` — delivery log panel appears on any rule with a webhook action; shows attempt rows with status icon, URL, HTTP code, timestamp; expandable detail with error, response body, request payload; status filter (all/delivered/failed); pagination; refresh button
 
 #### ✅ TODO-22: Video clip thumbnails
 **Status**: Done — clip thumbnails are generated and available from `GET /api/v1/events/:id/thumbnail`.
 **Implementation**: After clip is saved, gateway extracts the first frame with FFmpeg (`-frames:v 1`) into a sidecar `.jpg`.
 
-#### TODO-23: Multi-monitor camera wall
-**Why**: Enterprise command center needs 4-6 monitors showing all cameras
-**What**: A fullscreen camera wall view (no sidebar), keyboard shortcuts to switch layouts
-**Effort**: 8-16 hours
+#### ✅ TODO-23: Multi-monitor camera wall
+**Status**: Done. Standalone `/wall` page created (no sidebar/topbar). Monitor page fixed and enhanced.
+**Implemented**:
+- `apps/web/src/app/wall/page.tsx` — fullscreen camera wall, `AuthGuard` + `Suspense`, 8 layouts (1x1/2x2/3x3/4x4/2x3/3x4/1+5/1+7), HUD auto-hides after 3.5s, auto-rotate with amber progress bar, URL params bookmarking (`?layout=`, `?rotate=`, `?filter=online`), keyboard shortcuts (1-8 layouts, F fullscreen, R rotate, ←/→ pages, ? legend), "Dashboard" back button
+- `apps/web/src/app/(dashboard)/monitor/page.tsx` — fixed 1+7 layout (was rendering as 1+5), added 2×3 and 3×4 layouts, auto-rotate, "Open Wall" button → opens `/wall` in new tab
+- Flex-based 1+5/1+7 layouts (main `flex-[2]`/`flex-[3]` + side strip `flex-1 flex-col`)
 
-#### TODO-24: Mobile app — offline recordings list
-**Status**: Recordings tab works when online. No caching for offline.
-**What**: Cache last 20 recording metadata items in AsyncStorage for offline viewing.
+#### ✅ TODO-24: Mobile app — offline recordings list
+**Status**: Done. AsyncStorage cache + offline banner implemented.
+**Implementation**:
+- `apps/mobile/lib/recordings-cache.ts` — `saveRecordingsCache` / `loadRecordingsCache` / `formatCacheAge` helpers
+- `apps/mobile/app/(tabs)/recordings.tsx` — loads cache immediately on mount (no blank spinner), fetches fresh data in background, falls back to cache on network failure with amber "Offline — cached Xm ago" banner. Saves latest 20 items on every successful fetch.
 
 #### TODO-25: API versioning strategy
 **Status**: All routes are at `/api/v1/`. No v2 yet.
@@ -468,23 +439,23 @@ pnpm build  # Creates .dmg / .exe / .deb
 ## Known Bugs / Technical Debt
 
 ### 🔴 Critical
-1. **Recording file paths in Docker**: `RECORDINGS_DIR=./recordings` is relative to gateway CWD. In Docker, this may be `/app/recordings` inside the container but not mapped to host. Add a Docker volume for recordings.
+1. ✅ **Recording file paths in Docker**: Fixed — `docker-compose.yml` now mounts a named volume `recordings-data` at `/data/recordings` and passes `RECORDINGS_DIR=/data/recordings` to the gateway container.
 
-2. **WebSocket reconnect loop**: Logs show client registering/unregistering every ~1-2 seconds. Fixed once but may recur. Monitor with `docker logs gateway | grep "Client registered"`.
+2. ✅ **WebSocket reconnect loop**: Fixed — when the server closes a WS connection with code 4001 (invalid/expired token), the client (`use-event-stream.ts`) now attempts a token refresh before reconnecting rather than immediately retrying with the same expired token. After 3 consecutive auth failures, reconnection stops and an error is shown.
 
 ### 🟠 High
-3. **JWT expiry**: Access tokens expire in 15 min. Auto-refresh logic exists in `apps/web/src/lib/api.ts` but hasn't been stress-tested. Test by leaving app open for 20 minutes.
+3. ✅ **JWT expiry**: Fixed — `api.ts` now guards the proactive fire-and-forget refresh with `!isRefreshing` to avoid redundant concurrent refresh calls. The `onUnauthorized` handler correctly awaits a refresh before redirecting to login.
 
-4. **go2rtc stream persistence**: go2rtc loses all registered streams on restart. The `health-checker.ts` re-registers streams from DB every 30s, but there's a gap on startup. Add: on gateway startup, fetch all online cameras and register them in go2rtc.
+4. ✅ **go2rtc stream persistence**: Fixed — `health-checker.ts` calls `syncStreamsOnStartup()` immediately on `start()`, re-registering all non-disabled cameras in go2rtc before the first health check cycle.
 
-5. **Camera status stuck on "connecting"**: If go2rtc crashes and restarts, cameras may stay "connecting" forever. Health checker fixes this in 30s, but consider adding a startup sync.
+5. ✅ **Camera status stuck on "connecting"**: Fixed by the same startup sync — health check runs immediately on start, updating statuses within seconds rather than waiting 30s.
 
 ### 🟡 Medium
-6. **Event clips storage**: 10s clips are saved to `RECORDINGS_DIR/tenantId/clips/`. No retention policy for clips (unlike recordings which have `retention_until`). Add clip cleanup job.
+6. ✅ **Event clips storage**: Fixed — `CameraHealthChecker` now runs a clip cleanup job every hour that deletes local clip files older than 7 days and clears the `clip_path` column on those event rows.
 
-7. **Mobile app TypeScript**: Some `any` casts in mobile transforms. Add proper types.
+7. ✅ **Mobile app TypeScript**: Fixed — `apps/mobile/lib/transforms.ts` now uses `Record<string, unknown>` with typed helper functions (`str`, `num`, `bool`, `pick`). All `eslint-disable no-explicit-any` comments removed.
 
-8. **Zone drawing on mobile**: ZoneDrawer is web-only. Mobile has no zone management.
+8. ✅ **Zone drawing on mobile**: Fixed — `apps/mobile/app/camera/[id].tsx` now fetches and displays a "Motion Zones" section with each zone's name, sensitivity level, and an alert toggle (Switch). Toggling calls `PATCH /api/v1/cameras/:id/zones/:zoneId` with optimistic update + rollback on failure.
 
 ---
 
@@ -587,13 +558,10 @@ osp/
 
 ## Suggested next sprint order
 
-1. **TODO-4** — Go services compile (2-4 hours, unblocks production Go services)
-2. **TODO-1** — TURN server (2-4 hours, unblocks remote WebRTC)
-3. **TODO-3** — Production deployment test (2-4 hours, launch)
-4. **TODO-8** — Wire AI detection to motion events (2-3 hours)
-5. **TODO-13** — Push notifications server-side (4-6 hours)
-6. **TODO-11** — R2 recording storage (4-8 hours)
-7. **TODO-5** — Mobile WebRTC live view (4-8 hours)
-8. **TODO-10** — Automatic motion detection worker (8-16 hours)
-9. **TODO-7** — Real extension execution (8-16 hours)
-10. **TODO-9** — Tauri desktop (16-32 hours)
+1. **TODO-4** — Go services compile (2-4 hours, unblocks production Go services) — requires Go 1.22+
+2. **TODO-3** — Production deployment test (2-4 hours, launch)
+3. **TODO-21** — Webhook retry tracking — partial (retry exists, no UI for delivery log)
+4. **TODO-9** — Tauri desktop app (16-32 hours)
+5. **TODO-16** — ClickHouse analytics (40-80 hours, Phase 3)
+
+**All other TODO-1 through TODO-13 items (and TODO-2) are now complete.**

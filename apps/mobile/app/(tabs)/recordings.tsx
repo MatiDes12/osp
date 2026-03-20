@@ -11,6 +11,11 @@ import {
 } from "react-native";
 import type { Recording, RecordingTrigger } from "@osp/shared/types";
 import { api } from "@/lib/api";
+import {
+  saveRecordingsCache,
+  loadRecordingsCache,
+  formatCacheAge,
+} from "@/lib/recordings-cache";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
 
 interface RecordingSection {
@@ -78,11 +83,11 @@ export default function RecordingsScreen() {
   const [recordings, setRecordings] = useState<readonly Recording[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
 
   const fetchRecordings = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true);
-    else setIsLoading(true);
 
     try {
       const result = await api.get<Recording[]>("/api/v1/recordings", {
@@ -90,22 +95,56 @@ export default function RecordingsScreen() {
         sortBy: "startTime",
         sortOrder: "desc",
       });
+
       if (result.success && result.data) {
         setRecordings(result.data);
-        setError(null);
+        setIsOffline(false);
+        setCachedAt(null);
+        // Persist the latest 20 items for offline use
+        void saveRecordingsCache(result.data);
       } else {
-        setError(result.error?.message ?? "Failed to load recordings.");
+        // API error but we got a response — don't fall back to cache
+        if (!showRefresh) setIsLoading(false);
+        setIsRefreshing(false);
       }
     } catch {
-      setError("Unable to connect to server.");
+      // Network failure — load from cache
+      const { recordings: cached, cachedAt: ts } = await loadRecordingsCache();
+      if (cached.length > 0) {
+        setRecordings(cached);
+        setIsOffline(true);
+        setCachedAt(ts);
+      } else {
+        setIsOffline(true);
+        setCachedAt(null);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
+  // On mount: load cache immediately so the list renders without a spinner,
+  // then fetch fresh data in the background.
   useEffect(() => {
-    fetchRecordings();
+    let cancelled = false;
+
+    async function init() {
+      const { recordings: cached, cachedAt: ts } = await loadRecordingsCache();
+      if (!cancelled && cached.length > 0) {
+        setRecordings(cached);
+        setIsOffline(false); // optimistic — mark offline only if API fails
+        setCachedAt(ts);
+        setIsLoading(false);
+      }
+      // Always attempt a live fetch
+      await fetchRecordings();
+    }
+
+    void init();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchRecordings]);
 
   const handleRecordingPress = useCallback((recording: Recording) => {
@@ -129,19 +168,18 @@ export default function RecordingsScreen() {
     );
   }
 
-  if (error) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => fetchRecordings()}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
+      {/* Offline banner */}
+      {isOffline && (
+        <View style={styles.offlineBanner}>
+          <Text style={styles.offlineDot}>●</Text>
+          <Text style={styles.offlineText}>
+            Offline{cachedAt ? ` — cached ${formatCacheAge(cachedAt)}` : " — no cached data"}
+          </Text>
+        </View>
+      )}
+
       <SectionList
         sections={sections as RecordingSection[]}
         keyExtractor={(item) => item.id}
@@ -197,9 +235,13 @@ export default function RecordingsScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>No Recordings</Text>
+            <Text style={styles.emptyTitle}>
+              {isOffline ? "No Cached Recordings" : "No Recordings"}
+            </Text>
             <Text style={styles.emptySubtitle}>
-              Recordings will appear here when your cameras capture footage.
+              {isOffline
+                ? "Connect to the internet to load your recordings."
+                : "Recordings will appear here when your cameras capture footage."}
             </Text>
           </View>
         }
@@ -219,6 +261,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: spacing.xxl,
+  },
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#78350f",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  offlineDot: {
+    color: colors.warning,
+    fontSize: 8,
+    marginRight: spacing.sm,
+  },
+  offlineText: {
+    color: "#fef3c7",
+    fontSize: fontSize.sm,
+    fontWeight: "500",
   },
   list: {
     paddingBottom: spacing.xxl,
@@ -279,23 +338,6 @@ const styles = StyleSheet.create({
   duration: {
     color: colors.textSecondary,
     fontSize: fontSize.xs,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: fontSize.md,
-    textAlign: "center",
-    marginBottom: spacing.lg,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-  },
-  retryText: {
-    color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: "600",
   },
   empty: {
     alignItems: "center",

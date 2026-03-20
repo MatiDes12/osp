@@ -186,7 +186,8 @@ async function handleExtensionHook(
 }
 
 /**
- * Creates a notification in the database for all users of the tenant.
+ * Creates a notification in the database for all users of the tenant
+ * and delivers it via Expo Push API to any registered devices.
  */
 async function handlePushNotification(
   action: RuleAction,
@@ -205,10 +206,10 @@ async function handlePushNotification(
     event,
   );
 
-  // Get all users in the tenant
+  // Get all users in the tenant, including their push tokens
   const { data: users, error: usersError } = await supabase
     .from("users")
-    .select("id")
+    .select("id, push_token")
     .eq("tenant_id", tenantId);
 
   if (usersError || !users || users.length === 0) {
@@ -216,7 +217,16 @@ async function handlePushNotification(
     return;
   }
 
-  // Create a notification for each user
+  const notificationPayload = {
+    ruleId: matchedRule.ruleId,
+    ruleName: matchedRule.ruleName,
+    eventType: event.type,
+    cameraId: event.cameraId,
+    cameraName: event.cameraName,
+    severity: event.severity,
+  };
+
+  // Create a DB notification record for each user
   const notifications = users.map((user) => ({
     user_id: user.id as string,
     event_id: event.id,
@@ -225,14 +235,7 @@ async function handlePushNotification(
     status: "pending" as const,
     title,
     body,
-    payload: {
-      ruleId: matchedRule.ruleId,
-      ruleName: matchedRule.ruleName,
-      eventType: event.type,
-      cameraId: event.cameraId,
-      cameraName: event.cameraName,
-      severity: event.severity,
-    },
+    payload: notificationPayload,
   }));
 
   const { error: insertError } = await supabase
@@ -251,6 +254,68 @@ async function handlePushNotification(
     ruleId: matchedRule.ruleId,
     count: String(notifications.length),
   });
+
+  // Deliver via Expo Push API to devices that have registered a push token
+  const pushTokens = users
+    .map((u) => u.push_token as string | null)
+    .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken["));
+
+  if (pushTokens.length === 0) return;
+
+  const messages = pushTokens.map((to) => ({
+    to,
+    title,
+    body,
+    data: notificationPayload,
+    sound: "default" as const,
+    priority: "high" as const,
+  }));
+
+  try {
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "Accept-Encoding": "gzip, deflate",
+      },
+      body: JSON.stringify(messages),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      logger.warn("Expo push delivery failed", {
+        status: String(res.status),
+        body: text.slice(0, 200),
+        ruleId: matchedRule.ruleId,
+      });
+      return;
+    }
+
+    const json = (await res.json()) as {
+      data?: { status: string; id?: string; message?: string }[];
+    };
+
+    const failed = (json.data ?? []).filter((r) => r.status !== "ok");
+    if (failed.length > 0) {
+      logger.warn("Some Expo push receipts failed", {
+        ruleId: matchedRule.ruleId,
+        failedCount: String(failed.length),
+        firstError: failed[0]?.message ?? "unknown",
+      });
+    } else {
+      logger.info("Expo push notifications delivered", {
+        ruleId: matchedRule.ruleId,
+        tokenCount: String(pushTokens.length),
+      });
+    }
+  } catch (err) {
+    logger.warn("Expo push API error", {
+      ruleId: matchedRule.ruleId,
+      error: String(err),
+    });
+  }
 }
 
 /**

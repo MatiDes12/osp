@@ -12,6 +12,25 @@ services:
       timeout: 3s
       retries: 5
 
+  # ─── TURN Server (for remote WebRTC across different networks) ───
+  coturn:
+    image: coturn/coturn:latest
+    network_mode: host          # TURN requires host networking for UDP relay
+    environment:
+      - TURN_USERNAME=${TURN_SERVER_USERNAME:-osp}
+      - TURN_PASSWORD=${TURN_SERVER_CREDENTIAL:-osp}
+    command: >
+      --lt-cred-mech
+      --user=${TURN_SERVER_USERNAME:-osp}:${TURN_SERVER_CREDENTIAL:-osp}
+      --realm=osp
+      --listening-port=3478
+      --tls-listening-port=5349
+      --no-tls
+      --no-dtls
+      --log-file=stdout
+      --verbose
+    restart: unless-stopped
+
   # ─── Video Infrastructure ───
   go2rtc:
     image: alexxit/go2rtc:latest
@@ -28,6 +47,27 @@ services:
       - ./go2rtc.yaml:/config/go2rtc.yaml
     restart: unless-stopped
 
+  # ─── Analytics ───
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # Native TCP (optional)
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ../clickhouse/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    environment:
+      - CLICKHOUSE_DB=osp
+      - CLICKHOUSE_USER=osp
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-osp_analytics}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # ─── API Gateway ───
   gateway:
     build:
@@ -42,8 +82,13 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
     environment:
       - REDIS_URL=redis://redis:6379
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - CLICKHOUSE_USER=osp
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-osp_analytics}
       - GO2RTC_URL=http://go2rtc:1984
       - GO2RTC_API_URL=http://go2rtc:1984
       - GO2RTC_PUBLIC_URL=http://go2rtc:1984
@@ -51,6 +96,9 @@ services:
       - VIDEO_PIPELINE_GRPC_URL=video-pipeline:50052
       - EVENT_ENGINE_GRPC_URL=event-engine:50053
       - API_URL=http://gateway:3000
+      - RECORDINGS_DIR=/data/recordings
+    volumes:
+      - recordings-data:/data/recordings
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
@@ -142,3 +190,5 @@ services:
 
 volumes:
   redis-data:
+  recordings-data:
+  clickhouse-data:

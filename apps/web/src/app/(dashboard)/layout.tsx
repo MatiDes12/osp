@@ -13,6 +13,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useRouteLogger } from "@/hooks/use-action-logger";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useCameras } from "@/hooks/use-cameras";
+import { useTraySync } from "@/hooks/use-tray-sync";
 
 export default function DashboardLayout({
   children,
@@ -21,6 +23,10 @@ export default function DashboardLayout({
 }) {
   const collapsed = useSidebarStore((s) => s.collapsed);
   useRouteLogger();
+
+  // Keep the desktop system tray tooltip in sync with live camera state
+  const { cameras } = useCameras();
+  useTraySync(cameras);
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);

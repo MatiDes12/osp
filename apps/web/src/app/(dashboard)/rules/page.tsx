@@ -9,6 +9,7 @@ import type {
   ConditionOperator,
   RuleAction,
   EventType,
+  WebhookDeliveryAttempt,
 } from "@osp/shared";
 import {
   Zap,
@@ -25,6 +26,10 @@ import {
   X,
   AlertCircle,
   ArrowUpDown,
+  ChevronRight,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { PageError } from "@/components/PageError";
 
@@ -207,8 +212,18 @@ export default function RulesPage() {
   const [editCooldown, setEditCooldown] = useState(60);
   const [editEnabled, setEditEnabled] = useState(true);
 
+  // Webhook delivery log
+  const [deliveryLog, setDeliveryLog] = useState<readonly WebhookDeliveryAttempt[]>([]);
+  const [deliveryLogLoading, setDeliveryLogLoading] = useState(false);
+  const [deliveryLogPage, setDeliveryLogPage] = useState(1);
+  const [deliveryLogTotal, setDeliveryLogTotal] = useState(0);
+  const [deliveryLogStatus, setDeliveryLogStatus] = useState<"all" | "delivered" | "failed">("all");
+  const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
+  const DELIVERY_LOG_LIMIT = 10;
+
   const selectedRule = isCreating ? null : (rules.find((r) => r.id === selectedRuleId) ?? null);
   const showEditor = isCreating || selectedRule !== null;
+  const selectedRuleHasWebhook = selectedRule?.actions.some((a) => a.type === "webhook") ?? false;
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -246,6 +261,56 @@ export default function RulesPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const fetchDeliveryLog = useCallback(async (ruleId: string, page: number, status: "all" | "delivered" | "failed") => {
+    setDeliveryLogLoading(true);
+    try {
+      const params = new URLSearchParams({
+        ruleId,
+        page: String(page),
+        limit: String(DELIVERY_LOG_LIMIT),
+      });
+      if (status !== "all") params.set("status", status);
+      const res = await fetch(`${API_URL}/api/v1/rules/webhook-attempts?${params}`, {
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json() as { success: boolean; data: unknown[]; meta: { total: number } };
+      if (json.success) {
+        // Map snake_case DB columns to camelCase
+        const mapped: WebhookDeliveryAttempt[] = (json.data as Record<string, unknown>[]).map((r) => ({
+          id: r["id"] as string,
+          tenantId: r["tenant_id"] as string,
+          ruleId: r["rule_id"] as string,
+          eventId: (r["event_id"] as string | null) ?? null,
+          url: r["url"] as string,
+          requestPayload: (r["request_payload"] as Record<string, unknown>) ?? {},
+          requestHeaders: (r["request_headers"] as Record<string, string>) ?? {},
+          attemptNumber: r["attempt_number"] as number,
+          deliveryStatus: r["delivery_status"] as "delivered" | "failed",
+          responseStatus: (r["response_status"] as number | null) ?? null,
+          responseBody: (r["response_body"] as string | null) ?? null,
+          errorMessage: (r["error_message"] as string | null) ?? null,
+          createdAt: r["created_at"] as string,
+        }));
+        setDeliveryLog(mapped);
+        setDeliveryLogTotal(json.meta?.total ?? 0);
+      }
+    } catch {
+      // non-fatal
+    } finally {
+      setDeliveryLogLoading(false);
+    }
+  }, []);
+
+  // Reload delivery log when rule selection / filters change
+  useEffect(() => {
+    if (selectedRuleId && selectedRuleHasWebhook) {
+      setDeliveryLogPage(1);
+      void fetchDeliveryLog(selectedRuleId, 1, deliveryLogStatus);
+    } else {
+      setDeliveryLog([]);
+    }
+  }, [selectedRuleId, selectedRuleHasWebhook, deliveryLogStatus, fetchDeliveryLog]);
 
   // Populate editor when selecting a rule
   useEffect(() => {
@@ -460,6 +525,28 @@ export default function RulesPage() {
     setTestSteps([]);
   }, []);
 
+  /** Start creating a rule from a template */
+  const startCreateFromTemplate = useCallback((template: {
+    name: string;
+    description: string;
+    trigger: EventType;
+    conditions: readonly { field: string; operator: ConditionOperator; value: string; logic: "AND" | "OR" }[];
+    actions: readonly RuleAction[];
+    cooldown: number;
+  }) => {
+    setIsCreating(true);
+    setSelectedRuleId(null);
+    setEditName(template.name);
+    setEditDescription(template.description);
+    setEditTrigger(template.trigger);
+    setEditCameraIds([]);
+    setEditConditions([...template.conditions]);
+    setEditActions([...template.actions]);
+    setEditCooldown(template.cooldown);
+    setEditEnabled(true);
+    setTestSteps([]);
+  }, []);
+
   // Sort rules
   const sortedRules = [...rules].sort((a, b) => {
     switch (sortKey) {
@@ -531,12 +618,78 @@ export default function RulesPage() {
           )}
 
           {!loading && !error && rules.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-zinc-500">
-              <Zap className="h-12 w-12 mb-3 opacity-30" />
-              <p className="text-sm font-medium mb-1">No alert rules</p>
-              <p className="text-xs text-zinc-500">
-                Create your first rule to get started.
-              </p>
+            <div className="py-6 px-1">
+              <div className="flex flex-col items-center text-center mb-5">
+                <Zap className="h-8 w-8 mb-2 text-zinc-600" />
+                <p className="text-sm font-medium text-zinc-400 mb-0.5">No alert rules yet</p>
+                <p className="text-xs text-zinc-600">Start with a template or create from scratch.</p>
+              </div>
+              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 px-1">Quick Templates</p>
+              <div className="space-y-2">
+                {([
+                  {
+                    name: "Motion → Record",
+                    description: "Start recording whenever motion is detected",
+                    trigger: "motion" as EventType,
+                    conditions: [{ field: "intensity", operator: "gte" as ConditionOperator, value: "20", logic: "AND" as const }],
+                    actions: [{ type: "start_recording" as RuleActionType, config: {} }],
+                    cooldown: 30,
+                    icon: Video,
+                    color: "text-red-400",
+                    bg: "bg-red-500/10",
+                  },
+                  {
+                    name: "Motion → Alert",
+                    description: "Send a push notification on any motion event",
+                    trigger: "motion" as EventType,
+                    conditions: [{ field: "intensity", operator: "gte" as ConditionOperator, value: "30", logic: "AND" as const }],
+                    actions: [{ type: "push_notification" as RuleActionType, config: { title: "Motion Detected", body: "Motion on {{cameraName}}" } }],
+                    cooldown: 60,
+                    icon: Bell,
+                    color: "text-blue-400",
+                    bg: "bg-blue-500/10",
+                  },
+                  {
+                    name: "Person Detected → Alert",
+                    description: "Push notification when a person is detected",
+                    trigger: "person" as EventType,
+                    conditions: [{ field: "confidence", operator: "gte" as ConditionOperator, value: "0.6", logic: "AND" as const }],
+                    actions: [{ type: "push_notification" as RuleActionType, config: { title: "Person Detected", body: "Person detected on {{cameraName}}" } }],
+                    cooldown: 120,
+                    icon: Bell,
+                    color: "text-purple-400",
+                    bg: "bg-purple-500/10",
+                  },
+                  {
+                    name: "Camera Offline → Alert",
+                    description: "Get notified when a camera goes offline",
+                    trigger: "camera_offline" as EventType,
+                    conditions: [],
+                    actions: [{ type: "push_notification" as RuleActionType, config: { title: "Camera Offline", body: "{{cameraName}} is offline" } }],
+                    cooldown: 300,
+                    icon: AlertCircle,
+                    color: "text-amber-400",
+                    bg: "bg-amber-500/10",
+                  },
+                ] as const).map((tpl) => {
+                  const Icon = tpl.icon;
+                  return (
+                    <button
+                      key={tpl.name}
+                      onClick={() => startCreateFromTemplate(tpl)}
+                      className="w-full flex items-start gap-3 text-left bg-zinc-900 hover:bg-zinc-800/60 border border-zinc-800 hover:border-zinc-700 rounded-lg px-3 py-2.5 transition-colors cursor-pointer"
+                    >
+                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${tpl.bg}`}>
+                        <Icon className={`h-3.5 w-3.5 ${tpl.color}`} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-zinc-200">{tpl.name}</p>
+                        <p className="text-[10px] text-zinc-500 mt-0.5">{tpl.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -987,6 +1140,42 @@ export default function RulesPage() {
               </div>
             </div>
 
+            {/* ── COOLDOWN & SETTINGS block ─────────────────── */}
+            <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="h-2 w-2 rounded-full bg-zinc-500" />
+                <h3 className="text-sm font-semibold text-zinc-400">Settings</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1.5">Cooldown (seconds)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editCooldown}
+                    onChange={(e) => setEditCooldown(Math.max(0, Number(e.target.value)))}
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                  />
+                  <p className="text-[10px] text-zinc-600 mt-1">Minimum time between triggers</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1.5">Rule Status</label>
+                  <button
+                    onClick={() => setEditEnabled((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-150 cursor-pointer ${
+                      editEnabled ? "bg-green-500" : "bg-zinc-700"
+                    }`}
+                    role="switch"
+                    aria-checked={editEnabled}
+                    aria-label="Toggle enabled"
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform duration-150 ${editEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                  </button>
+                  <p className="text-[10px] text-zinc-600 mt-1">{editEnabled ? "Enabled — will trigger" : "Disabled — won't trigger"}</p>
+                </div>
+              </div>
+            </div>
+
             {/* ── Test results ──────────────────────────────── */}
             {testSteps.length > 0 && (
               <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
@@ -1011,6 +1200,157 @@ export default function RulesPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* ── Webhook delivery log ──────────────────────── */}
+            {!isCreating && selectedRuleHasWebhook && (
+              <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3.5 w-3.5 text-zinc-400" />
+                    <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                      Delivery Log
+                    </span>
+                    {deliveryLogTotal > 0 && (
+                      <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
+                        {deliveryLogTotal}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Status filter */}
+                    <div className="flex rounded border border-zinc-700 overflow-hidden text-[11px]">
+                      {(["all", "delivered", "failed"] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setDeliveryLogStatus(s)}
+                          className={`px-2.5 py-1 capitalize ${
+                            deliveryLogStatus === s
+                              ? "bg-zinc-700 text-white"
+                              : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Refresh */}
+                    <button
+                      onClick={() => void fetchDeliveryLog(selectedRuleId!, deliveryLogPage, deliveryLogStatus)}
+                      className="text-zinc-500 hover:text-zinc-300"
+                      title="Refresh"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${deliveryLogLoading ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Rows */}
+                {deliveryLogLoading ? (
+                  <div className="flex items-center justify-center py-6 text-zinc-600 text-xs">
+                    Loading…
+                  </div>
+                ) : deliveryLog.length === 0 ? (
+                  <div className="flex items-center justify-center py-6 text-zinc-600 text-xs">
+                    No delivery attempts yet
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-zinc-800">
+                    {deliveryLog.map((attempt) => {
+                      const expanded = expandedAttemptId === attempt.id;
+                      const delivered = attempt.deliveryStatus === "delivered";
+                      return (
+                        <li key={attempt.id}>
+                          <button
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-800/50"
+                            onClick={() => setExpandedAttemptId(expanded ? null : attempt.id)}
+                          >
+                            {delivered ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                            ) : (
+                              <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                            )}
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-xs text-zinc-300 truncate">
+                                {attempt.url}
+                              </span>
+                              <span className="text-[11px] text-zinc-500">
+                                Attempt {attempt.attemptNumber}
+                                {attempt.responseStatus ? ` · HTTP ${attempt.responseStatus}` : ""}
+                                {" · "}
+                                {new Date(attempt.createdAt).toLocaleString()}
+                              </span>
+                            </span>
+                            <ChevronRight className={`h-3 w-3 text-zinc-600 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} />
+                          </button>
+
+                          {/* Expanded detail */}
+                          {expanded && (
+                            <div className="px-4 pb-4 space-y-3 text-[11px]">
+                              {attempt.errorMessage && (
+                                <div className="rounded bg-red-500/10 border border-red-500/20 p-3">
+                                  <p className="text-red-400 font-medium mb-0.5">Error</p>
+                                  <p className="text-red-300 font-mono break-all">{attempt.errorMessage}</p>
+                                </div>
+                              )}
+                              {attempt.responseBody && (
+                                <div>
+                                  <p className="text-zinc-500 mb-1">Response body</p>
+                                  <pre className="rounded bg-zinc-800 p-2 text-zinc-300 overflow-x-auto max-h-32 text-[10px]">
+                                    {attempt.responseBody.slice(0, 2000)}
+                                    {attempt.responseBody.length > 2000 ? "\n… (truncated)" : ""}
+                                  </pre>
+                                </div>
+                              )}
+                              <div>
+                                <p className="text-zinc-500 mb-1">Request payload</p>
+                                <pre className="rounded bg-zinc-800 p-2 text-zinc-300 overflow-x-auto max-h-40 text-[10px]">
+                                  {JSON.stringify(attempt.requestPayload, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {/* Pagination */}
+                {deliveryLogTotal > DELIVERY_LOG_LIMIT && (
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-zinc-800">
+                    <span className="text-[11px] text-zinc-500">
+                      {((deliveryLogPage - 1) * DELIVERY_LOG_LIMIT) + 1}–
+                      {Math.min(deliveryLogPage * DELIVERY_LOG_LIMIT, deliveryLogTotal)} of {deliveryLogTotal}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        disabled={deliveryLogPage <= 1}
+                        onClick={() => {
+                          const p = deliveryLogPage - 1;
+                          setDeliveryLogPage(p);
+                          void fetchDeliveryLog(selectedRuleId!, p, deliveryLogStatus);
+                        }}
+                        className="px-2 py-1 rounded text-[11px] border border-zinc-700 text-zinc-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Prev
+                      </button>
+                      <button
+                        disabled={deliveryLogPage * DELIVERY_LOG_LIMIT >= deliveryLogTotal}
+                        onClick={() => {
+                          const p = deliveryLogPage + 1;
+                          setDeliveryLogPage(p);
+                          void fetchDeliveryLog(selectedRuleId!, p, deliveryLogStatus);
+                        }}
+                        className="px-2 py-1 rounded text-[11px] border border-zinc-700 text-zinc-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

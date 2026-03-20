@@ -7,3 +7,4 @@ export * from "./rule.js";
 export * from "./extension.js";
 export * from "./api.js";
 export * from "./location.js";
+export * from "./analytics.js";

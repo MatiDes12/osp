@@ -6,7 +6,6 @@ toolchain go1.22.12
 
 require (
 	github.com/redis/go-redis/v9 v9.7.0
-	gocv.io/x/gocv v0.43.0
 	google.golang.org/grpc v1.71.0
 )
 

@@ -18,6 +18,7 @@ import {
   getAIDetectionService,
   type DetectionResult,
 } from "../services/ai-detection.service.js";
+import { trackEvent } from "../services/analytics.service.js";
 import {
   ListEventsSchema,
   BulkAcknowledgeSchema,
@@ -118,6 +119,19 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
   // Publish to Redis so all WS clients receive the event in real-time
   await publishEvent(tenantId, ospEvent);
+
+  // Track in ClickHouse for analytics (fire-and-forget)
+  trackEvent({
+    eventId: ospEvent.id,
+    tenantId,
+    cameraId: ospEvent.cameraId,
+    zoneId: ospEvent.zoneId,
+    type: ospEvent.type,
+    severity: ospEvent.severity,
+    detectedAt: ospEvent.detectedAt,
+    intensity: ospEvent.intensity,
+    acknowledged: false,
+  });
 
   // --- Rule Engine: evaluate and execute matching rules ---
   // Run asynchronously so event creation response is not delayed

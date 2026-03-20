@@ -43,12 +43,31 @@ export class StreamService {
       ?? GO2RTC_DEFAULT_URL;
   }
 
-  async addStream(cameraId: string, rtspUrl: string): Promise<void> {
+  /**
+   * Append `?backchannel=1` to an ONVIF URI so go2rtc opens a two-way audio
+   * channel.  Only ONVIF sources support backchannel; RTSP does not.
+   * The stored connection_uri is never modified — we transform only for
+   * the go2rtc registration call.
+   */
+  private applyBackchannel(uri: string): string {
+    if (!uri.startsWith("onvif://")) return uri;
+    if (uri.includes("backchannel=1")) return uri;
+    return uri.includes("?") ? `${uri}&backchannel=1` : `${uri}?backchannel=1`;
+  }
+
+  async addStream(
+    cameraId: string,
+    rtspUrl: string,
+    opts: { twoWayAudio?: boolean } = {},
+  ): Promise<void> {
+    const sourceUrl =
+      opts.twoWayAudio ? this.applyBackchannel(rtspUrl) : rtspUrl;
+
     // Try gRPC camera-ingest service first (production path)
     try {
       const client = getCameraIngestClient();
-      await client.addCamera(cameraId, rtspUrl, { name: cameraId });
-      logger.info("Stream added via gRPC camera-ingest", { cameraId });
+      await client.addCamera(cameraId, sourceUrl, { name: cameraId });
+      logger.info("Stream added via gRPC camera-ingest", { cameraId, twoWayAudio: String(!!opts.twoWayAudio) });
       return;
     } catch (err) {
       if (!(err instanceof GrpcFallbackError)) {
@@ -60,7 +79,7 @@ export class StreamService {
     // Fallback: direct go2rtc HTTP (development / standalone mode)
     const url = new URL("/api/streams", this.go2rtcUrl);
     url.searchParams.set("name", cameraId);
-    url.searchParams.set("src", rtspUrl);
+    url.searchParams.set("src", sourceUrl);
 
     logger.info("Adding stream to go2rtc (direct mode)", { cameraId, rtspUrl });
 

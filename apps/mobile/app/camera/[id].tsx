@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Switch,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import type { Camera, OSPEvent } from "@osp/shared/types";
@@ -15,6 +17,13 @@ import { transformCamera, transformEvents } from "@/lib/transforms";
 import { EventRow } from "@/components/EventRow";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
 import { MobileLiveViewWebRTCPlayer } from "@/components/camera/MobileLiveViewWebRTCPlayer";
+
+interface CameraZone {
+  id: string;
+  name: string;
+  sensitivity: number;
+  alertEnabled: boolean;
+}
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -31,6 +40,7 @@ export default function CameraDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [camera, setCamera] = useState<Camera | null>(null);
   const [events, setEvents] = useState<readonly OSPEvent[]>([]);
+  const [zones, setZones] = useState<readonly CameraZone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,16 +53,19 @@ export default function CameraDetailScreen() {
       else setIsLoading(true);
 
       try {
-        const [cameraResult, eventsResult] = await Promise.all([
+        const [cameraResult, eventsResult, zonesResult] = await Promise.all([
           api.get<Camera>(`/api/v1/cameras/${id}`),
           api.get<OSPEvent[]>(`/api/v1/events`, {
             cameraId: id,
             limit: 10,
           }),
+          api.get<{ id: string; name: string; sensitivity: number; alert_enabled: boolean }[]>(
+            `/api/v1/cameras/${id}/zones`,
+          ),
         ]);
 
         if (cameraResult.success && cameraResult.data) {
-          setCamera(transformCamera(cameraResult.data));
+          setCamera(transformCamera(cameraResult.data as Record<string, unknown>));
           setError(null);
         } else {
           setError(cameraResult.error?.message ?? "Camera not found.");
@@ -60,6 +73,17 @@ export default function CameraDetailScreen() {
 
         if (eventsResult.success && eventsResult.data) {
           setEvents(transformEvents(eventsResult.data));
+        }
+
+        if (zonesResult.success && zonesResult.data) {
+          setZones(
+            zonesResult.data.map((z) => ({
+              id: z.id,
+              name: z.name,
+              sensitivity: z.sensitivity,
+              alertEnabled: z.alert_enabled,
+            })),
+          );
         }
       } catch {
         setError("Unable to connect to server.");
@@ -74,6 +98,27 @@ export default function CameraDetailScreen() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleZoneToggle = useCallback(
+    async (zoneId: string, enabled: boolean) => {
+      if (!id) return;
+      setZones((prev) =>
+        prev.map((z) => (z.id === zoneId ? { ...z, alertEnabled: enabled } : z)),
+      );
+      try {
+        await api.patch(`/api/v1/cameras/${id}/zones/${zoneId}`, {
+          alertEnabled: enabled,
+        });
+      } catch {
+        // Revert on failure
+        setZones((prev) =>
+          prev.map((z) => (z.id === zoneId ? { ...z, alertEnabled: !enabled } : z)),
+        );
+        Alert.alert("Error", "Failed to update zone. Please try again.");
+      }
+    },
+    [id],
+  );
 
   const handlePtz = useCallback(
     async (direction: string) => {
@@ -173,6 +218,37 @@ export default function CameraDetailScreen() {
           <InfoRow label="Zones" value={String(camera.zonesCount)} />
         </View>
       </View>
+
+      {/* Motion Zones */}
+      {zones.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Motion Zones</Text>
+          <View style={styles.infoCard}>
+            {zones.map((zone, idx) => (
+              <View
+                key={zone.id}
+                style={[
+                  styles.zoneRow,
+                  idx < zones.length - 1 && styles.zoneRowBorder,
+                ]}
+              >
+                <View style={styles.zoneInfo}>
+                  <Text style={styles.zoneName}>{zone.name}</Text>
+                  <Text style={styles.zoneSensitivity}>
+                    Sensitivity {zone.sensitivity}/10
+                  </Text>
+                </View>
+                <Switch
+                  value={zone.alertEnabled}
+                  onValueChange={(val) => void handleZoneToggle(zone.id, val)}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={colors.text}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       {/* PTZ Controls */}
       {camera.ptzCapable && (
@@ -419,6 +495,31 @@ const styles = StyleSheet.create({
   zoomRow: {
     flexDirection: "row",
     marginTop: spacing.md,
+  },
+  zoneRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  zoneRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  zoneInfo: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  zoneName: {
+    color: colors.text,
+    fontSize: fontSize.md,
+    fontWeight: "500",
+  },
+  zoneSensitivity: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    marginTop: 2,
   },
   emptyEvents: {
     paddingHorizontal: spacing.lg,

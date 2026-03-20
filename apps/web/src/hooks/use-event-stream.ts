@@ -93,6 +93,8 @@ class EventStreamManager {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+  private authFailCount = 0;
+  private static readonly MAX_AUTH_FAILURES = 3;
   private subscribers = new Set<() => void>();
   private state: GlobalState = {
     events: [],
@@ -148,6 +150,42 @@ class EventStreamManager {
     );
   }
 
+  private handleAuthFailedClose() {
+    this.authFailCount++;
+    if (this.authFailCount > EventStreamManager.MAX_AUTH_FAILURES) {
+      this.setState({ error: "Session expired. Please log in again.", connected: false });
+      return;
+    }
+    const refreshToken = localStorage.getItem("osp_refresh_token");
+    if (!refreshToken) {
+      this.setState({ error: "Not authenticated", connected: false });
+      return;
+    }
+    const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
+    fetch(`${apiUrl}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { data?: { accessToken?: string; refreshToken?: string } } | null) => {
+        if (json?.data?.accessToken) {
+          localStorage.setItem("osp_access_token", json.data.accessToken);
+          if (json.data.refreshToken) {
+            localStorage.setItem("osp_refresh_token", json.data.refreshToken);
+          }
+          this.authFailCount = 0;
+          this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+          this.scheduleReconnect();
+        } else {
+          this.setState({ error: "Session expired. Please log in again.", connected: false });
+        }
+      })
+      .catch(() => {
+        this.setState({ error: "Connection error. Please log in again.", connected: false });
+      });
+  }
+
   private connect() {
     if (typeof window === "undefined") return;
 
@@ -173,6 +211,7 @@ class EventStreamManager {
       ws.onopen = () => {
         this.setState({ connected: true, error: null });
         this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+        this.authFailCount = 0;
 
         // Send subscribe message
         ws.send(JSON.stringify({ type: "subscribe" }));
@@ -220,10 +259,17 @@ class EventStreamManager {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         this.setState({ connected: false });
         this.clearTimers();
-        this.scheduleReconnect();
+        // Code 4001 = server rejected due to invalid/expired token.
+        // Attempt a token refresh before reconnecting; if it fails, stop retrying.
+        if (event.code === 4001) {
+          this.handleAuthFailedClose();
+        } else {
+          this.authFailCount = 0;
+          this.scheduleReconnect();
+        }
       };
 
       ws.onerror = () => {

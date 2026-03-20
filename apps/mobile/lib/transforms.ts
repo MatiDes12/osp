@@ -3,162 +3,169 @@ import type { OSPEvent } from "@osp/shared/types";
 import type { User, UserPreferences } from "@osp/shared/types";
 import type { Tenant, TenantSettings, TenantBranding } from "@osp/shared/types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformCamera(raw: any): Camera {
+type Raw = Record<string, unknown>;
+
+function str(v: unknown, fallback = ""): string {
+  return typeof v === "string" ? v : fallback;
+}
+
+function num(v: unknown, fallback = 0): number {
+  return typeof v === "number" ? v : typeof v === "string" ? (Number.parseFloat(v) || fallback) : fallback;
+}
+
+function bool(v: unknown, fallback = false): boolean {
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function pick<T>(a: unknown, b: unknown, fallback: T): T {
+  if (a !== undefined && a !== null) return a as T;
+  if (b !== undefined && b !== null) return b as T;
+  return fallback;
+}
+
+export function transformCamera(raw: Raw): Camera {
   return {
-    id: raw.id,
-    tenantId: raw.tenant_id ?? raw.tenantId,
-    name: raw.name,
-    protocol: raw.protocol,
-    connectionUri: raw.connection_uri ?? raw.connectionUri,
-    status: raw.status,
-    location: transformCameraLocation(raw.location ?? {}),
-    capabilities: transformCameraCapabilities(raw.capabilities ?? {}),
-    config: transformCameraConfig(raw.config ?? {}),
-    ptzCapable: raw.ptz_capable ?? raw.ptzCapable ?? false,
-    audioCapable: raw.audio_capable ?? raw.audioCapable ?? false,
-    firmwareVersion: raw.firmware_version ?? raw.firmwareVersion ?? null,
-    manufacturer: raw.manufacturer ?? null,
-    model: raw.model ?? null,
-    zonesCount: raw.zones_count ?? raw.zonesCount ?? 0,
-    lastSeenAt: raw.last_seen_at ?? raw.lastSeenAt ?? null,
-    createdAt: raw.created_at ?? raw.createdAt,
-    updatedAt: raw.updated_at ?? raw.updatedAt,
+    id: str(raw["id"]),
+    tenantId: str(pick(raw["tenant_id"], raw["tenantId"], "")),
+    name: str(raw["name"]),
+    protocol: str(raw["protocol"]),
+    connectionUri: str(pick(raw["connection_uri"], raw["connectionUri"], "")),
+    status: str(raw["status"]) as Camera["status"],
+    location: transformCameraLocation((raw["location"] as Raw | undefined) ?? {}),
+    capabilities: transformCameraCapabilities((raw["capabilities"] as Raw | undefined) ?? {}),
+    config: transformCameraConfig((raw["config"] as Raw | undefined) ?? {}),
+    ptzCapable: bool(pick(raw["ptz_capable"], raw["ptzCapable"], false)),
+    audioCapable: bool(pick(raw["audio_capable"], raw["audioCapable"], false)),
+    firmwareVersion: (pick(raw["firmware_version"], raw["firmwareVersion"], null) as string | null),
+    manufacturer: (raw["manufacturer"] as string | null) ?? null,
+    model: (raw["model"] as string | null) ?? null,
+    zonesCount: num(pick(raw["zones_count"], raw["zonesCount"], 0)),
+    lastSeenAt: (pick(raw["last_seen_at"], raw["lastSeenAt"], null) as string | null),
+    createdAt: str(pick(raw["created_at"], raw["createdAt"], "")),
+    updatedAt: str(pick(raw["updated_at"], raw["updatedAt"], "")),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformCameraLocation(raw: any): CameraLocation {
+function transformCameraLocation(raw: Raw): CameraLocation {
   return {
-    label: raw.label,
-    lat: raw.lat,
-    lng: raw.lng,
-    floor: raw.floor,
+    label: raw["label"] as string | undefined,
+    lat: raw["lat"] as number | undefined,
+    lng: raw["lng"] as number | undefined,
+    floor: raw["floor"] as number | undefined,
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformCameraCapabilities(raw: any): CameraCapabilities {
+function transformCameraCapabilities(raw: Raw): CameraCapabilities {
   return {
-    ptz: raw.ptz ?? false,
-    audio: raw.audio ?? false,
-    twoWayAudio: raw.two_way_audio ?? raw.twoWayAudio ?? false,
-    infrared: raw.infrared ?? false,
-    resolution: raw.resolution ?? "unknown",
+    ptz: bool(raw["ptz"]),
+    audio: bool(raw["audio"]),
+    twoWayAudio: bool(pick(raw["two_way_audio"], raw["twoWayAudio"], false)),
+    infrared: bool(raw["infrared"]),
+    resolution: str(raw["resolution"], "unknown"),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformCameraConfig(raw: any): CameraConfig {
+function transformCameraConfig(raw: Raw): CameraConfig {
   return {
-    recordingMode: raw.recording_mode ?? raw.recordingMode ?? "motion",
-    motionSensitivity: raw.motion_sensitivity ?? raw.motionSensitivity ?? 5,
-    audioEnabled: raw.audio_enabled ?? raw.audioEnabled ?? false,
+    recordingMode: str(pick(raw["recording_mode"], raw["recordingMode"], "motion")) as CameraConfig["recordingMode"],
+    motionSensitivity: num(pick(raw["motion_sensitivity"], raw["motionSensitivity"], 5)),
+    audioEnabled: bool(pick(raw["audio_enabled"], raw["audioEnabled"], false)),
   };
 }
 
 export function transformCameras(raw: readonly unknown[]): readonly Camera[] {
-  return raw.map(transformCamera);
+  return raw.map((r) => transformCamera(r as Raw));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformEvent(raw: any): OSPEvent {
+export function transformEvent(raw: Raw): OSPEvent {
   return {
-    id: raw.id,
-    cameraId: raw.camera_id ?? raw.cameraId,
-    cameraName: raw.camera_name ?? raw.cameraName ?? "Unknown",
-    zoneId: raw.zone_id ?? raw.zoneId ?? null,
-    zoneName: raw.zone_name ?? raw.zoneName ?? null,
-    tenantId: raw.tenant_id ?? raw.tenantId,
-    type: raw.type,
-    severity: raw.severity,
-    detectedAt: raw.detected_at ?? raw.detectedAt,
-    metadata: raw.metadata ?? {},
-    snapshotUrl: raw.snapshot_url ?? raw.snapshotUrl ?? null,
-    clipUrl: raw.clip_url ?? raw.clipUrl ?? null,
-    intensity: raw.intensity ?? 0,
-    acknowledged: raw.acknowledged ?? false,
-    acknowledgedBy: raw.acknowledged_by ?? raw.acknowledgedBy ?? null,
-    acknowledgedAt: raw.acknowledged_at ?? raw.acknowledgedAt ?? null,
-    createdAt: raw.created_at ?? raw.createdAt,
+    id: str(raw["id"]),
+    cameraId: str(pick(raw["camera_id"], raw["cameraId"], "")),
+    cameraName: str(pick(raw["camera_name"], raw["cameraName"], "Unknown")),
+    zoneId: (pick(raw["zone_id"], raw["zoneId"], null) as string | null),
+    zoneName: (pick(raw["zone_name"], raw["zoneName"], null) as string | null),
+    tenantId: str(pick(raw["tenant_id"], raw["tenantId"], "")),
+    type: str(raw["type"]) as OSPEvent["type"],
+    severity: str(raw["severity"]) as OSPEvent["severity"],
+    detectedAt: str(pick(raw["detected_at"], raw["detectedAt"], "")),
+    metadata: (raw["metadata"] as Record<string, unknown>) ?? {},
+    snapshotUrl: (pick(raw["snapshot_url"], raw["snapshotUrl"], null) as string | null),
+    clipUrl: (pick(raw["clip_url"], raw["clipUrl"], null) as string | null),
+    intensity: num(raw["intensity"]),
+    acknowledged: bool(raw["acknowledged"]),
+    acknowledgedBy: (pick(raw["acknowledged_by"], raw["acknowledgedBy"], null) as string | null),
+    acknowledgedAt: (pick(raw["acknowledged_at"], raw["acknowledgedAt"], null) as string | null),
+    createdAt: str(pick(raw["created_at"], raw["createdAt"], "")),
   };
 }
 
 export function transformEvents(raw: readonly unknown[]): readonly OSPEvent[] {
-  return raw.map(transformEvent);
+  return raw.map((r) => transformEvent(r as Raw));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformUser(raw: any): User {
+export function transformUser(raw: Raw): User {
   return {
-    id: raw.id,
-    tenantId: raw.tenant_id ?? raw.tenantId,
-    email: raw.email,
-    displayName: raw.display_name ?? raw.displayName,
-    avatarUrl: raw.avatar_url ?? raw.avatarUrl ?? null,
-    authProvider: raw.auth_provider ?? raw.authProvider ?? "email",
-    role: raw.role,
-    cameraIds: raw.camera_ids ?? raw.cameraIds ?? null,
-    preferences: transformUserPreferences(raw.preferences ?? {}),
-    lastLoginAt: raw.last_login_at ?? raw.lastLoginAt ?? null,
-    createdAt: raw.created_at ?? raw.createdAt,
-    updatedAt: raw.updated_at ?? raw.updatedAt,
+    id: str(raw["id"]),
+    tenantId: str(pick(raw["tenant_id"], raw["tenantId"], "")),
+    email: str(raw["email"]),
+    displayName: str(pick(raw["display_name"], raw["displayName"], "")),
+    avatarUrl: (pick(raw["avatar_url"], raw["avatarUrl"], null) as string | null),
+    authProvider: str(pick(raw["auth_provider"], raw["authProvider"], "email")),
+    role: str(raw["role"]) as User["role"],
+    cameraIds: (pick(raw["camera_ids"], raw["cameraIds"], null) as string[] | null),
+    preferences: transformUserPreferences((raw["preferences"] as Raw | undefined) ?? {}),
+    lastLoginAt: (pick(raw["last_login_at"], raw["lastLoginAt"], null) as string | null),
+    createdAt: str(pick(raw["created_at"], raw["createdAt"], "")),
+    updatedAt: str(pick(raw["updated_at"], raw["updatedAt"], "")),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformUserPreferences(raw: any): UserPreferences {
+function transformUserPreferences(raw: Raw): UserPreferences {
   return {
-    theme: raw.theme ?? "system",
-    notificationsEnabled: raw.notifications_enabled ?? raw.notificationsEnabled ?? true,
-    defaultGridSize: raw.default_grid_size ?? raw.defaultGridSize ?? 4,
-    timezone: raw.timezone ?? null,
+    theme: str(pick(raw["theme"], raw["theme"], "system")) as UserPreferences["theme"],
+    notificationsEnabled: bool(pick(raw["notifications_enabled"], raw["notificationsEnabled"], true)),
+    defaultGridSize: num(pick(raw["default_grid_size"], raw["defaultGridSize"], 4)),
+    timezone: (raw["timezone"] as string | null) ?? null,
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function transformTenant(raw: any): Tenant {
+export function transformTenant(raw: Raw): Tenant {
   return {
-    id: raw.id,
-    name: raw.name,
-    slug: raw.slug,
-    plan: raw.plan,
-    settings: transformTenantSettings(raw.settings ?? {}),
-    branding: transformTenantBranding(raw.branding ?? {}),
-    logoUrl: raw.logo_url ?? raw.logoUrl ?? null,
-    customDomain: raw.custom_domain ?? raw.customDomain ?? null,
-    maxCameras: raw.max_cameras ?? raw.maxCameras ?? 4,
-    maxUsers: raw.max_users ?? raw.maxUsers ?? 2,
-    retentionDays: raw.retention_days ?? raw.retentionDays ?? 7,
-    createdAt: raw.created_at ?? raw.createdAt,
-    updatedAt: raw.updated_at ?? raw.updatedAt,
+    id: str(raw["id"]),
+    name: str(raw["name"]),
+    slug: str(raw["slug"]),
+    plan: str(raw["plan"]) as Tenant["plan"],
+    settings: transformTenantSettings((raw["settings"] as Raw | undefined) ?? {}),
+    branding: transformTenantBranding((raw["branding"] as Raw | undefined) ?? {}),
+    logoUrl: (pick(raw["logo_url"], raw["logoUrl"], null) as string | null),
+    customDomain: (pick(raw["custom_domain"], raw["customDomain"], null) as string | null),
+    maxCameras: num(pick(raw["max_cameras"], raw["maxCameras"], 4)),
+    maxUsers: num(pick(raw["max_users"], raw["maxUsers"], 2)),
+    retentionDays: num(pick(raw["retention_days"], raw["retentionDays"], 7)),
+    createdAt: str(pick(raw["created_at"], raw["createdAt"], "")),
+    updatedAt: str(pick(raw["updated_at"], raw["updatedAt"], "")),
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformTenantSettings(raw: any): TenantSettings {
+function transformTenantSettings(raw: Raw): TenantSettings {
+  const notifPrefs = (pick(raw["notification_preferences"], raw["notificationPreferences"], {}) as Raw);
   return {
-    defaultRetentionDays: raw.default_retention_days ?? raw.defaultRetentionDays ?? 7,
-    defaultRecordingMode: raw.default_recording_mode ?? raw.defaultRecordingMode ?? "motion",
-    defaultMotionSensitivity: raw.default_motion_sensitivity ?? raw.defaultMotionSensitivity ?? 5,
-    timezone: raw.timezone ?? "UTC",
+    defaultRetentionDays: num(pick(raw["default_retention_days"], raw["defaultRetentionDays"], 7)),
+    defaultRecordingMode: str(pick(raw["default_recording_mode"], raw["defaultRecordingMode"], "motion")) as TenantSettings["defaultRecordingMode"],
+    defaultMotionSensitivity: num(pick(raw["default_motion_sensitivity"], raw["defaultMotionSensitivity"], 5)),
+    timezone: str(raw["timezone"], "UTC"),
     notificationPreferences: {
-      emailDigest: raw.notification_preferences?.email_digest
-        ?? raw.notificationPreferences?.emailDigest
-        ?? "none",
-      pushEnabled: raw.notification_preferences?.push_enabled
-        ?? raw.notificationPreferences?.pushEnabled
-        ?? true,
+      emailDigest: str(pick(notifPrefs["email_digest"], notifPrefs["emailDigest"], "none")) as TenantSettings["notificationPreferences"]["emailDigest"],
+      pushEnabled: bool(pick(notifPrefs["push_enabled"], notifPrefs["pushEnabled"], true)),
     },
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformTenantBranding(raw: any): TenantBranding {
+function transformTenantBranding(raw: Raw): TenantBranding {
   return {
-    primaryColor: raw.primary_color ?? raw.primaryColor ?? "#3b82f6",
-    accentColor: raw.accent_color ?? raw.accentColor ?? "#2563eb",
-    fontFamily: raw.font_family ?? raw.fontFamily ?? null,
-    faviconUrl: raw.favicon_url ?? raw.faviconUrl ?? null,
+    primaryColor: str(pick(raw["primary_color"], raw["primaryColor"], "#3b82f6")),
+    accentColor: str(pick(raw["accent_color"], raw["accentColor"], "#2563eb")),
+    fontFamily: (pick(raw["font_family"], raw["fontFamily"], null) as string | null),
+    faviconUrl: (pick(raw["favicon_url"], raw["faviconUrl"], null) as string | null),
   };
 }

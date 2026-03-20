@@ -11,6 +11,10 @@ webrtc:
   # For local dev on the same machine, 127.0.0.1 is usually sufficient.
   candidates:
     - "127.0.0.1:8555"
+  # Opus is required for two-way audio (backchannel) to ONVIF cameras.
+  # go2rtc will negotiate Opus for browser ↔ camera audio.
+  audio_codecs:
+    - opus
   ice_servers:
     - urls: ["stun:stun.l.google.com:19302"]
     # Optional TURN server for remote WebRTC connectivity.

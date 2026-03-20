@@ -26,6 +26,10 @@ import {
   Clock,
   HardDrive,
   Zap,
+  Eye,
+  EyeOff,
+  Save,
+  ExternalLink,
 } from "lucide-react";
 import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
 import { PTZControls } from "@/components/camera/PTZControls";
@@ -791,9 +795,308 @@ function InfoTab({
   );
 }
 
+// ─── Settings Tab ─────────────────────────────────────────────────────────────
+
+function SettingsTab({
+  camera,
+  onSaved,
+  onDeleted,
+}: {
+  readonly camera: CameraType;
+  readonly onSaved: () => void;
+  readonly onDeleted: () => void;
+}) {
+  const [name, setName] = useState(camera.name);
+  const [connectionUri, setConnectionUri] = useState(camera.connectionUri);
+  const [showUri, setShowUri] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectError, setReconnectError] = useState<string | null>(null);
+  const [reconnectOk, setReconnectOk] = useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Capabilities
+  const [twoWayAudio, setTwoWayAudio] = useState(camera.capabilities.twoWayAudio);
+  const [capSaving, setCapSaving] = useState(false);
+  const [capError, setCapError] = useState<string | null>(null);
+  const [capSaved, setCapSaved] = useState(false);
+
+  const isOnvif = camera.connectionUri?.startsWith("onvif://") ||
+    (camera.protocol as string) === "onvif";
+
+  const handleSaveCapabilities = async () => {
+    setCapSaving(true);
+    setCapError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}/capabilities`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ twoWayAudio }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setCapError(json.error?.message ?? "Failed to save");
+      } else {
+        setCapSaved(true);
+        setTimeout(() => setCapSaved(false), 2000);
+        onSaved();
+      }
+    } catch (err) {
+      setCapError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setCapSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const body: Record<string, unknown> = {};
+      if (name.trim() !== camera.name) body.name = name.trim();
+      if (connectionUri.trim() !== camera.connectionUri) body.connectionUri = connectionUri.trim();
+      if (Object.keys(body).length === 0) { setSaved(true); setTimeout(() => setSaved(false), 2000); return; }
+      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setSaveError(json.error?.message ?? "Failed to save");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        onSaved();
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    setReconnectError(null);
+    setReconnectOk(false);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}/reconnect`, {
+        method: "POST", headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) setReconnectError(json.error?.message ?? "Failed to reconnect");
+      else { setReconnectOk(true); setTimeout(() => setReconnectOk(false), 3000); onSaved(); }
+    } catch (err) {
+      setReconnectError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setReconnecting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}`, {
+        method: "DELETE", headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setDeleteError(json.error?.message ?? "Failed to delete");
+        setDeleting(false);
+      } else {
+        onDeleted();
+      }
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Network error");
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Basic info */}
+      <div className="space-y-4">
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Camera Settings</h4>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-zinc-400">Camera Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-md text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors"
+            placeholder="e.g. Front Door"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-zinc-400">Connection URI</label>
+          <div className="relative">
+            <input
+              type={showUri ? "text" : "password"}
+              value={connectionUri}
+              onChange={(e) => setConnectionUri(e.target.value)}
+              className="w-full px-3 py-2 pr-9 text-sm bg-zinc-800 border border-zinc-700 rounded-md text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-blue-500 transition-colors font-mono"
+              placeholder="rtsp://..."
+            />
+            <button
+              type="button"
+              onClick={() => setShowUri((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              aria-label={showUri ? "Hide URI" : "Show URI"}
+            >
+              {showUri ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <p className="text-[10px] text-zinc-600">RTSP, ONVIF, or camera-specific protocol URL</p>
+        </div>
+
+        {saveError && <p className="text-xs text-red-400">{saveError}</p>}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          {saved ? "Saved!" : saving ? "Saving..." : "Save Changes"}
+        </button>
+      </div>
+
+      {/* Capabilities */}
+      <div className="border-t border-zinc-800 pt-5 space-y-4">
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Capabilities</h4>
+
+        {/* Two-Way Audio toggle */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-sm text-zinc-200 font-medium">Two-Way Audio</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Send microphone audio from the browser to the camera speaker.
+              {!isOnvif && (
+                <span className="block mt-1 text-amber-400">
+                  Only supported on ONVIF cameras. Your camera uses {(camera.protocol as string).toUpperCase()}.
+                </span>
+              )}
+              {isOnvif && (
+                <span className="block mt-1 text-zinc-600">
+                  Requires the camera to have a speaker and support ONVIF backchannel.
+                </span>
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTwoWayAudio((v) => !v)}
+            disabled={!isOnvif}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150
+              ${twoWayAudio && isOnvif ? "bg-blue-500" : "bg-zinc-700"}
+              ${!isOnvif ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+            role="switch"
+            aria-checked={twoWayAudio}
+          >
+            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform duration-150 ${twoWayAudio ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        {capError && <p className="text-xs text-red-400">{capError}</p>}
+        <button
+          onClick={handleSaveCapabilities}
+          disabled={capSaving || !isOnvif}
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {capSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          {capSaved ? "Saved!" : capSaving ? "Saving..." : "Save Capabilities"}
+        </button>
+      </div>
+
+      {/* Connection */}
+      <div className="border-t border-zinc-800 pt-5 space-y-3">
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Connection</h4>
+        <p className="text-xs text-zinc-500">Force reconnect the camera stream if it's stuck or offline.</p>
+        {reconnectError && <p className="text-xs text-red-400">{reconnectError}</p>}
+        {reconnectOk && <p className="text-xs text-green-400">Reconnected successfully.</p>}
+        <button
+          onClick={handleReconnect}
+          disabled={reconnecting}
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-zinc-700 text-zinc-300 hover:text-zinc-50 hover:border-zinc-500 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {reconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          {reconnecting ? "Reconnecting..." : "Reconnect Camera"}
+        </button>
+      </div>
+
+      {/* Alert Rules shortcut */}
+      <div className="border-t border-zinc-800 pt-5 space-y-3">
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Alert Rules</h4>
+        <p className="text-xs text-zinc-500">
+          Create rules to record or send alerts when this camera detects motion, a person, or other events.
+        </p>
+        <a
+          href="/rules"
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-zinc-700 text-zinc-300 hover:text-zinc-50 hover:border-zinc-500 transition-colors"
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-400" />
+          Manage Alert Rules
+          <ExternalLink className="w-3 h-3 text-zinc-600" />
+        </a>
+      </div>
+
+      {/* Danger zone */}
+      <div className="border-t border-red-900/30 pt-5 space-y-3">
+        <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider">Danger Zone</h4>
+        <p className="text-xs text-zinc-500">
+          Deleting this camera removes all its zones, events, and recordings permanently.
+        </p>
+        {deleteError && <p className="text-xs text-red-400">{deleteError}</p>}
+
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-red-700/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete Camera
+          </button>
+        ) : (
+          <div className="rounded-md border border-red-700/40 bg-red-500/5 p-3 space-y-3">
+            <p className="text-xs text-red-300 font-medium">
+              Are you sure? This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-500 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="w-3 h-3 animate-spin" />}
+                {deleting ? "Deleting..." : "Yes, Delete"}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="px-3 py-1.5 text-xs rounded-md border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = "recording" | "motion" | "events" | "info";
+type Tab = "recording" | "motion" | "events" | "info" | "settings";
 
 export default function CameraDetailPage() {
   const params = useParams<{ id: string }>();
@@ -980,7 +1283,13 @@ export default function CameraDetailPage() {
         const recs = transformRecordings(rows as Record<string, unknown>[]);
         if (recs.length > 0 && recs[0]!.playbackUrl) {
           const offsetSec = (seekMs - new Date(match.startTime).getTime()) / 1000;
-          apply(recs[0]!.playbackUrl, offsetSec);
+          // Append auth token so the video element can make range requests
+          const base = recs[0]!.playbackUrl;
+          const token = localStorage.getItem("osp_access_token");
+          const authedUrl = token
+            ? `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+            : base;
+          apply(authedUrl, offsetSec);
         }
       }
     } catch {}
@@ -1136,6 +1445,7 @@ export default function CameraDetailPage() {
     { id: "recording", label: "Recording", icon: <Video className="w-3.5 h-3.5" /> },
     { id: "motion", label: "Motion & AI", icon: <Brain className="w-3.5 h-3.5" /> },
     { id: "info", label: "Info & Zones", icon: <Info className="w-3.5 h-3.5" /> },
+    { id: "settings", label: "Settings", icon: <Settings className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -1342,6 +1652,13 @@ export default function CameraDetailPage() {
               zones={zones}
               onDrawZone={() => setIsDrawingZone(true)}
               onToggleZoneAlert={handleToggleZoneAlert}
+            />
+          )}
+          {activeTab === "settings" && (
+            <SettingsTab
+              camera={camera}
+              onSaved={fetchCamera}
+              onDeleted={() => router.push("/cameras")}
             />
           )}
         </div>

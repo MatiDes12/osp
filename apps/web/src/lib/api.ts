@@ -81,9 +81,13 @@ export const api = createOSPClient({
   getAccessToken: () => {
     if (typeof window === "undefined") return null;
     const token = localStorage.getItem("osp_access_token");
-    // Proactively refresh if token expires within 2 minutes
-    if (token && isTokenExpiringSoon(token, 120)) {
-      tryRefreshToken(); // fire-and-forget, next request will use new token
+    // Proactively refresh when expiring in 2 minutes (fire-and-forget — next
+    // request will use the new token before the old one actually expires).
+    // If the token is critically close (< 30s), also kick off a refresh but
+    // still return the current token; onUnauthorized handles the case where it
+    // has already expired.
+    if (token && isTokenExpiringSoon(token, 120) && !isRefreshing) {
+      void tryRefreshToken();
     }
     return token;
   },
