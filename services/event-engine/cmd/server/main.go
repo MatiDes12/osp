@@ -32,12 +32,13 @@ func main() {
 	grpcPort := envOrDefault("EVENT_GRPC_PORT", "50053")
 	redisAddr := envOrDefault("REDIS_URL", "localhost:6379")
 	databaseURL := envOrDefault("DATABASE_URL", "")
+	cloudDatabaseURL := envOrDefault("DATABASE_CLOUD_URL", "")
 
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
-	// --- Database ---
+	// --- Primary database ---
 	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
@@ -49,6 +50,23 @@ func main() {
 		os.Exit(1)
 	}
 	osplog.ConnectionOK("PostgreSQL", "connected")
+
+	// --- Cloud database (dual-write mirror, optional) ---
+	var cloudDB *sql.DB
+	if cloudDatabaseURL != "" && cloudDatabaseURL != databaseURL {
+		cloudDB, err = sql.Open("pgx", cloudDatabaseURL)
+		if err != nil {
+			logger.Warn("could not open cloud database for dual-write", slog.String("error", err.Error()))
+			cloudDB = nil
+		} else if pingErr := cloudDB.Ping(); pingErr != nil {
+			logger.Warn("cloud database ping failed — dual-write disabled", slog.String("error", pingErr.Error()))
+			cloudDB.Close()
+			cloudDB = nil
+		} else {
+			defer cloudDB.Close()
+			osplog.ConnectionOK("PostgreSQL (cloud mirror)", "dual-write enabled")
+		}
+	}
 
 	// --- Redis ---
 	rdb := redis.NewClient(&redis.Options{
@@ -66,11 +84,11 @@ func main() {
 	osplog.ConnectionOK("Redis", redisAddr)
 
 	// --- Services ---
-	eventRepo := events.NewPostgresEventRepository(db)
+	eventRepo := events.NewPostgresEventRepository(db, cloudDB)
 	eventPublisher := events.NewEventPublisher(rdb, logger)
 	eventSubscriber := events.NewEventSubscriber(rdb, logger)
 
-	ruleEngine := rules.NewRuleEngine(db, rdb, logger)
+	ruleEngine := rules.NewRuleEngine(db, cloudDB, rdb, logger)
 
 	pushSender := dispatch.NewPushSender(logger, db)
 	emailSender := dispatch.NewEmailSender(logger)

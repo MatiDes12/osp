@@ -10,6 +10,29 @@ import {
   createSuccessResponse,
 } from "@osp/shared";
 
+// Transform a raw DB alert_rules row to the camelCase AlertRule shape the frontend expects
+function mapRule(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: row["id"],
+    tenantId: row["tenant_id"],
+    name: row["name"],
+    description: row["description"] ?? null,
+    triggerEvent: row["trigger_event"],
+    conditions: row["conditions"],
+    actions: row["actions"],
+    cameraIds: row["camera_ids"] ?? null,
+    zoneIds: row["zone_ids"] ?? null,
+    schedule: row["schedule"] ?? null,
+    cooldownSec: row["cooldown_sec"],
+    enabled: row["enabled"],
+    priority: row["priority"] ?? 0,
+    lastTriggeredAt: row["last_triggered_at"] ?? null,
+    triggerCount24h: row["trigger_count_24h"] ?? 0,
+    createdAt: row["created_at"],
+    updatedAt: row["updated_at"],
+  };
+}
+
 export const ruleRoutes = new Hono<Env>();
 
 // List webhook delivery attempts for rules (admin visibility)
@@ -79,7 +102,7 @@ ruleRoutes.get("/", requireAuth("viewer"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to fetch rules", 500);
   }
 
-  return c.json(createSuccessResponse(rules ?? []));
+  return c.json(createSuccessResponse((rules ?? []).map(mapRule)));
 });
 
 // Create rule
@@ -111,7 +134,7 @@ ruleRoutes.post("/", requireAuth("admin"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to create rule", 500);
   }
 
-  return c.json(createSuccessResponse(rule), 201);
+  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)), 201);
 });
 
 // Get rule by ID
@@ -131,7 +154,7 @@ ruleRoutes.get("/:id", requireAuth("viewer"), async (c) => {
     throw new ApiError("RULE_NOT_FOUND", "Rule not found", 404);
   }
 
-  return c.json(createSuccessResponse(rule));
+  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)));
 });
 
 // Update rule
@@ -167,7 +190,7 @@ ruleRoutes.patch("/:id", requireAuth("admin"), async (c) => {
     throw new ApiError("RULE_NOT_FOUND", "Rule not found", 404);
   }
 
-  return c.json(createSuccessResponse(rule));
+  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)));
 });
 
 // Delete rule

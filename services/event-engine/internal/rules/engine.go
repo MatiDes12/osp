@@ -12,26 +12,30 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/MatiDes12/osp/services/event-engine/internal/dualdb"
 	"github.com/MatiDes12/osp/services/event-engine/internal/events"
 )
 
 // RuleEngine loads, caches, and evaluates alert rules for tenants.
 type RuleEngine struct {
-	db     *sql.DB
-	rdb    *redis.Client
-	logger *slog.Logger
+	db      *sql.DB
+	cloudDB *sql.DB // optional — writes are mirrored here in the background
+	rdb     *redis.Client
+	logger  *slog.Logger
 
 	mu    sync.RWMutex
 	cache map[string][]AlertRule // tenantID -> compiled rules
 }
 
 // NewRuleEngine creates a new RuleEngine.
-func NewRuleEngine(db *sql.DB, rdb *redis.Client, logger *slog.Logger) *RuleEngine {
+// Pass a non-nil cloudDB to enable dual-write mirroring.
+func NewRuleEngine(db *sql.DB, cloudDB *sql.DB, rdb *redis.Client, logger *slog.Logger) *RuleEngine {
 	return &RuleEngine{
-		db:     db,
-		rdb:    rdb,
-		logger: logger,
-		cache:  make(map[string][]AlertRule),
+		db:      db,
+		cloudDB: cloudDB,
+		rdb:     rdb,
+		logger:  logger,
+		cache:   make(map[string][]AlertRule),
 	}
 }
 
@@ -305,10 +309,11 @@ func (e *RuleEngine) setCooldown(ctx context.Context, rule AlertRule) error {
 }
 
 func (e *RuleEngine) updateLastTriggered(ctx context.Context, ruleID string) error {
-	_, err := e.db.ExecContext(ctx,
-		`UPDATE alert_rules SET last_triggered_at = now() WHERE id = $1`,
-		ruleID,
-	)
+	const q = `UPDATE alert_rules SET last_triggered_at = now() WHERE id = $1`
+	_, err := e.db.ExecContext(ctx, q, ruleID)
+	if err == nil {
+		dualdb.FireExec(e.cloudDB, q, ruleID)
+	}
 	return err
 }
 

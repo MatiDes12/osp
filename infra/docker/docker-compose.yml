@@ -37,12 +37,22 @@ services:
       - "3000:3000"
     env_file:
       - ../../.env
+      - path: ../../.env.docker.local  # local overrides — loaded after .env so they win
+        required: false
     depends_on:
       redis:
         condition: service_healthy
     environment:
       - REDIS_URL=redis://redis:6379
+      - GO2RTC_URL=http://go2rtc:1984
       - GO2RTC_API_URL=http://go2rtc:1984
+      - GO2RTC_PUBLIC_URL=http://go2rtc:1984
+      - CAMERA_INGEST_GRPC_URL=camera-ingest:50051
+      - VIDEO_PIPELINE_GRPC_URL=video-pipeline:50052
+      - EVENT_ENGINE_GRPC_URL=event-engine:50053
+      - API_URL=http://gateway:3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # ─── Go Services ───
@@ -75,10 +85,14 @@ services:
       - "50052:50052"
     env_file:
       - ../../.env
+      - path: ../../.env.docker.local
+        required: false
     environment:
       - VIDEO_GRPC_PORT=50052
       - GO2RTC_API_URL=http://go2rtc:1984
       - REDIS_URL=redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
       - go2rtc
@@ -94,9 +108,13 @@ services:
       - "50053:50053"
     env_file:
       - ../../.env
+      - path: ../../.env.docker.local
+        required: false
     environment:
       - EVENT_GRPC_PORT=50053
       - REDIS_URL=redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
     restart: unless-stopped
@@ -111,9 +129,13 @@ services:
       - "50054:50054"
     env_file:
       - ../../.env
+      - path: ../../.env.docker.local
+        required: false
     environment:
       - EXTENSION_GRPC_PORT=50054
       - REDIS_URL=redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - redis
     restart: unless-stopped

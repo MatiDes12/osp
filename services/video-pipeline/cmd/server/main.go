@@ -35,7 +35,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Connect to PostgreSQL.
+	// Connect to primary PostgreSQL.
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		osplog.ConnectionFail("PostgreSQL", fmt.Sprintf("connect: %v", err))
@@ -49,7 +49,22 @@ func main() {
 	}
 	osplog.ConnectionOK("PostgreSQL", "connected")
 
-	queries := db.NewQueries(pool)
+	// Connect to cloud PostgreSQL (dual-write mirror, optional).
+	var cloudPool *pgxpool.Pool
+	if cloudURL := cfg.CloudDatabaseURL; cloudURL != "" && cloudURL != cfg.DatabaseURL {
+		if cp, cpErr := pgxpool.New(ctx, cloudURL); cpErr != nil {
+			logger.Warn("could not open cloud database for dual-write", slog.String("error", cpErr.Error()))
+		} else if pingErr := cp.Ping(ctx); pingErr != nil {
+			logger.Warn("cloud database ping failed — dual-write disabled", slog.String("error", pingErr.Error()))
+			cp.Close()
+		} else {
+			cloudPool = cp
+			defer cloudPool.Close()
+			osplog.ConnectionOK("PostgreSQL (cloud mirror)", "dual-write enabled")
+		}
+	}
+
+	queries := db.NewQueries(pool, cloudPool)
 
 	// Initialize R2 storage.
 	r2, err := storage.NewR2Storage(ctx, storage.R2Config{

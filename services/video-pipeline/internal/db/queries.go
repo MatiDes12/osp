@@ -7,16 +7,20 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/MatiDes12/osp/services/video-pipeline/internal/dualdb"
 )
 
 // Queries wraps a pgx pool and provides typed database operations.
 type Queries struct {
-	pool *pgxpool.Pool
+	pool      *pgxpool.Pool
+	cloudPool *pgxpool.Pool // optional — writes are mirrored here in the background
 }
 
 // NewQueries creates a Queries instance from a connection pool.
-func NewQueries(pool *pgxpool.Pool) *Queries {
-	return &Queries{pool: pool}
+// Pass a non-nil cloudPool to enable dual-write mirroring.
+func NewQueries(pool *pgxpool.Pool, cloudPool *pgxpool.Pool) *Queries {
+	return &Queries{pool: pool, cloudPool: cloudPool}
 }
 
 // Recording represents a row from the recordings table.
@@ -60,46 +64,49 @@ func (q *Queries) CreateRecording(ctx context.Context, params CreateRecordingPar
 	if err != nil {
 		return Recording{}, fmt.Errorf("insert recording: %w", err)
 	}
+	// Mirror to cloud using the already-known ID so both DBs share the same UUID.
+	dualdb.FireExec(q.cloudPool,
+		`INSERT INTO recordings (id, camera_id, tenant_id, start_time, storage_path, trigger, status, retention_until)
+		 VALUES ($1::uuid, $2::uuid, $3::uuid, $4, '', $5::recording_trigger, $6::recording_status, $7) ON CONFLICT DO NOTHING`,
+		rec.ID, rec.CameraID, rec.TenantID, rec.StartTime, rec.Trigger, rec.Status, rec.RetentionUntil,
+	)
 	return rec, nil
 }
 
 // UpdateRecordingStatus sets the status of a recording.
 func (q *Queries) UpdateRecordingStatus(ctx context.Context, recordingID, status string) error {
-	_, err := q.pool.Exec(ctx,
-		`UPDATE recordings SET status = $1::recording_status WHERE id = $2::uuid`,
-		status, recordingID,
-	)
+	const sql = `UPDATE recordings SET status = $1::recording_status WHERE id = $2::uuid`
+	_, err := q.pool.Exec(ctx, sql, status, recordingID)
 	if err != nil {
 		return fmt.Errorf("update recording status: %w", err)
 	}
+	dualdb.FireExec(q.cloudPool, sql, status, recordingID)
 	return nil
 }
 
 // UpdateRecordingStoragePath sets the storage path for a recording.
 func (q *Queries) UpdateRecordingStoragePath(ctx context.Context, recordingID, storagePath string) error {
-	_, err := q.pool.Exec(ctx,
-		`UPDATE recordings SET storage_path = $1 WHERE id = $2::uuid`,
-		storagePath, recordingID,
-	)
+	const sql = `UPDATE recordings SET storage_path = $1 WHERE id = $2::uuid`
+	_, err := q.pool.Exec(ctx, sql, storagePath, recordingID)
 	if err != nil {
 		return fmt.Errorf("update storage path: %w", err)
 	}
+	dualdb.FireExec(q.cloudPool, sql, storagePath, recordingID)
 	return nil
 }
 
 // FinalizeRecording marks a recording as complete with its duration and end time.
 func (q *Queries) FinalizeRecording(ctx context.Context, recordingID string, durationSec int32) error {
-	_, err := q.pool.Exec(ctx,
-		`UPDATE recordings
+	const sql = `UPDATE recordings
 		 SET status = 'complete'::recording_status,
 		     end_time = now(),
 		     duration_sec = $1
-		 WHERE id = $2::uuid`,
-		durationSec, recordingID,
-	)
+		 WHERE id = $2::uuid`
+	_, err := q.pool.Exec(ctx, sql, durationSec, recordingID)
 	if err != nil {
 		return fmt.Errorf("finalize recording: %w", err)
 	}
+	dualdb.FireExec(q.cloudPool, sql, durationSec, recordingID)
 	return nil
 }
 
@@ -242,5 +249,11 @@ func (q *Queries) CreateSnapshot(ctx context.Context, params CreateSnapshotParam
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("insert snapshot: %w", err)
 	}
+	// Mirror to cloud using the already-known ID.
+	dualdb.FireExec(q.cloudPool,
+		`INSERT INTO snapshots (id, camera_id, recording_id, tenant_id, storage_path, size_bytes)
+		 VALUES ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6) ON CONFLICT DO NOTHING`,
+		snap.ID, snap.CameraID, snap.RecordingID, snap.TenantID, snap.StoragePath, snap.SizeBytes,
+	)
 	return snap, nil
 }

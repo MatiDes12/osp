@@ -10,7 +10,8 @@ type Config struct {
 	GRPCPort string
 
 	// Database
-	DatabaseURL string
+	DatabaseURL      string
+	CloudDatabaseURL string // optional — when set and different from DatabaseURL, writes are mirrored here
 
 	// R2 / S3
 	R2Endpoint        string
@@ -36,8 +37,9 @@ type Config struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() Config {
 	return Config{
-		GRPCPort:    envOrDefault("VIDEO_GRPC_PORT", "50052"),
-		DatabaseURL: envOrDefault("DATABASE_URL", "postgres://localhost:5432/osp?sslmode=disable"),
+		GRPCPort:         envOrDefault("VIDEO_GRPC_PORT", "50052"),
+		DatabaseURL:      envOrDefault("DATABASE_URL", "postgres://localhost:5432/osp?sslmode=disable"),
+		CloudDatabaseURL: envOrDefault("DATABASE_CLOUD_URL", ""),
 
 		R2Endpoint:        envOrDefault("R2_ENDPOINT", ""),
 		R2AccessKeyID:     envOrDefault("R2_ACCESS_KEY_ID", ""),

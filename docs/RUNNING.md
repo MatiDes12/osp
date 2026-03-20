@@ -1,332 +1,325 @@
 # Running OSP
 
-This document covers how to run OSP in development, staging, and production environments.
+Two ways to run OSP: **Docker** (recommended, runs everything) or **local** (faster iteration on gateway/frontend).
 
 ---
 
-## Local Development
+## Prerequisites
 
-### 1. Prerequisites
+| Tool | Version | Notes |
+|------|---------|-------|
+| Docker Desktop | Latest | Required for both methods |
+| Node.js | 20+ | Local dev only |
+| pnpm | 10+ | Local dev only — `npm i -g pnpm` |
+| Go | 1.22+ | Local dev only, for Go services |
 
-Install the following before starting:
+---
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Node.js | 20+ | https://nodejs.org |
-| pnpm | 10+ | `npm install -g pnpm` |
-| Go | 1.22+ | https://go.dev/dl |
-| Docker | Latest | https://docker.com |
-| Supabase CLI | Latest | `brew install supabase/tap/supabase` |
-| FFmpeg | Latest | `brew install ffmpeg` |
+## Method 1 — Docker (Recommended)
 
-### 2. Environment Setup
+Runs the full stack in containers. No Node or Go installation needed.
+
+### First-time setup
 
 ```bash
-# Clone and enter the project
+# Clone the repo
 git clone https://github.com/MatiDes12/osp.git
 cd osp
 
-# Install Node dependencies
-pnpm install
-
-# Copy environment variables
+# Copy the env file — fill in your Supabase and R2 credentials
 cp .env.example .env
 ```
 
-Edit `.env` with your local values. For local development, the defaults in `.env.example` work with the Docker Compose setup.
-
-### 3. Start Infrastructure
-
-Redis and go2rtc run in Docker:
-
-```bash
-docker compose -f infra/docker/docker-compose.yml up -d
+**Required values in `.env`:**
+```
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+DATABASE_URL=postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres
 ```
 
-Verify they are running:
+> Use the **direct connection** URL (port 5432), not the pooler (port 6543).
+> Get it from: Supabase Dashboard → Settings → Database → Connection string → URI.
+
+### Build and run
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml ps
+cd infra/docker
+docker compose build
+docker compose up -d
 ```
 
-You should see:
-- `redis` -- healthy on port 6379
-- `go2rtc` -- running on ports 1984 (API), 8554 (RTSP), 8555 (WebRTC)
-
-### 4. Start Supabase
+### Rebuild after code changes
 
 ```bash
-cd infra/supabase
-supabase start
+# Rebuild only what changed
+docker compose build gateway
+docker compose build event-engine video-pipeline
+
+# Or rebuild everything
+docker compose build --no-cache
+
+# Apply and restart
+docker compose up -d
 ```
 
-This gives you:
-- PostgreSQL on port 54322
-- Supabase Studio at http://localhost:54323
-- Auth, Realtime, and Storage running locally
-
-Copy the output `anon key` and `service_role key` into your `.env` file.
-
-### 5. Start All Services
+### View logs
 
 ```bash
+docker compose logs -f gateway
+docker compose logs -f camera-ingest
+docker compose logs -f          # all services
+```
+
+### Stop
+
+```bash
+docker compose down
+```
+
+### Service URLs (Docker)
+
+| Service | URL |
+|---------|-----|
+| API Gateway | http://localhost:3000 |
+| go2rtc admin | http://localhost:1984 |
+| RTSP | rtsp://localhost:8554 |
+| WebRTC | :8555 |
+| Redis | localhost:6379 |
+
+> The web dashboard (`apps/web`) is **not** in Docker. Run it locally with `pnpm dev` from the repo root, or deploy it separately (Vercel, etc.).
+
+---
+
+## Method 2 — Local Dev (Gateway + Frontend)
+
+Run the gateway and web app directly on your machine with Docker providing Redis and go2rtc only.
+
+### Start Docker infrastructure
+
+```bash
+cd infra/docker
+docker compose up -d redis go2rtc
+```
+
+### Install dependencies
+
+```bash
+# From repo root
+pnpm install
+```
+
+### Start the gateway
+
+```bash
+cd services/gateway
 pnpm dev
 ```
 
-Turborepo starts everything in parallel:
+The gateway reads `.env` from the repo root automatically. It will connect to:
+- Supabase cloud (from `SUPABASE_URL` in `.env`)
+- Redis at `localhost:6379` (Docker)
+- go2rtc at `localhost:1984` (Docker)
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| Web Dashboard | http://localhost:3001 | Next.js frontend |
-| API Gateway | http://localhost:3000 | Hono REST/WebSocket API |
-| go2rtc | http://localhost:1984 | Camera proxy admin |
-| Supabase Studio | http://localhost:54323 | Database admin |
-
-### 6. Start Go Services (Optional)
-
-The Go services are not started by `pnpm dev`. Run them individually:
+### Start the web dashboard
 
 ```bash
-# Terminal 1
-cd services/camera-ingest && go run ./cmd/server/
+cd apps/web
+pnpm dev
+```
 
-# Terminal 2
-cd services/video-pipeline && go run ./cmd/server/
+Opens at http://localhost:3001.
 
-# Terminal 3
-cd services/event-engine && go run ./cmd/server/
+### Start Go services (optional)
 
-# Terminal 4
+Go services are only needed for video recording and event rule evaluation. The gateway falls back to direct mode without them.
+
+```bash
+# Each in its own terminal
+cd services/camera-ingest   && go run ./cmd/server/
+cd services/video-pipeline  && go run ./cmd/server/
+cd services/event-engine    && go run ./cmd/server/
 cd services/extension-runtime && go run ./cmd/server/
 ```
 
-Or run all four with a simple script:
+### Local dev URLs
 
-```bash
-for svc in camera-ingest video-pipeline event-engine extension-runtime; do
-  (cd services/$svc && go run ./cmd/server/) &
-done
-wait
-```
-
----
-
-## Docker (Full Stack)
-
-Run the entire stack in Docker without installing Go or Node locally.
-
-### Development Build
-
-```bash
-docker compose -f infra/docker/docker-compose.yml up --build
-```
-
-### Production Build
-
-```bash
-# Set the version
-export VERSION=latest
-
-# Build and run
-docker compose -f infra/docker/docker-compose.prod.yml up -d
-```
-
-### Building Individual Images
-
-```bash
-# Gateway (from repo root)
-docker build -f infra/docker/gateway.Dockerfile -t osp-gateway .
-
-# Web (from repo root)
-docker build -f infra/docker/web.Dockerfile -t osp-web .
-
-# Go services (from service directory)
-docker build -t osp-camera-ingest services/camera-ingest/
-docker build -t osp-video-pipeline services/video-pipeline/
-docker build -t osp-event-engine services/event-engine/
-docker build -t osp-extension-runtime services/extension-runtime/
-```
-
-### Docker Image Registry
-
-Production images are published to GitHub Container Registry on every push to `main` and on version tags:
-
-```bash
-docker pull ghcr.io/matides12/osp-gateway:latest
-docker pull ghcr.io/matides12/osp-camera-ingest:latest
-docker pull ghcr.io/matides12/osp-video-pipeline:latest
-docker pull ghcr.io/matides12/osp-event-engine:latest
-docker pull ghcr.io/matides12/osp-web:latest
-```
+| Service | URL |
+|---------|-----|
+| Web dashboard | http://localhost:3001 |
+| API Gateway | http://localhost:3000 |
+| go2rtc admin | http://localhost:1984 |
+| Supabase dashboard | https://supabase.com/dashboard (cloud) |
 
 ---
 
-## Running Tests
+## Database
 
-### TypeScript
+OSP uses **Supabase cloud** as the primary database in all environments.
 
-```bash
-# All tests
-pnpm test
-
-# Single package
-pnpm --filter @osp/web test
-pnpm --filter @osp/gateway test
-pnpm --filter @osp/shared test
-
-# Watch mode
-pnpm --filter @osp/gateway test -- --watch
-
-# With coverage report
-pnpm test -- --coverage
-```
-
-### Go
+### Apply migrations to cloud
 
 ```bash
-# Single service
-cd services/camera-ingest
-go test ./...
-
-# With race detection and coverage
-go test -v -race -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
-
-# All Go services
-for svc in camera-ingest video-pipeline event-engine extension-runtime; do
-  echo "Testing $svc..."
-  (cd services/$svc && go test -race ./...)
-done
+# From repo root
+npx supabase@2.82.0 db push --db-url "postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres"
 ```
 
-### Integration Tests
-
-Integration tests hit real Supabase and Redis. Make sure infrastructure is running first.
+### Create a new migration
 
 ```bash
-pnpm test:integration
+npx supabase@2.82.0 migration new my_migration_name
+# Edit the created file in infra/supabase/migrations/
+npx supabase@2.82.0 db push --db-url "postgresql://..."
 ```
 
-### End-to-End Tests
+### View the database
 
-E2E tests use Playwright against the running web app.
-
-```bash
-# Install browsers (first time only)
-pnpm exec playwright install chromium
-
-# Run tests
-pnpm exec playwright test
-
-# Run with UI mode
-pnpm exec playwright test --ui
-
-# Run a specific test file
-pnpm exec playwright test tests/e2e/camera-management.spec.ts
-```
+Open the [Supabase Dashboard](https://supabase.com/dashboard) → your project → Table Editor.
 
 ---
 
-## Database Migrations
+## Production Deployment
 
-Migrations live in `infra/supabase/migrations/`.
+Production runs the same Docker images as local. The only difference is the environment variables.
 
-### Create a New Migration
+### Server requirements
 
-```bash
-cd infra/supabase
-supabase migration new add_camera_zones_table
-```
+- Linux VPS or VM with Docker installed
+- 2GB RAM minimum (4GB recommended for all services)
+- Ports open: 3000 (gateway), 1984 (go2rtc admin), 8554 (RTSP), 8555 (WebRTC)
 
-This creates a timestamped SQL file in the migrations directory. Write your SQL there.
-
-### Apply Migrations Locally
+### Deploy
 
 ```bash
-cd infra/supabase
-supabase db reset
+# On your server — clone the repo and create .env
+git clone https://github.com/MatiDes12/osp.git
+cd osp
+cp .env.example .env
+nano .env   # fill in production credentials
+
+# Build and start
+cd infra/docker
+docker compose build
+docker compose up -d
+
+# Check all services are up
+docker compose ps
+docker compose logs -f
 ```
 
-This drops and recreates the local database, applying all migrations from scratch.
-
-### Apply to Production
+### Recommended `.env` values for production
 
 ```bash
-cd infra/supabase
-supabase db push --linked
+NODE_ENV=production
+
+# Supabase — use your cloud project
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+DATABASE_URL=postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres
+
+# Redis — uses the Docker container (already set in docker-compose)
+# REDIS_URL is set to redis://redis:6379 automatically inside containers
+
+# Cloudflare R2 — for video storage
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=osp-recordings
+
+# go2rtc — set to your server's public IP for WebRTC to work from outside
+GO2RTC_PUBLIC_URL=http://<your-server-ip>:1984
 ```
 
-The CI pipeline also validates migrations on every PR that touches the `infra/supabase/migrations/` directory.
+### Keep services running (auto-restart)
 
----
-
-## Adding a Camera (Development)
-
-Once the services are running, you can add a test camera:
-
-1. Open go2rtc admin at http://localhost:1984
-2. Add an RTSP stream (or use a test stream):
+All Docker Compose services are configured with `restart: unless-stopped`, so they survive reboots automatically as long as Docker starts on boot:
 
 ```bash
-# Add via go2rtc API
-curl -X PUT http://localhost:1984/api/streams \
-  -H "Content-Type: application/json" \
-  -d '{"test-camera": {"sources": ["rtsp://your-camera-ip:554/stream"]}}'
+# Enable Docker to start on boot (Linux)
+sudo systemctl enable docker
 ```
 
-3. Verify the stream in the web dashboard at http://localhost:3001
-
-For testing without a physical camera, you can use FFmpeg to create a test RTSP stream:
+### Update to latest code
 
 ```bash
-ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 \
-  -f lavfi -i sine=frequency=1000 \
-  -vcodec libx264 -preset ultrafast -tune zerolatency \
-  -f rtsp rtsp://localhost:8554/test
+git pull
+cd infra/docker
+docker compose build --no-cache gateway
+docker compose up -d
 ```
-
----
-
-## Troubleshooting
-
-**pnpm install fails**
-- Make sure you are using pnpm 10+: `pnpm --version`
-- Delete `node_modules` and `pnpm-lock.yaml`, then reinstall
-
-**Docker containers not starting**
-- Check Docker is running: `docker info`
-- Check port conflicts: `lsof -i :6379` (Redis), `lsof -i :1984` (go2rtc)
-
-**Supabase won't start**
-- Check Docker has enough resources (4GB+ RAM recommended)
-- Run `supabase stop` then `supabase start` to reset
-
-**Go services fail to build**
-- Ensure Go 1.22+: `go version`
-- Run `go mod tidy` in the service directory
-
-**Camera stream not showing**
-- Verify go2rtc is running: `curl http://localhost:1984/api/streams`
-- Check RTSP URL is accessible: `ffprobe rtsp://camera-ip:554/stream`
-- Check browser console for WebRTC errors
-
-**CI failing on PR**
-- Run `pnpm lint` and `pnpm type-check` locally before pushing
-- Check Go linting: `cd services/<name> && golangci-lint run`
 
 ---
 
 ## Environment Variables Reference
 
-See `.env.example` for all variables. Key groups:
+Variables are loaded from `.env` in the repo root. **Do not** set infrastructure URLs (`REDIS_URL`, `GO2RTC_URL`, gRPC addresses) in the `config_secrets` database table — those must come from environment only so Docker networking works correctly.
 
-| Group | Variables | Required for |
-|-------|-----------|-------------|
-| Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | All environments |
-| Redis | `REDIS_URL` | All environments |
-| Storage | `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` | Recording/playback |
-| go2rtc | `GO2RTC_API_URL` | Camera streaming |
-| Gateway | `GATEWAY_PORT`, `GATEWAY_CORS_ORIGINS` | API server |
-| Go Services | `INGEST_GRPC_PORT`, `VIDEO_GRPC_PORT`, `EVENT_GRPC_PORT`, `EXTENSION_GRPC_PORT` | Service communication |
-| Push Notifications | `APNS_KEY_ID`, `APNS_TEAM_ID`, `FCM_SERVER_KEY` | Mobile alerts |
-| Email | `SENDGRID_API_KEY`, `EMAIL_FROM` | Email alerts |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project API URL |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only) |
+| `DATABASE_URL` | Yes (Go services) | Direct Postgres connection (port 5432, not 6543) |
+| `R2_ENDPOINT` | For recording | Cloudflare R2 endpoint |
+| `R2_ACCESS_KEY_ID` | For recording | R2 access key |
+| `R2_SECRET_ACCESS_KEY` | For recording | R2 secret key |
+| `R2_BUCKET_NAME` | For recording | R2 bucket name |
+| `API_TOKEN` | Yes | Shared secret between gateway and camera-ingest |
+| `RESEND_API_KEY` | For email alerts | Resend API key |
+| `FCM_SERVER_KEY` | For push alerts | Firebase Cloud Messaging key |
+
+Variables set automatically by Docker Compose (do not override):
+
+| Variable | Value inside Docker |
+|----------|-------------------|
+| `REDIS_URL` | `redis://redis:6379` |
+| `GO2RTC_URL` | `http://go2rtc:1984` |
+| `GO2RTC_API_URL` | `http://go2rtc:1984` |
+| `CAMERA_INGEST_GRPC_URL` | `camera-ingest:50051` |
+| `VIDEO_PIPELINE_GRPC_URL` | `video-pipeline:50052` |
+| `EVENT_ENGINE_GRPC_URL` | `event-engine:50053` |
+
+---
+
+## Troubleshooting
+
+**`ECONNREFUSED` on Redis inside Docker**
+The config_secrets table must not have a `REDIS_URL` entry — if it does, it overrides the docker-compose environment value. Delete it:
+```bash
+curl -X DELETE "https://<ref>.supabase.co/rest/v1/config_secrets?scope=eq.global&key=in.(REDIS_URL,GO2RTC_URL,GO2RTC_API_URL)" \
+  -H "apikey: <service_role_key>" \
+  -H "Authorization: Bearer <service_role_key>"
+```
+
+**`Cannot find package 'dotenv'` in gateway**
+The pnpm workspace symlinks broke. Rebuild with `--no-cache`:
+```bash
+docker compose build --no-cache gateway
+```
+
+**`FATAL: Tenant or user not found` in Go services**
+You are using the Supabase transaction pooler URL (port 6543). Switch `DATABASE_URL` to the direct connection (port 5432):
+```
+DATABASE_URL=postgresql://postgres:<password>@db.<ref>.supabase.co:5432/postgres
+```
+
+**Proto file not found on startup**
+The proto files weren't copied to `dist/`. Rebuild the gateway image:
+```bash
+docker compose build --no-cache gateway
+```
+
+**go2rtc camera stream not loading**
+```bash
+# Check go2rtc sees the stream
+curl http://localhost:1984/api/streams
+
+# Test RTSP URL directly
+ffprobe rtsp://<camera-ip>:554/stream
+
+# Check browser console for WebRTC ICE errors
+```
+
+**Docker build fails on pnpm deploy**
+pnpm v10 requires `--legacy` flag for deploy. This is already set in `gateway.Dockerfile`. If you see the error, ensure you have the latest Dockerfile.

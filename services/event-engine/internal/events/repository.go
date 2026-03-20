@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/MatiDes12/osp/services/event-engine/internal/dualdb"
 )
 
 // EventRepository defines the interface for event persistence.
@@ -19,12 +21,14 @@ type EventRepository interface {
 
 // PostgresEventRepository implements EventRepository using PostgreSQL.
 type PostgresEventRepository struct {
-	db *sql.DB
+	db      *sql.DB
+	cloudDB *sql.DB // optional — writes are mirrored here in the background
 }
 
 // NewPostgresEventRepository creates a new PostgresEventRepository.
-func NewPostgresEventRepository(db *sql.DB) *PostgresEventRepository {
-	return &PostgresEventRepository{db: db}
+// Pass a non-nil cloudDB to enable dual-write mirroring.
+func NewPostgresEventRepository(db *sql.DB, cloudDB *sql.DB) *PostgresEventRepository {
+	return &PostgresEventRepository{db: db, cloudDB: cloudDB}
 }
 
 // CreateEvent inserts a new event into the database and returns the generated ID.
@@ -34,11 +38,10 @@ func (r *PostgresEventRepository) CreateEvent(ctx context.Context, event Event) 
 		return "", fmt.Errorf("marshal metadata: %w", err)
 	}
 
-	var id string
-	err = r.db.QueryRowContext(ctx,
-		`INSERT INTO events (camera_id, zone_id, tenant_id, type, severity, detected_at, metadata, snapshot_id, clip_path, intensity)
+	const insertSQL = `INSERT INTO events (camera_id, zone_id, tenant_id, type, severity, detected_at, metadata, snapshot_id, clip_path, intensity)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		 RETURNING id`,
+		 RETURNING id`
+	insertArgs := []any{
 		event.CameraID,
 		nullString(event.ZoneID),
 		event.TenantID,
@@ -49,10 +52,18 @@ func (r *PostgresEventRepository) CreateEvent(ctx context.Context, event Event) 
 		nullString(event.SnapshotID),
 		nullString(event.ClipPath),
 		event.Intensity,
-	).Scan(&id)
+	}
+
+	var id string
+	err = r.db.QueryRowContext(ctx, insertSQL, insertArgs...).Scan(&id)
 	if err != nil {
 		return "", fmt.Errorf("insert event: %w", err)
 	}
+
+	// Mirror to cloud (fire-and-forget, without RETURNING since we already have the ID).
+	const cloudSQL = `INSERT INTO events (camera_id, zone_id, tenant_id, type, severity, detected_at, metadata, snapshot_id, clip_path, intensity)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING`
+	dualdb.FireExec(r.cloudDB, cloudSQL, insertArgs...)
 
 	return id, nil
 }
@@ -210,14 +221,13 @@ func (r *PostgresEventRepository) ListEvents(ctx context.Context, filter EventFi
 // AcknowledgeEvent marks an event as acknowledged by the given user.
 func (r *PostgresEventRepository) AcknowledgeEvent(ctx context.Context, id, userID string) error {
 	now := time.Now().UTC()
-	result, err := r.db.ExecContext(ctx,
-		`UPDATE events SET acknowledged = true, acknowledged_by = $1, acknowledged_at = $2
-		 WHERE id = $3 AND acknowledged = false`,
-		userID, now, id,
-	)
+	const ackSQL = `UPDATE events SET acknowledged = true, acknowledged_by = $1, acknowledged_at = $2
+		 WHERE id = $3 AND acknowledged = false`
+	result, err := r.db.ExecContext(ctx, ackSQL, userID, now, id)
 	if err != nil {
 		return fmt.Errorf("acknowledge event %s: %w", id, err)
 	}
+	dualdb.FireExec(r.cloudDB, ackSQL, userID, now, id)
 
 	rows, err := result.RowsAffected()
 	if err != nil {

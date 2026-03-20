@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+
+	"github.com/MatiDes12/osp/services/event-engine/internal/dualdb"
 )
 
 // AuditEntry represents a single audit log record.
@@ -23,15 +25,18 @@ type AuditEntry struct {
 
 // Logger writes audit entries to the audit_logs table.
 type Logger struct {
-	db     *sql.DB
-	logger *slog.Logger
+	db      *sql.DB
+	cloudDB *sql.DB // optional — entries are mirrored here in the background
+	logger  *slog.Logger
 }
 
 // NewLogger creates a new audit Logger.
-func NewLogger(db *sql.DB, logger *slog.Logger) *Logger {
+// Pass a non-nil cloudDB to enable dual-write mirroring.
+func NewLogger(db *sql.DB, cloudDB *sql.DB, logger *slog.Logger) *Logger {
 	return &Logger{
-		db:     db,
-		logger: logger,
+		db:      db,
+		cloudDB: cloudDB,
+		logger:  logger,
 	}
 }
 
@@ -61,22 +66,15 @@ func (l *Logger) LogAction(ctx context.Context, entry AuditEntry) error {
 		userAgent = entry.UserAgent
 	}
 
-	_, err := l.db.ExecContext(ctx,
-		`INSERT INTO audit_logs (tenant_id, actor_id, actor_email, action, resource_type, resource_id, details, ip_address, user_agent)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		entry.TenantID,
-		entry.ActorID,
-		entry.ActorEmail,
-		entry.Action,
-		entry.ResourceType,
-		resourceID,
-		detailsJSON,
-		ipAddr,
-		userAgent,
-	)
+	const auditSQL = `INSERT INTO audit_logs (tenant_id, actor_id, actor_email, action, resource_type, resource_id, details, ip_address, user_agent)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	auditArgs := []any{entry.TenantID, entry.ActorID, entry.ActorEmail, entry.Action, entry.ResourceType, resourceID, detailsJSON, ipAddr, userAgent}
+
+	_, err := l.db.ExecContext(ctx, auditSQL, auditArgs...)
 	if err != nil {
 		return fmt.Errorf("insert audit log: %w", err)
 	}
+	dualdb.FireExec(l.cloudDB, auditSQL, auditArgs...)
 
 	l.logger.DebugContext(ctx, "audit log recorded",
 		slog.String("tenant_id", entry.TenantID),
