@@ -6,6 +6,18 @@ export const CameraProtocolSchema = z.enum([
   "webrtc",
   "usb",
   "ip",
+  "rtmp",
+  "hls",
+  "mjpeg",
+  "ring",
+  "wyze",
+  "tuya",
+  "gopro",
+  "arlo",
+  "isapi",
+  "dvrip",
+  "ffmpeg",
+  "exec",
 ]);
 
 export const CameraLocationSchema = z.object({
@@ -24,8 +36,8 @@ export const CameraConfigSchema = z.object({
 export const CreateCameraSchema = z
   .object({
     name: z.string().min(1).max(100),
-    protocol: z.enum(["rtsp", "onvif", "usb"]),
-    connectionUri: z.string().max(500).default(""),
+    protocol: CameraProtocolSchema,
+    connectionUri: z.string().max(1000).default(""),
     usbDeviceIndex: z.number().int().min(0).max(9).optional(),
     location: CameraLocationSchema.optional(),
     config: CameraConfigSchema.optional(),
@@ -39,11 +51,8 @@ export const CreateCameraSchema = z
     return data;
   })
   .refine(
-    (data) =>
-      data.connectionUri.startsWith("rtsp://") ||
-      data.connectionUri.startsWith("http") ||
-      data.connectionUri.startsWith("ffmpeg:device"),
-    { message: "Must be a valid RTSP, ONVIF, or USB device URI", path: ["connectionUri"] },
+    (data) => data.connectionUri.trim().length > 0,
+    { message: "Connection URI is required", path: ["connectionUri"] },
   );
 
 export const UpdateCameraSchema = z.object({

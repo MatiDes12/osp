@@ -34,7 +34,7 @@ interface OnboardingWizardProps {
   readonly onComplete: () => void;
   readonly onAddCamera: (data: {
     name: string;
-    protocol: "rtsp" | "onvif" | "usb";
+    protocol: string;
     connectionUri: string;
     location?: { label?: string };
   }) => Promise<void>;
@@ -49,7 +49,7 @@ export function OnboardingWizard({
 
   // Camera form state
   const [cameraName, setCameraName] = useState("");
-  const [protocol, setProtocol] = useState<"rtsp" | "onvif" | "usb">("rtsp");
+  const [protocol, setProtocol] = useState("rtsp");
   const [connectionUri, setConnectionUri] = useState("");
   const [locationLabel, setLocationLabel] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -87,7 +87,7 @@ export function OnboardingWizard({
       try {
         const data: {
           name: string;
-          protocol: "rtsp" | "onvif" | "usb";
+          protocol: string;
           connectionUri: string;
           location?: { label?: string };
         } = {

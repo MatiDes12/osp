@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   Recording,
   Camera,
-  ApiResponse,
   RecordingTrigger,
 } from "@osp/shared";
 import { transformRecordings, transformCameras } from "@/lib/transforms";
@@ -14,7 +13,6 @@ import {
   Calendar,
   Filter,
   X,
-  AlertCircle,
   Clock,
   HardDrive,
   Video,
@@ -196,18 +194,20 @@ export default function RecordingsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
-  const prevBlobRef = useRef<string | null>(null);
 
   /**
-   * Resolve a playback URL for the selected recording.
-   * Uses the gateway's file-serving endpoint which streams the saved MP4.
-   * Falls back to go2rtc live stream only if no playbackUrl is available.
+   * Build a playback URL with the auth token as a query param.
+   * This lets the <video> element use native range requests for seeking
+   * without having to download the whole file as a blob first.
    */
   const getPlaybackUrl = useCallback((rec: Recording): string => {
-    if (rec.playbackUrl) return rec.playbackUrl;
-    // Fallback: construct the playback URL from the recording ID
-    return `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
+    const base = rec.playbackUrl
+      ? rec.playbackUrl
+      : `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
+    const token = localStorage.getItem("osp_access_token");
+    if (!token) return base;
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}token=${encodeURIComponent(token)}`;
   }, []);
 
   const fetchData = useCallback(async (append = false) => {
@@ -294,38 +294,6 @@ export default function RecordingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraFilter, dateFilter, triggerFilter, page]);
 
-  // Fetch the video file with auth headers and create a blob URL for playback
-  useEffect(() => {
-    if (!selectedRecording || selectedRecording.status === "recording") {
-      setVideoBlobUrl(null);
-      return;
-    }
-
-    let cancelled = false;
-    setVideoBlobUrl(null);
-    const url = getPlaybackUrl(selectedRecording);
-
-    fetch(url, { headers: getAuthHeaders() })
-      .then(async (res) => {
-        if (!res.ok || cancelled) return;
-        const blob = await res.blob();
-        if (cancelled) return;
-        // Revoke previous blob URL
-        if (prevBlobRef.current) {
-          URL.revokeObjectURL(prevBlobRef.current);
-        }
-        const blobUrl = URL.createObjectURL(blob);
-        prevBlobRef.current = blobUrl;
-        setVideoBlobUrl(blobUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setVideoBlobUrl(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedRecording, getPlaybackUrl]);
 
   const hasFilters = cameraFilter || dateFilter || triggerFilter;
 
@@ -552,21 +520,16 @@ export default function RecordingsPage() {
                       Stop the recording to play it back
                     </p>
                   </div>
-                ) : videoBlobUrl ? (
+                ) : (
                   <video
                     ref={videoRef}
                     key={selectedRecording.id}
-                    src={videoBlobUrl}
+                    src={getPlaybackUrl(selectedRecording)}
                     controls
                     autoPlay
                     className="w-full h-full object-contain"
                     poster={selectedRecording.thumbnailUrl ?? undefined}
                   />
-                ) : (
-                  <div className="text-center">
-                    <div className="h-8 w-8 mx-auto mb-2 border-2 border-zinc-600 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-zinc-500">Loading video...</p>
-                  </div>
                 )}
               </div>
 
@@ -637,9 +600,9 @@ export default function RecordingsPage() {
                 {/* Download */}
                 <div className="mt-4 pt-3 border-t border-zinc-800">
                   <a
-                    href={videoBlobUrl ?? "#"}
+                    href={getPlaybackUrl(selectedRecording)}
                     download={`${selectedRecording.cameraName}-${new Date(selectedRecording.startTime).toISOString().slice(0, 19)}.mp4`}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer ${!videoBlobUrl ? "pointer-events-none opacity-50" : ""}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Download Recording

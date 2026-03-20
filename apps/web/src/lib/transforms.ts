@@ -111,7 +111,10 @@ export function transformEvent(raw: RawRow): OSPEvent {
     severity: raw.severity as EventSeverity,
     detectedAt: raw.detected_at as string,
     metadata: (raw.metadata as Record<string, unknown>) ?? {},
-    snapshotUrl: (raw.snapshot_url as string | null) ?? null,
+    snapshotUrl:
+      (raw.snapshot_url as string | null) ??
+      ((raw.metadata as Record<string, unknown> | null)?.snapshotUrl as string | null) ??
+      null,
     clipUrl: (raw.clip_url as string | null) ??
       (raw.clip_path ? `${typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000") : ""}/api/v1/events/${raw.id as string}/clip` : null),
     intensity: (raw.intensity as number) ?? 0,

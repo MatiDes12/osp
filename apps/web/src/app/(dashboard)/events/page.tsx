@@ -212,6 +212,7 @@ export default function EventsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [clipModalUrl, setClipModalUrl] = useState<string | null>(null);
+  const [snapshotModalEvent, setSnapshotModalEvent] = useState<OSPEvent | null>(null);
 
   // Real-time WebSocket events
   const { events: wsEvents, connected: wsConnected } = useEventStream({
@@ -958,11 +959,17 @@ export default function EventsPage() {
 
                     {/* Thumbnail (hidden on mobile for compact layout) */}
                     {event.snapshotUrl ? (
-                      <img
-                        src={event.snapshotUrl}
-                        alt=""
-                        className="hidden w-12 h-12 rounded bg-zinc-800 object-cover shrink-0 sm:block"
-                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSnapshotModalEvent(event); }}
+                        className="hidden w-12 h-12 rounded bg-zinc-800 overflow-hidden shrink-0 sm:block cursor-zoom-in hover:ring-2 hover:ring-blue-500/50 transition-all"
+                        aria-label="View snapshot"
+                      >
+                        <img
+                          src={event.snapshotUrl}
+                          alt="Event snapshot"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
                     ) : (
                       <div className="hidden w-12 h-12 rounded bg-zinc-800 items-center justify-center shrink-0 sm:flex">
                         <div className="w-6 h-6 rounded-full bg-zinc-700" />
@@ -1046,6 +1053,53 @@ export default function EventsPage() {
           )}
         </div>
       </main>
+
+      {/* Snapshot viewer modal */}
+      {snapshotModalEvent?.snapshotUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center animate-[fadeIn_150ms_ease-out]">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setSnapshotModalEvent(null)}
+            onKeyDown={(e) => { if (e.key === "Escape") setSnapshotModalEvent(null); }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close snapshot"
+          />
+          <div className="relative z-50 w-full max-w-3xl mx-4 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-zinc-200 capitalize">
+                  {snapshotModalEvent.type.replace("_", " ")} — Snapshot
+                </span>
+                <span className="text-xs text-zinc-500">
+                  {new Date(snapshotModalEvent.detectedAt).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={snapshotModalEvent.snapshotUrl}
+                  download={`snapshot-${snapshotModalEvent.id}.jpg`}
+                  className="px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 rounded transition-colors"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => setSnapshotModalEvent(null)}
+                  className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <img
+              src={snapshotModalEvent.snapshotUrl}
+              alt="Event snapshot"
+              className="w-full object-contain max-h-[70vh] bg-black"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Clip playback modal */}
       {clipModalUrl && (

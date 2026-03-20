@@ -1,4 +1,21 @@
-export type CameraProtocol = "rtsp" | "onvif" | "webrtc" | "usb" | "ip";
+export type CameraProtocol =
+  | "rtsp"
+  | "onvif"
+  | "webrtc"
+  | "usb"
+  | "ip"
+  | "rtmp"
+  | "hls"
+  | "mjpeg"
+  | "ring"
+  | "wyze"
+  | "tuya"
+  | "gopro"
+  | "arlo"
+  | "isapi"
+  | "dvrip"
+  | "ffmpeg"
+  | "exec";
 
 export type CameraStatus =
   | "online"

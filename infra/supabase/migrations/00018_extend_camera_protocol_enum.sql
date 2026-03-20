@@ -1,0 +1,13 @@
+-- Extend camera_protocol enum with all go2rtc source types
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'rtmp';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'hls';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'mjpeg';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'ring';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'wyze';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'tuya';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'gopro';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'arlo';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'isapi';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'dvrip';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'ffmpeg';
+ALTER TYPE camera_protocol ADD VALUE IF NOT EXISTS 'exec';

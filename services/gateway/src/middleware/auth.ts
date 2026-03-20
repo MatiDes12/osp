@@ -8,11 +8,17 @@ import { hasRole } from "@osp/shared";
 export function requireAuth(minimumRole: UserRole = "viewer") {
   return createMiddleware<Env>(async (c, next) => {
     const authHeader = c.req.header("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Also accept ?token= query param for media endpoints (video element range requests)
+    const queryToken = c.req.query("token");
+
+    let token: string;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.slice(7);
+    } else if (queryToken) {
+      token = queryToken;
+    } else {
       throw new ApiError("AUTH_TOKEN_MISSING", "Authorization token required", 401);
     }
-
-    const token = authHeader.slice(7);
     const supabase = getSupabase();
 
     const {

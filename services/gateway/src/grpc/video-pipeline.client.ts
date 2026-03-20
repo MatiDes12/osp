@@ -200,7 +200,10 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
           { recordingId, tenantId },
         );
       } catch (err) {
-        if (isServiceUnavailable(err)) {
+        if (
+          isServiceUnavailable(err) ||
+          (err instanceof Error && err.message.includes("not found on gRPC stub"))
+        ) {
           logger.warn("Video-pipeline service not available, using direct mode");
           throw new GrpcFallbackError("video-pipeline", "getPlaybackURL");
         }

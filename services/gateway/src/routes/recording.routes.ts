@@ -88,25 +88,45 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
   const dayStart = `${date}T00:00:00.000Z`;
   const dayEnd = `${date}T23:59:59.999Z`;
 
-  const { data: recordings, error } = await supabase
-    .from("recordings")
-    .select("id, start_time, end_time, trigger, status")
-    .eq("tenant_id", tenantId)
-    .eq("camera_id", cameraId)
-    .gte("start_time", dayStart)
-    .lte("start_time", dayEnd)
-    .order("start_time", { ascending: true });
+  const [{ data: recordings, error }, { data: events }] = await Promise.all([
+    supabase
+      .from("recordings")
+      .select("id, start_time, end_time, trigger, status")
+      .eq("tenant_id", tenantId)
+      .eq("camera_id", cameraId)
+      .gte("start_time", dayStart)
+      .lte("start_time", dayEnd)
+      .order("start_time", { ascending: true }),
+    supabase
+      .from("events")
+      .select("id, type, severity, detected_at, metadata")
+      .eq("tenant_id", tenantId)
+      .eq("camera_id", cameraId)
+      .gte("detected_at", dayStart)
+      .lte("detected_at", dayEnd)
+      .order("detected_at", { ascending: true }),
+  ]);
 
   if (error) {
     throw new ApiError("INTERNAL_ERROR", "Failed to fetch timeline", 500);
   }
 
   const segments = (recordings ?? []).map((r) => ({
-    id: r.id as string,
+    recordingId: r.id as string,
     startTime: r.start_time as string,
-    endTime: r.end_time as string | null,
+    endTime: (r.end_time as string | null) ?? new Date().toISOString(),
     trigger: r.trigger as string,
-    status: r.status as string,
+    hasEvents: false,
+  }));
+
+  const mappedEvents = (events ?? []).map((e) => ({
+    eventId: e.id as string,
+    type: e.type as string,
+    severity: e.severity as string,
+    timestamp: e.detected_at as string,
+    thumbnailUrl:
+      ((e.metadata as Record<string, unknown>)?.snapshotUrl as string | null) ??
+      null,
   }));
 
   return c.json(
@@ -114,6 +134,7 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
       cameraId,
       date,
       segments,
+      events: mappedEvents,
     }),
   );
 });
@@ -296,15 +317,23 @@ async function enrichRecordings(
     }
   }
 
+  const gatewayUrl = get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
+
   return Promise.all(
     recordings.map(async (r) => {
-    const cameraId = r.camera_id as string;
-    const recId = r.id as string;
-    return {
-      ...r,
-      camera_name: nameMap.get(cameraId) ?? "Unknown Camera",
-      playback_url: await recordingService.getPlaybackUrl(recId, tenantId),
-    };
+      const cameraId = r.camera_id as string;
+      const recId = r.id as string;
+      let playbackUrl: string;
+      try {
+        playbackUrl = await recordingService.getPlaybackUrl(recId, tenantId);
+      } catch {
+        playbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recId)}/play`;
+      }
+      return {
+        ...r,
+        camera_name: nameMap.get(cameraId) ?? "Unknown Camera",
+        playback_url: playbackUrl,
+      };
     }),
   );
 }

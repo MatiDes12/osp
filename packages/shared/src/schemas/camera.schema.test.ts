@@ -63,12 +63,21 @@ describe("CreateCameraSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("protocol must be rtsp, onvif, or usb", () => {
+  it("protocol must be a known value", () => {
+    const result = CreateCameraSchema.safeParse({
+      ...validInput,
+      protocol: "unknown_proto",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts webrtc protocol", () => {
     const result = CreateCameraSchema.safeParse({
       ...validInput,
       protocol: "webrtc",
+      connectionUri: "http://server/whep/stream",
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("rejects missing connectionUri", () => {

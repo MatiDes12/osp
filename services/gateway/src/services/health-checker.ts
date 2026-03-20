@@ -130,7 +130,7 @@ export class CameraHealthChecker {
 
       if (error || !cameras) {
         logger.warn("Startup stream sync failed to fetch cameras", {
-          error: String(error),
+          error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
         });
         return;
       }
@@ -166,7 +166,7 @@ export class CameraHealthChecker {
 
     if (error || !cameras) {
       logger.warn("Failed to fetch cameras for health check", {
-        error: String(error),
+        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
       });
       return [];
     }
@@ -211,7 +211,7 @@ export class CameraHealthChecker {
     if (error) {
       logger.warn("Failed to update camera status", {
         cameraId,
-        error: String(error),
+        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
       });
       return false;
     }
@@ -250,7 +250,7 @@ export class CameraHealthChecker {
     if (error || !created) {
       logger.warn("Failed to create health check event", {
         cameraId: camera.id,
-        error: String(error),
+        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
       });
       return;
     }
@@ -311,7 +311,30 @@ export class CameraHealthChecker {
         zoneSensitivityMap.set(z.camera_id, existing);
       }
 
+      // Fetch go2rtc stream statuses once — only sample cameras that have
+      // active producers (i.e. go2rtc is currently connected to the source).
+      // Without this, go2rtc is in lazy-pull mode: when no WebRTC viewer is
+      // active it disconnects from the RTSP source, so frame.jpeg times out.
+      const streamStatuses = await this.fetchStreamStatuses();
+
       for (const row of cameras as CameraRow[]) {
+        const stream = streamStatuses.get(row.id);
+        const hasProducer = (stream?.producers?.length ?? 0) > 0;
+
+        if (!hasProducer) {
+          // go2rtc is not connected to this camera right now.
+          // Calling frame.jpeg will wake go2rtc's reconnect attempt — fire
+          // it asynchronously so the next sample cycle (1 s later) succeeds.
+          logger.debug("Motion: no active producer, waking go2rtc connection", {
+            cameraId: row.id,
+          });
+          void fetch(
+            `${this.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(row.id)}`,
+            { signal: AbortSignal.timeout(500) },
+          ).catch(() => {});
+          continue;
+        }
+
         await this.sampleCameraForMotion(row, zoneSensitivityMap.get(row.id) ?? []);
       }
     } catch (err) {
@@ -327,8 +350,10 @@ export class CameraHealthChecker {
     camera: CameraRow,
     zoneSensitivities: readonly number[],
   ): Promise<void> {
-    const frame = await this.fetchFrame(camera.id);
-    if (!frame) return;
+    const result = await this.fetchFrame(camera.id);
+    if (!result) return;
+
+    const { rgba: frame, jpegBuffer } = result;
 
     const previous = this.previousFrames.get(camera.id);
     this.previousFrames.set(camera.id, frame);
@@ -345,31 +370,52 @@ export class CameraHealthChecker {
     );
     const diffRatio = computePixelDiffRatio(previous, frame, 4, 24);
 
+    logger.debug("Motion: frame diff sampled", {
+      cameraId: camera.id,
+      diffRatio: diffRatio.toFixed(4),
+      effectiveSensitivity: String(effectiveSensitivity),
+      triggered: String(shouldTriggerMotion(diffRatio, effectiveSensitivity)),
+    });
+
     if (!shouldTriggerMotion(diffRatio, effectiveSensitivity)) return;
 
     this.lastMotionAt.set(camera.id, now);
-    await this.createMotionEvent(camera, diffRatio, effectiveSensitivity);
+    await this.createMotionEvent(camera, diffRatio, effectiveSensitivity, jpegBuffer);
   }
 
-  private async fetchFrame(cameraId: string): Promise<RgbaFrame | null> {
+  private async fetchFrame(
+    cameraId: string,
+  ): Promise<{ rgba: RgbaFrame; jpegBuffer: Buffer } | null> {
     try {
       const res = await fetch(
         `${this.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`,
-        { signal: AbortSignal.timeout(3_000) },
+        { signal: AbortSignal.timeout(8_000) }, // 8 s — gives go2rtc time to reconnect to RTSP
       );
-      if (!res.ok) return null;
+      if (!res.ok) {
+        logger.debug("Motion: frame.jpeg returned non-OK", {
+          cameraId,
+          status: String(res.status),
+        });
+        return null;
+      }
       const jpegBuffer = Buffer.from(await res.arrayBuffer());
       const decoded = jpeg.decode(jpegBuffer, {
         useTArray: true,
         formatAsRGBA: true,
       });
-      if (!decoded?.data || !decoded.width || !decoded.height) return null;
+      if (!decoded?.data || !decoded.width || !decoded.height) {
+        logger.debug("Motion: JPEG decode returned empty frame", { cameraId });
+        return null;
+      }
       return {
-        width: decoded.width,
-        height: decoded.height,
-        data: decoded.data,
+        rgba: { width: decoded.width, height: decoded.height, data: decoded.data },
+        jpegBuffer,
       };
-    } catch {
+    } catch (err) {
+      logger.debug("Motion: frame fetch failed", {
+        cameraId,
+        error: String(err),
+      });
       return null;
     }
   }
@@ -378,13 +424,23 @@ export class CameraHealthChecker {
     camera: CameraRow,
     diffRatio: number,
     effectiveSensitivity: number,
+    jpegBuffer?: Buffer,
   ): Promise<void> {
     const supabase = getSupabase();
     const nowIso = new Date().toISOString();
     const intensity = estimateIntensity(diffRatio);
-    const snapshotUrl = `${this.go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(camera.id)}&t=${Date.now()}`;
     const severity = this.getMotionSeverity(intensity);
 
+    // Convert the JPEG frame to a base64 data URL so the browser can display
+    // it directly without needing access to internal go2rtc URLs.
+    let snapshotUrl: string | null = null;
+    if (jpegBuffer && jpegBuffer.length > 0) {
+      snapshotUrl = `data:image/jpeg;base64,${jpegBuffer.toString("base64")}`;
+    }
+
+    // Note: the events table has no snapshot_url column — store in metadata
+    // (jsonb) instead. snapshot_id is a FK to the snapshots table which
+    // requires a separate upload; we skip that for auto-detected events.
     const { data: created, error } = await supabase
       .from("events")
       .insert({
@@ -399,8 +455,8 @@ export class CameraHealthChecker {
           source: "health-checker-motion-worker",
           diffRatio,
           effectiveSensitivity,
+          snapshotUrl, // base64 data URL — browser-renderable without auth
         },
-        snapshot_url: snapshotUrl,
         intensity,
         acknowledged: false,
       })
@@ -410,11 +466,13 @@ export class CameraHealthChecker {
     if (error || !created) {
       logger.warn("Failed to create motion event", {
         cameraId: camera.id,
-        error: String(error),
+        error: (error as { message?: string; code?: string } | null)?.message ?? JSON.stringify(error),
+        code: (error as { code?: string } | null)?.code,
       });
       return;
     }
 
+    const eventMetadata = (created.metadata as Record<string, unknown>) ?? {};
     const ospEvent = {
       id: created.id as string,
       cameraId: camera.id,
@@ -425,9 +483,9 @@ export class CameraHealthChecker {
       type: "motion",
       severity: created.severity as string,
       detectedAt: created.detected_at as string,
-      metadata: (created.metadata as Record<string, unknown>) ?? {},
-      snapshotUrl: created.snapshot_url as string | null,
-      clipUrl: created.clip_path as string | null,
+      metadata: eventMetadata,
+      snapshotUrl: (eventMetadata.snapshotUrl as string | null) ?? null,
+      clipUrl: (created.clip_path as string | null) ?? null,
       intensity: created.intensity as number,
       acknowledged: false,
       acknowledgedBy: null,
