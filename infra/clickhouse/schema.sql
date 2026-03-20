@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS osp.events_analytics
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(detected_at)
 ORDER BY (tenant_id, detected_at, camera_id)
-TTL detected_at + INTERVAL 2 YEAR
+TTL toDateTime(detected_at) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- ─── Recordings analytics ─────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS osp.recordings_analytics
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(start_time)
 ORDER BY (tenant_id, start_time, camera_id)
-TTL start_time + INTERVAL 2 YEAR
+TTL toDateTime(start_time) + INTERVAL 2 YEAR
 SETTINGS index_granularity = 8192;
 
 -- ─── Materialized view: hourly event counts per camera ────────────────────────

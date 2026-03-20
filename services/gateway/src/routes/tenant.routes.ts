@@ -24,6 +24,11 @@ const UpdateTenantSettingsSchema = z.object({
         .object({
           emailDigest: z.enum(["none", "daily", "weekly"]).optional(),
           pushEnabled: z.boolean().optional(),
+          emailEnabled: z.boolean().optional(),
+          severityThreshold: z.enum(["all", "high", "critical"]).optional(),
+          quietHoursEnabled: z.boolean().optional(),
+          quietHoursStart: z.string().optional(),
+          quietHoursEnd: z.string().optional(),
         })
         .optional(),
     })
