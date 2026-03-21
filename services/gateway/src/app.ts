@@ -41,6 +41,7 @@ const app = new Hono<Env>();
 
 import { requestLogger } from "./middleware/request-logger.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
+import { apiVersion, CURRENT_API_VERSION } from "./middleware/api-version.js";
 import { createLogger } from "./lib/logger.js";
 
 // Global middleware
@@ -76,6 +77,9 @@ app.use(
   }),
 );
 
+// API versioning headers on every /api/* response
+app.use("/api/*", apiVersion());
+
 // Tenant context and rate limiting for API routes
 app.use("/api/*", tenantContext());
 app.use("/api/*", rateLimit());
@@ -86,6 +90,13 @@ app.get("/", (c) => {
     name: "OSP — Open Surveillance Platform | Camera Management, Live Monitoring & Extensible Security",
     version: "0.1.0",
     status: "running",
+    api: {
+      currentVersion: CURRENT_API_VERSION,
+      supportedVersions: ["1"],
+      deprecatedVersions: [],
+      versioningHeader: "Accept-Version",
+      sunsetPolicy: "6 months notice via Deprecation + Sunset response headers (RFC 8594)",
+    },
     endpoints: {
       health: "/health",
       auth: "/api/v1/auth",

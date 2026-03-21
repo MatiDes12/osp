@@ -420,9 +420,11 @@ pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 - `apps/mobile/lib/recordings-cache.ts` — `saveRecordingsCache` / `loadRecordingsCache` / `formatCacheAge` helpers
 - `apps/mobile/app/(tabs)/recordings.tsx` — loads cache immediately on mount (no blank spinner), fetches fresh data in background, falls back to cache on network failure with amber "Offline — cached Xm ago" banner. Saves latest 20 items on every successful fetch.
 
-#### TODO-25: API versioning strategy
-**Status**: All routes are at `/api/v1/`. No v2 yet.
-**When needed**: Before any breaking API changes. Add `/api/v2/` prefix, maintain v1 for 6 months.
+#### ✅ TODO-25: API versioning strategy
+**Status**: Done. Infrastructure in place; no v2 routes yet.
+- `services/gateway/src/middleware/api-version.ts` — `apiVersion()` middleware (adds `API-Version: 1` header to every response), `deprecated(sunsetDate)` helper (RFC 8594 Deprecation + Sunset headers), `getRequestedVersion()` parser for `Accept-Version` request header
+- `services/gateway/src/app.ts` — `apiVersion()` applied to all `/api/*` routes; root endpoint exposes `api.currentVersion`, `supportedVersions`, `deprecatedVersions`, `sunsetPolicy`
+- `docs/API-VERSIONING.md` — full strategy doc: breaking vs non-breaking rules, 6-month deprecation lifecycle, client guidance, step-by-step v2 migration instructions
 
 ---
 
