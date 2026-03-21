@@ -32,6 +32,8 @@ const EVENT_ICONS: Record<EventType, LucideIcon> = {
   tampering: ShieldAlert,
   audio: Mic,
   custom: Circle,
+  "lpr.detected": Car,
+  "lpr.alert": ShieldAlert,
 };
 
 const SEVERITY_BORDER_COLORS: Record<EventSeverity, string> = {
