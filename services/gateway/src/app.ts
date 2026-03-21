@@ -46,6 +46,7 @@ const app = new Hono<Env>();
 import { requestLogger } from "./middleware/request-logger.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 import { apiVersion, CURRENT_API_VERSION } from "./middleware/api-version.js";
+import { securityHeaders } from "./middleware/security-headers.js";
 import { createLogger } from "./lib/logger.js";
 
 // Global middleware
@@ -53,6 +54,7 @@ app.use("*", requestId());
 app.use("*", requestLogger());
 app.use("*", metricsMiddleware());
 app.use("*", errorHandler());
+app.use("*", securityHeaders());
 app.use(
   "/health/*",
   cors({

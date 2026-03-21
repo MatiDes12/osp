@@ -7,6 +7,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { get } from "../lib/config.js";
 import { getRecordingService } from "../services/recording.service.js";
 import { isR2StoragePath } from "../lib/r2.js";
+import { assertSafePath } from "../lib/path-guard.js";
 import { createSuccessResponse } from "@osp/shared";
 import { Readable } from "node:stream";
 
@@ -217,6 +218,12 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
       "Recording is in R2 storage but R2 is not configured for playback",
       503,
     );
+  }
+  // Guard against path traversal — filePath must be within RECORDINGS_DIR
+  try {
+    assertSafePath(filePath);
+  } catch {
+    throw new ApiError("RECORDING_FILE_NOT_FOUND", "Recording file not found", 404);
   }
   if (!existsSync(filePath)) {
     throw new ApiError(

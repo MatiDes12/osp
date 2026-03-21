@@ -5,10 +5,49 @@ import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { RegisterSchema, LoginSchema, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema } from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
+import { getRedis } from "../lib/redis.js";
+import { createLogger } from "../lib/logger.js";
+
+const logger = createLogger("auth");
+
+/**
+ * IP-based brute-force guard for auth endpoints.
+ * Blocks after maxAttempts within windowSec regardless of tenant.
+ * Uses X-Forwarded-For in production (behind a proxy); falls back to remoteAddr.
+ */
+async function checkAuthRateLimit(c: Parameters<Parameters<typeof authRoutes.use>[1]>[0], action: string): Promise<void> {
+  const xff = c.req.header("X-Forwarded-For");
+  const ip = xff ? xff.split(",")[0]!.trim() : (c.req.header("X-Real-IP") ?? "unknown");
+  const key = `osp:auth:${action}:${ip}`;
+  const windowSec = 900; // 15 minutes
+  const maxAttempts = action === "register" ? 5 : 10;
+
+  try {
+    const redis = getRedis();
+    const pipeline = redis.multi();
+    pipeline.incr(key);
+    pipeline.expire(key, windowSec);
+    const results = await pipeline.exec();
+    const count = (results?.[0]?.[1] as number) ?? 0;
+
+    if (count > maxAttempts) {
+      throw new ApiError(
+        "AUTH_RATE_LIMITED",
+        "Too many attempts. Please try again in 15 minutes.",
+        429,
+      );
+    }
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    // Redis unavailable — fail open (don't block legitimate users)
+    logger.warn("Auth rate limit check failed", { action, error: String(err) });
+  }
+}
 
 export const authRoutes = new Hono<Env>();
 
 authRoutes.post("/register", async (c) => {
+  await checkAuthRateLimit(c, "register");
   const body = await c.req.json();
   const input = RegisterSchema.parse(body);
   const supabase = getSupabase();
@@ -61,8 +100,8 @@ authRoutes.post("/register", async (c) => {
     .single();
 
   if (tenantError) {
-    console.error("Tenant creation failed:", tenantError);
-    throw new ApiError("INTERNAL_ERROR", `Failed to create tenant: ${tenantError.message}`, 500);
+    logger.error("Tenant creation failed", { error: tenantError.message });
+    throw new ApiError("INTERNAL_ERROR", "Failed to create account. Please try again.", 500);
   }
 
   // Create user record
@@ -128,6 +167,7 @@ authRoutes.post("/register", async (c) => {
 });
 
 authRoutes.post("/login", async (c) => {
+  await checkAuthRateLimit(c, "login");
   const body = await c.req.json();
   const input = LoginSchema.parse(body);
   const supabase = getSupabase();
@@ -150,12 +190,20 @@ authRoutes.post("/login", async (c) => {
   const tenantId = user.user_metadata?.["tenant_id"] as string;
   const role = user.user_metadata?.["role"] as string;
 
-  // Fetch tenant info
+  // Fetch tenant info — also enforce suspension check
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id, name, slug, plan")
+    .select("id, name, slug, plan, status")
     .eq("id", tenantId)
     .single();
+
+  if (tenant?.status === "suspended") {
+    throw new ApiError(
+      "AUTH_TENANT_SUSPENDED",
+      "This account has been suspended. Please contact support.",
+      403,
+    );
+  }
 
   return c.json(
     createSuccessResponse({

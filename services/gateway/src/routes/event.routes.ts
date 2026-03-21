@@ -1,5 +1,6 @@
 import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "node:fs";
 import { join } from "node:path";
+import { assertSafePath } from "../lib/path-guard.js";
 import { Readable } from "node:stream";
 import { spawn } from "node:child_process";
 import { Hono } from "hono";
@@ -653,7 +654,13 @@ eventRoutes.get("/:id/clip", requireAuth("viewer"), async (c) => {
   }
 
   const filePath = event.clip_path as string | null;
-  if (!filePath || !existsSync(filePath)) {
+  if (!filePath) {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+  try { assertSafePath(filePath); } catch {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+  if (!existsSync(filePath)) {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
 
@@ -714,7 +721,13 @@ eventRoutes.get("/:id/thumbnail", requireAuth("viewer"), async (c) => {
   }
 
   const clipPath = event.clip_path as string | null;
-  if (!clipPath || !existsSync(clipPath)) {
+  if (!clipPath) {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+  try { assertSafePath(clipPath); } catch {
+    throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
+  }
+  if (!existsSync(clipPath)) {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
 

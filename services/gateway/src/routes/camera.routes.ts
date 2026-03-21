@@ -70,7 +70,9 @@ cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
     query = query.eq("status", status);
   }
   if (search) {
-    query = query.ilike("name", `%${search}%`);
+    // Cap search length to prevent expensive wildcard queries
+    const safeSearch = search.slice(0, 100);
+    query = query.ilike("name", `%${safeSearch}%`);
   }
   if (locationId) {
     query = query.eq("location_id", locationId);
