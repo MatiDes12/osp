@@ -9,6 +9,8 @@ export const EventTypeSchema = z.enum([
   "camera_online",
   "tampering",
   "audio",
+  "lpr.detected",
+  "lpr.alert",
   "custom",
 ]);
 

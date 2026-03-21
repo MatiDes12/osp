@@ -7,6 +7,8 @@ export type EventType =
   | "camera_online"
   | "tampering"
   | "audio"
+  | "lpr.detected"
+  | "lpr.alert"
   | "custom";
 
 export type EventSeverity = "low" | "medium" | "high" | "critical";
