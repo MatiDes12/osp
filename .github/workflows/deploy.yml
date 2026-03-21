@@ -236,11 +236,10 @@ jobs:
 
       - name: Deploy to Vercel
         run: |
-          cd apps/web
           if [ "${{ needs.changes.outputs.environment }}" = "production" ]; then
-            npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+            npx vercel deploy --prod --cwd apps/web --token=${{ secrets.VERCEL_TOKEN }}
           else
-            npx vercel deploy --token=${{ secrets.VERCEL_TOKEN }}
+            npx vercel deploy --cwd apps/web --token=${{ secrets.VERCEL_TOKEN }}
           fi
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
