@@ -118,18 +118,15 @@ cd apps/web && pnpm dev                  # Web on :3001
 
 ---
 
-## 🚧 PARTIALLY DONE
+## ✅ PREVIOUSLY PARTIAL — NOW DONE
 
-### 1. Go Services — need `go.sum` files + compilation test
-**Status**: Code written, but `go mod tidy` never run (no Go installed on dev Mac)
-**What's needed**: On a machine with Go 1.22+:
-```bash
-cd services/camera-ingest && go mod tidy && go build ./cmd/server
-cd services/video-pipeline && go mod tidy && go build ./cmd/server
-cd services/event-engine && go mod tidy && go build ./cmd/server
-cd services/extension-runtime && go mod tidy && go build ./cmd/server
-```
-Fix any compilation errors, ensure all 4 services compile.
+### 1. ✅ Go Services — compilation verified
+**Status**: Done. All 4 services compiled and produce Docker images via `go-service.Dockerfile`.
+- camera-ingest: 33s build ✅
+- video-pipeline: 51s build ✅
+- event-engine: 37s build ✅
+- extension-runtime: 25s build ✅
+See TODO-4 for full details.
 
 ### 2. Extension Runtime — ✅ Done (Node.js vm sandbox)
 **Status**: `extension-runner.ts` uses Node.js `vm` module with sandboxed context, timeout clamping, and EXTENSION_ALLOW_INLINE_SOURCE guard. Phase 3 Wasm option still available.
