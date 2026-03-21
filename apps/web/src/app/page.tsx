@@ -246,61 +246,42 @@ export default function HomePage() {
               {(
                 [
                   {
-                    name: "Front Entrance", res: "4K",
-                    img: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=450&fit=crop&auto=format&q=75",
+                    name: "Front Entrance", res: "4K", cam: "CAM 01", ts: "14:23:07",
+                    img: "https://images.unsplash.com/photo-1524758631624-e2822132c53c?w=800&h=450&fit=crop&auto=format&q=80",
                   },
                   {
-                    name: "Parking Lot B", res: "1080p",
-                    img: "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=800&h=450&fit=crop&auto=format&q=75",
+                    name: "Parking Lot B", res: "1080p", cam: "CAM 02", ts: "14:23:09",
+                    img: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=800&h=450&fit=crop&auto=format&q=80",
                   },
                   {
-                    name: "Server Room", res: "4K",
-                    img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop&auto=format&q=75",
+                    name: "Server Room", res: "4K", cam: "CAM 03", ts: "14:23:11",
+                    img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop&auto=format&q=80",
                   },
                   {
-                    name: "Warehouse East", res: "1080p",
-                    img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&h=450&fit=crop&auto=format&q=75",
+                    name: "Warehouse East", res: "1080p", cam: "CAM 04", ts: "14:23:13",
+                    img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&h=450&fit=crop&auto=format&q=80",
                   },
                 ] as const
               ).map((cam) => (
-                <div
-                  key={cam.name}
-                  className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"
-                >
-                  {/* Real camera feed image */}
+                <div key={cam.name} className="relative aspect-video overflow-hidden rounded-xl border border-zinc-700/50 bg-black">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={cam.img}
-                    alt={cam.name}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    style={{ filter: "saturate(0.45) contrast(1.15) brightness(0.72)" }}
-                  />
-                  {/* Dark vignette overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-zinc-950/20" />
-                  {/* Scan-line texture */}
-                  <div
-                    aria-hidden="true"
-                    className="absolute inset-0 opacity-[0.06]"
-                    style={{
-                      backgroundImage:
-                        "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.05) 2px,rgba(255,255,255,0.05) 4px)",
-                    }}
-                  />
-
-                  {/* Badges */}
-                  <div className="absolute left-3 top-3 flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded bg-zinc-950/80 px-2 py-0.5 text-xs font-medium text-zinc-300 backdrop-blur">
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse-live" />
-                      LIVE
-                    </span>
-                    <span className="rounded bg-zinc-950/80 px-2 py-0.5 text-xs font-medium text-zinc-400 backdrop-blur">
-                      {cam.res}
-                    </span>
+                  <img src={cam.img} alt={cam.name} className="absolute inset-0 h-full w-full object-cover" style={{ filter: "grayscale(1) contrast(1.3) brightness(0.58)" }} />
+                  {/* Scanlines */}
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.2) 3px,rgba(0,0,0,0.2) 4px)", zIndex: 1 }} />
+                  {/* Grain */}
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.08]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", zIndex: 1 }} />
+                  {/* Top bar — CAM id + REC */}
+                  <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-3 py-2" style={{ zIndex: 2 }}>
+                    <span className="font-mono text-[10px] font-bold tracking-widest text-white/80">{cam.cam}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                      <span className="font-mono text-[10px] font-bold tracking-widest text-red-400">REC</span>
+                    </div>
                   </div>
-                  <div className="absolute bottom-3 left-3">
-                    <span className="rounded bg-zinc-950/80 px-2 py-0.5 text-xs font-medium text-zinc-300 backdrop-blur">
-                      {cam.name}
-                    </span>
+                  {/* Bottom bar — name + timestamp */}
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2" style={{ zIndex: 2 }}>
+                    <span className="font-mono text-[10px] tracking-wide text-white/75">{cam.name} · {cam.res}</span>
+                    <span className="font-mono text-[10px] text-white/45">2026-03-21  {cam.ts}</span>
                   </div>
                 </div>
               ))}
