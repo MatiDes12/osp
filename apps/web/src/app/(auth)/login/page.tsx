@@ -102,30 +102,49 @@ export default function LoginPage() {
         <div className="relative z-10 grid w-full max-w-lg grid-cols-2 gap-3 p-12">
           {(
             [
-              { name: "Lobby", glow: "from-blue-500/20" },
-              { name: "Garage", glow: "from-green-500/20" },
-              { name: "Server Room", glow: "from-blue-500/20" },
-              { name: "Entrance", glow: "from-green-500/20" },
+              {
+                name: "Lobby",
+                img: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Garage",
+                img: "https://images.unsplash.com/photo-1519003300449-424ad0405076?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Server Room",
+                img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Entrance",
+                img: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=640&h=360&fit=crop&auto=format&q=75",
+              },
             ] as const
           ).map((cam) => (
             <div
               key={cam.name}
               className="relative aspect-video overflow-hidden rounded-lg border border-zinc-800/80 bg-zinc-900/80"
             >
-              <div
-                className={`absolute inset-0 bg-gradient-to-br ${cam.glow} via-transparent to-transparent opacity-60`}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={cam.img}
+                alt={cam.name}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ filter: "saturate(0.3) contrast(1.2) brightness(0.65)" }}
               />
+              {/* Dark overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
+              {/* Scan-line texture */}
               <div
                 aria-hidden="true"
-                className="absolute inset-0 opacity-[0.03]"
+                className="absolute inset-0 opacity-[0.06]"
                 style={{
                   backgroundImage:
-                    "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.04) 2px,rgba(255,255,255,0.04) 4px)",
+                    "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.05) 2px,rgba(255,255,255,0.05) 4px)",
                 }}
               />
               <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse-live" />
-                <span className="text-[10px] font-medium text-zinc-400">
+                <span className="text-[10px] font-medium text-zinc-300">
                   {cam.name}
                 </span>
               </div>

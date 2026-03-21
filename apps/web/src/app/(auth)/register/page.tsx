@@ -109,57 +109,56 @@ export default function RegisterPage() {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_50%,transparent_20%,rgb(9,9,11)_100%)]"
         />
 
-        {/* Node / connection illustration */}
-        <div className="relative z-10 flex flex-col items-center gap-6 p-12">
-          {/* Central node */}
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10">
-            <Shield className="h-10 w-10 text-blue-400" />
-          </div>
-
-          {/* Connection lines */}
-          <div className="flex items-center gap-8">
-            {(
-              [
-                { label: "Cameras", color: "border-green-500/30 bg-green-500/10 text-green-400" },
-                { label: "Alerts", color: "border-amber-500/30 bg-amber-500/10 text-amber-400" },
-                { label: "Storage", color: "border-cyan-500/30 bg-cyan-500/10 text-cyan-400" },
-              ] as const
-            ).map((node) => (
-              <div key={node.label} className="flex flex-col items-center gap-2">
-                <div className="h-8 w-px bg-zinc-800" />
-                <div
-                  className={`rounded-lg border px-4 py-2 text-xs font-medium ${node.color}`}
-                >
-                  {node.label}
-                </div>
+        {/* Camera grid */}
+        <div className="relative z-10 grid w-full max-w-lg grid-cols-2 gap-3 p-12">
+          {(
+            [
+              {
+                name: "Front Gate",
+                img: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Office Floor",
+                img: "https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Loading Bay",
+                img: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+              {
+                name: "Rooftop",
+                img: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=640&h=360&fit=crop&auto=format&q=75",
+              },
+            ] as const
+          ).map((cam) => (
+            <div
+              key={cam.name}
+              className="relative aspect-video overflow-hidden rounded-lg border border-zinc-800/80 bg-zinc-900/80"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={cam.img}
+                alt={cam.name}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ filter: "saturate(0.3) contrast(1.2) brightness(0.65)" }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/20 to-transparent" />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 opacity-[0.06]"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.05) 2px,rgba(255,255,255,0.05) 4px)",
+                }}
+              />
+              <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse-live" />
+                <span className="text-[10px] font-medium text-zinc-300">
+                  {cam.name}
+                </span>
               </div>
-            ))}
-          </div>
-
-          {/* Second tier */}
-          <div className="flex items-center gap-6">
-            {(
-              [
-                { label: "SDK", color: "border-purple-500/30 bg-purple-500/10 text-purple-400" },
-                { label: "AI", color: "border-pink-500/30 bg-pink-500/10 text-pink-400" },
-                { label: "API", color: "border-blue-500/30 bg-blue-500/10 text-blue-400" },
-                { label: "RBAC", color: "border-green-500/30 bg-green-500/10 text-green-400" },
-              ] as const
-            ).map((node) => (
-              <div key={node.label} className="flex flex-col items-center gap-2">
-                <div className="h-6 w-px bg-zinc-800/60" />
-                <div
-                  className={`rounded-md border px-3 py-1.5 text-[10px] font-medium ${node.color}`}
-                >
-                  {node.label}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <p className="mt-8 max-w-xs text-center text-sm leading-relaxed text-zinc-600">
-            Open, extensible architecture that grows with your needs
-          </p>
+            </div>
+          ))}
         </div>
 
         {/* Brand watermark */}

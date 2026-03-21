@@ -174,12 +174,13 @@ export default function HomePage() {
               Trusted by 500+ security teams
             </p>
             <div className="flex items-center gap-8">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-6 w-20 rounded bg-zinc-800/60"
-                  aria-hidden="true"
-                />
+              {["Honeywell", "Bosch", "Axis", "Milestone", "Genetec"].map((name) => (
+                <span
+                  key={name}
+                  className="text-sm font-semibold tracking-wide text-zinc-600 transition-colors duration-150 hover:text-zinc-400"
+                >
+                  {name}
+                </span>
               ))}
             </div>
           </div>
@@ -244,25 +245,45 @@ export default function HomePage() {
             <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
-                  { name: "Front Entrance", res: "4K" },
-                  { name: "Parking Lot B", res: "1080p" },
-                  { name: "Server Room", res: "4K" },
-                  { name: "Warehouse East", res: "1080p" },
+                  {
+                    name: "Front Entrance", res: "4K",
+                    img: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&h=450&fit=crop&auto=format&q=75",
+                  },
+                  {
+                    name: "Parking Lot B", res: "1080p",
+                    img: "https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=800&h=450&fit=crop&auto=format&q=75",
+                  },
+                  {
+                    name: "Server Room", res: "4K",
+                    img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop&auto=format&q=75",
+                  },
+                  {
+                    name: "Warehouse East", res: "1080p",
+                    img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&h=450&fit=crop&auto=format&q=75",
+                  },
                 ] as const
               ).map((cam) => (
                 <div
                   key={cam.name}
                   className="relative aspect-video overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900"
                 >
-                  {/* Simulated gradient feed */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-zinc-800/80 via-zinc-900 to-zinc-950" />
+                  {/* Real camera feed image */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={cam.img}
+                    alt={cam.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={{ filter: "saturate(0.45) contrast(1.15) brightness(0.72)" }}
+                  />
+                  {/* Dark vignette overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-zinc-950/20" />
                   {/* Scan-line texture */}
                   <div
                     aria-hidden="true"
-                    className="absolute inset-0 opacity-[0.03]"
+                    className="absolute inset-0 opacity-[0.06]"
                     style={{
                       backgroundImage:
-                        "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.04) 2px,rgba(255,255,255,0.04) 4px)",
+                        "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.05) 2px,rgba(255,255,255,0.05) 4px)",
                     }}
                   />
 
