@@ -74,7 +74,7 @@ function StatCard({
   sub,
   color = "blue",
 }: {
-  icon: React.ElementType;
+  icon: React.ElementType<{ size?: number; className?: string }>;
   label: string;
   value: string;
   sub?: string;

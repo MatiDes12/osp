@@ -363,13 +363,15 @@ pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 
 ---
 
-#### TODO-15: Sentry error monitoring — needs DSN
-**Status**: `sentry.ts` exists. Gateway imports it. Just needs a DSN.
-**Steps**:
-1. Create project at sentry.io (free tier available)
-2. Add to `.env`: `SENTRY_DSN=https://xxx@xxx.ingest.sentry.io/xxx`
-3. Add to Vercel env vars: `NEXT_PUBLIC_SENTRY_DSN=...`
-4. Verify errors appear in Sentry dashboard
+#### ✅ TODO-15: Sentry error monitoring
+**Status**: Done. Fully wired for both gateway and web app.
+- `.env` — `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`
+- `services/gateway/src/lib/sentry.ts` — `initSentry()` already called on startup, now has real DSN
+- `apps/web/sentry.client.config.ts` — browser Sentry init (Replay, 1% session / 100% error)
+- `apps/web/sentry.server.config.ts` + `sentry.edge.config.ts` — server/edge init
+- `apps/web/instrumentation.ts` — Next.js 15 instrumentation hook loads server/edge config
+- `apps/web/next.config.ts` — wrapped with `withSentryConfig` (source maps, tunnel route `/monitoring`, tree-shake logger)
+- `.sentryclirc` — org/project defaults for CLI
 
 ---
 
