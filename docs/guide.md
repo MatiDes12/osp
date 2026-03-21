@@ -75,12 +75,14 @@ cp .env.example .env
 npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 
-# 6. Start infrastructure (Redis + go2rtc)
-docker compose -f infra/docker/docker-compose.yml up -d redis go2rtc
+# 6. Start infrastructure (Redis, go2rtc, ClickHouse)
+docker compose -f infra/docker/docker-compose.yml up -d redis go2rtc clickhouse
 ```
 
 > **Get Supabase credentials** — go to https://supabase.com/dashboard → your project → Settings → API.
 > Use the **direct connection** URL (port 5432) for `DATABASE_URL`, not the pooler (port 6543).
+>
+> **Windows / Docker Desktop note** — Supabase free tier resolves to an IPv6 address which Docker Desktop on Windows cannot route. The gateway and web app work fine (they use the Supabase REST API over HTTPS). The Go services (camera-ingest, video-pipeline, event-engine) require a direct Postgres connection and will fail to start in Docker on Windows free tier. The gateway runs in fallback/direct mode which covers all functionality without them.
 
 ---
 
@@ -123,6 +125,7 @@ Opens at **http://localhost:3001**.
 | WebSocket | ws://localhost:3002 | Real-time events |
 | go2rtc admin | http://localhost:1984 | Camera stream manager |
 | go2rtc RTSP re-stream | rtsp://localhost:8554 | Test RTSP streams |
+| ClickHouse | http://localhost:8123 | Analytics DB (Docker only) |
 
 ### First Login
 
@@ -265,7 +268,7 @@ In production the app shows a **connection screen** — enter your OSP server UR
 ## Running All Platforms Simultaneously
 
 ```
-Terminal 1   docker compose -f infra/docker/docker-compose.yml up -d redis go2rtc
+Terminal 1   docker compose -f infra/docker/docker-compose.yml up -d redis go2rtc clickhouse
 Terminal 2   cd services/gateway && pnpm dev
 Terminal 3   cd apps/web && pnpm dev
 Terminal 4   cd apps/mobile && npx expo start
@@ -274,17 +277,27 @@ Terminal 5   cd apps/desktop && pnpm dev
 
 > Terminals 3–5 all connect to the same gateway on port 3000. Mobile and Desktop use the same API as the browser.
 
-### Go services (optional — needed for full video pipeline)
+### Go services (optional — needed for full gRPC video pipeline)
 
-Go services are only required for production-grade video recording and event rule evaluation. The gateway falls back to direct mode without them.
+Go services are optional. The gateway runs in **direct/fallback mode** without them, covering all features including camera management, recording, motion detection, and rule evaluation.
+
+If you have Go 1.22+ installed (or want to run them in Docker):
 
 ```bash
-# Each in its own terminal (requires Go 1.22+)
+# Option A — run locally (requires Go 1.22+)
 cd services/camera-ingest   && go run ./cmd/server/
 cd services/video-pipeline  && go run ./cmd/server/
 cd services/event-engine    && go run ./cmd/server/
 cd services/extension-runtime && go run ./cmd/server/
+
+# Option B — build Docker images (no local Go needed)
+docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=camera-ingest   -t osp-camera-ingest   services/camera-ingest
+docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=video-pipeline  -t osp-video-pipeline  services/video-pipeline
+docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=event-engine    -t osp-event-engine    services/event-engine
+docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=extension-runtime -t osp-extension-runtime services/extension-runtime
 ```
+
+> On Windows with Docker Desktop + Supabase free tier: Go services require a direct Postgres connection but Supabase resolves to IPv6 which Docker Desktop cannot route. Use the gateway's direct mode instead, or upgrade to Supabase Pro (IPv4 add-on).
 
 ---
 
@@ -320,24 +333,37 @@ Runs the full stack in containers. No local Node or Go installation needed (for 
 cp .env.example .env
 # Fill in SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL
 
-cd infra/docker
-docker compose build
-docker compose up -d
+docker compose -f infra/docker/docker-compose.yml build gateway
+docker compose -f infra/docker/docker-compose.yml up -d
 ```
+
+### What runs in Docker
+
+| Container | Image | Purpose |
+|-----------|-------|---------|
+| `gateway` | Built from `gateway.Dockerfile` | API server (port 3000), WebSocket (3002) |
+| `go2rtc` | `alexxit/go2rtc` | Camera proxy / WebRTC (port 1984, 8554) |
+| `redis` | `redis:7-alpine` | Cache + pub/sub (port 6379) |
+| `clickhouse` | `clickhouse/clickhouse-server:24-alpine` | Analytics DB (port 8123) |
+
+Go services (`camera-ingest`, `video-pipeline`, `event-engine`, `extension-runtime`) are not in the default compose stack — the gateway handles everything in fallback mode.
 
 ### Common commands
 
 ```bash
 # Rebuild only what changed
-docker compose build gateway
-docker compose up -d
+docker compose -f infra/docker/docker-compose.yml build --no-cache gateway
+docker compose -f infra/docker/docker-compose.yml up -d gateway
 
 # View logs
-docker compose logs -f gateway
-docker compose logs -f          # all services
+docker compose -f infra/docker/docker-compose.yml logs -f gateway
+docker compose -f infra/docker/docker-compose.yml logs -f   # all services
 
-# Stop
-docker compose down
+# Stop everything
+docker compose -f infra/docker/docker-compose.yml down
+
+# Stop and wipe volumes (fresh start)
+docker compose -f infra/docker/docker-compose.yml down -v
 ```
 
 ### Docker service URLs
@@ -345,9 +371,12 @@ docker compose down
 | Service | URL |
 |---------|-----|
 | API Gateway | http://localhost:3000 |
+| API docs | http://localhost:3000/docs |
+| WebSocket | ws://localhost:3002 |
 | go2rtc admin | http://localhost:1984 |
 | RTSP re-stream | rtsp://localhost:8554 |
 | Redis | localhost:6379 |
+| ClickHouse HTTP | http://localhost:8123 |
 
 > The web dashboard (`apps/web`) is **not** in Docker. Run it locally with `cd apps/web && pnpm dev`, or deploy it to Vercel.
 
@@ -601,3 +630,21 @@ ffprobe rtsp://<camera-ip>:554/stream
 
 ### `RLS policy violation` on registration
 Make sure `SUPABASE_SERVICE_ROLE_KEY` (not the anon key) is set in `.env`. The service role bypasses Row Level Security.
+
+### ClickHouse `get_mempolicy: Operation not permitted` on startup
+Docker Desktop on Windows/WSL2 blocks the `get_mempolicy` syscall. The fix is already in `docker-compose.yml` (`cap_add: [SYS_NICE, IPC_LOCK]` + `security_opt: seccomp:unconfined`). If you see this error, make sure you're using the latest compose file.
+
+### ClickHouse health check stays `unhealthy` on Alpine
+Alpine resolves `localhost` to `::1` (IPv6) but ClickHouse only binds IPv4. The health check uses `127.0.0.1` explicitly — already fixed in the compose file.
+
+### Go services crash with `network is unreachable` (IPv6 address)
+Supabase free tier direct connections resolve to an IPv6 address. Docker Desktop on Windows cannot route IPv6. Either:
+- Use the gateway's direct mode (default — no action needed)
+- Upgrade to Supabase Pro and enable the IPv4 add-on
+
+### Gateway container exits immediately with no logs
+The `dist/index.js` bundle is likely empty (0 bytes). Rebuild with no cache:
+```bash
+docker compose -f infra/docker/docker-compose.yml build --no-cache gateway
+```
+This was caused by `tsup --dts` silently failing on type errors. The fix (remove `--dts` from the build script) is already in `services/gateway/package.json`.
