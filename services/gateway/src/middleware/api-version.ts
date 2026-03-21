@@ -12,10 +12,6 @@
  *
  * Usage:
  *   app.use("/api/*", apiVersion());
- *
- * Marking an endpoint as deprecated (future use):
- *   import { deprecated } from "./middleware/api-version.js";
- *   router.get("/old-endpoint", deprecated("2026-12-31"), handler);
  */
 
 import type { MiddlewareHandler } from "hono";
@@ -39,14 +35,3 @@ export function apiVersion(): MiddlewareHandler {
   };
 }
 
-/**
- * Mark a specific route handler as deprecated.
- *
- * Adds RFC 8594-compliant Deprecation and Sunset headers so clients and
- * API gateways can detect and warn before the endpoint is removed.
- *
- * @param sunsetDate ISO date string when the endpoint will be removed, e.g. "2026-12-31"
- *
- * @example
- *   router.get("/old-endpoint", deprecated("2026-12-31"), myHandler);
- */

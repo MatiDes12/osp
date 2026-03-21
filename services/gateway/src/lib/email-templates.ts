@@ -116,6 +116,3 @@ export function inviteEmailTemplate(params: {
   return layout(content);
 }
 
-/**
- * Daily/weekly event digest email template.
- */

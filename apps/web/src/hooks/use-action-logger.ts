@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { logNavigate } from "@/stores/action-log";
+import { useActionLogStore } from "@/stores/action-log";
 
 /**
  * Auto-logs route changes to the action log panel.
@@ -14,7 +14,7 @@ export function useRouteLogger(): void {
 
   useEffect(() => {
     if (prevPath.current !== pathname) {
-      logNavigate(prevPath.current, pathname);
+      useActionLogStore.getState().push("navigate", `${prevPath.current} -> ${pathname}`, { detail: pathname });
       prevPath.current = pathname;
     }
   }, [pathname]);

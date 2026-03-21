@@ -36,7 +36,7 @@ VALUES
    '${chEscape(row.type)}',
    '${chEscape(row.severity)}',
    ${chDateTime(row.detectedAt)},
-   ${row.intensity},
+   ${Number.isFinite(row.intensity) ? Math.round(row.intensity) : 0},
    ${row.acknowledged ? 1 : 0})
 `;
   // intentionally not awaited
