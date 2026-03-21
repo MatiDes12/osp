@@ -41,6 +41,10 @@ import {
   Copy,
   Eye,
   EyeOff,
+  LogIn,
+  Globe,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -68,7 +72,8 @@ type SettingsTab =
   | "tenant"
   | "billing"
   | "apikeys"
-  | "desktop";
+  | "desktop"
+  | "sso";
 
 const NAV_ITEMS: readonly {
   key: SettingsTab;
@@ -83,6 +88,7 @@ const NAV_ITEMS: readonly {
   { key: "tenant", label: "Tenant", icon: Building2 },
   { key: "billing", label: "Billing", icon: CreditCard },
   { key: "apikeys", label: "API Keys", icon: Key },
+  { key: "sso", label: "SSO / Identity", icon: LogIn },
   { key: "desktop", label: "Desktop App", icon: Monitor },
 ];
 
@@ -1104,6 +1110,309 @@ function ApiKeysTab() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  SSO / Identity tab                                                 */
+/* ------------------------------------------------------------------ */
+type SsoProvider = "google" | "azure" | "github";
+
+interface SsoConfig {
+  id: string;
+  provider: SsoProvider;
+  enabled: boolean;
+  allowed_domains: string[];
+  auto_provision: boolean;
+  default_role: string;
+}
+
+const SSO_PROVIDERS: { provider: SsoProvider; label: string; description: string }[] = [
+  {
+    provider: "google",
+    label: "Google / Google Workspace",
+    description: "Let users sign in with their Google or Google Workspace account.",
+  },
+  {
+    provider: "azure",
+    label: "Microsoft / Azure AD",
+    description: "Integrate with Microsoft Entra ID (formerly Azure AD) or Active Directory.",
+  },
+  {
+    provider: "github",
+    label: "GitHub",
+    description: "Let developers sign in with their GitHub account.",
+  },
+];
+
+function SsoTab() {
+  const [configs, setConfigs] = useState<SsoConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<SsoProvider | null>(null);
+  const [expanded, setExpanded] = useState<SsoProvider | null>(null);
+  const [domainInput, setDomainInput] = useState<Record<SsoProvider, string>>({
+    google: "",
+    azure: "",
+    github: "",
+  });
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/auth/sso/config`, {
+      headers: getAuthHeaders(),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success) setConfigs(json.data ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function getConfig(provider: SsoProvider): SsoConfig | undefined {
+    return configs.find((c) => c.provider === provider);
+  }
+
+  async function save(provider: SsoProvider, patch: Partial<SsoConfig>) {
+    setSaving(provider);
+    const existing = getConfig(provider);
+    const body = { ...existing, ...patch };
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/sso/config/${provider}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setConfigs((prev) => {
+          const idx = prev.findIndex((c) => c.provider === provider);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = json.data;
+            return next;
+          }
+          return [...prev, json.data];
+        });
+        showToast("SSO config saved", "success");
+      } else {
+        showToast(json.error?.message ?? "Save failed", "error");
+      }
+    } catch {
+      showToast("Network error", "error");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function toggleEnabled(provider: SsoProvider) {
+    const cfg = getConfig(provider);
+    await save(provider, { enabled: !cfg?.enabled });
+  }
+
+  async function addDomain(provider: SsoProvider) {
+    const domain = domainInput[provider].trim().toLowerCase().replace(/^@/, "");
+    if (!domain) return;
+    const cfg = getConfig(provider);
+    const existing = cfg?.allowed_domains ?? [];
+    if (existing.includes(domain)) return;
+    await save(provider, { allowed_domains: [...existing, domain] });
+    setDomainInput((prev) => ({ ...prev, [provider]: "" }));
+  }
+
+  async function removeDomain(provider: SsoProvider, domain: string) {
+    const cfg = getConfig(provider);
+    await save(provider, {
+      allowed_domains: (cfg?.allowed_domains ?? []).filter((d) => d !== domain),
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-40 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-base font-semibold text-zinc-100">SSO / Identity Providers</h3>
+        <p className="mt-1 text-sm text-zinc-400">
+          Allow users to sign in with Google, Microsoft, or GitHub.
+          Requires the corresponding OAuth app to be enabled in your Supabase project under{" "}
+          <span className="font-medium text-zinc-300">Authentication → Providers</span>.
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 divide-y divide-zinc-800">
+        {SSO_PROVIDERS.map(({ provider, label, description }) => {
+          const cfg = getConfig(provider);
+          const isEnabled = cfg?.enabled ?? false;
+          const isExpanded = expanded === provider;
+          const domains = cfg?.allowed_domains ?? [];
+
+          return (
+            <div key={provider}>
+              {/* Provider row */}
+              <div className="flex items-center gap-4 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-200">{label}</span>
+                    {isEnabled && (
+                      <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-xs text-green-400">
+                        Enabled
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5 truncate">{description}</p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => toggleEnabled(provider)}
+                    disabled={saving === provider}
+                    className={`relative h-5 w-9 cursor-pointer rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                      isEnabled ? "bg-blue-500" : "bg-zinc-700"
+                    }`}
+                    aria-label={isEnabled ? "Disable" : "Enable"}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        isEnabled ? "translate-x-4" : "translate-x-0.5"
+                      }`}
+                    />
+                  </button>
+
+                  {/* Expand */}
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(isExpanded ? null : provider)}
+                    className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
+                    aria-label="Configure"
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded settings */}
+              {isExpanded && (
+                <div className="border-t border-zinc-800 bg-zinc-900/80 px-4 py-4 space-y-5">
+                  {/* Domain restriction */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      Allowed email domains
+                    </label>
+                    <p className="text-xs text-zinc-500 mb-2">
+                      Leave empty to allow any email. Add domains (e.g. <code className="text-zinc-400">acme.com</code>) to restrict sign-in to those organisations.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {domains.map((d) => (
+                        <span
+                          key={d}
+                          className="flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-0.5 text-xs text-zinc-300"
+                        >
+                          <Globe className="h-3 w-3 text-zinc-500" />
+                          {d}
+                          <button
+                            type="button"
+                            onClick={() => removeDomain(provider, d)}
+                            className="ml-0.5 text-zinc-500 hover:text-red-400 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="acme.com"
+                        value={domainInput[provider]}
+                        onChange={(e) =>
+                          setDomainInput((prev) => ({ ...prev, [provider]: e.target.value }))
+                        }
+                        onKeyDown={(e) => e.key === "Enter" && addDomain(provider)}
+                        className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addDomain(provider)}
+                        className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Auto-provision */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-200">Auto-provision users</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Automatically create an account on first SSO login. Disable to require a manual invite.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => save(provider, { auto_provision: !(cfg?.auto_provision ?? true) })}
+                      disabled={saving === provider}
+                      className={`relative mt-0.5 h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:opacity-50 ${
+                        (cfg?.auto_provision ?? true) ? "bg-blue-500" : "bg-zinc-700"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                          (cfg?.auto_provision ?? true) ? "translate-x-4" : "translate-x-0.5"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Default role */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-300 mb-1.5">
+                      Default role for new SSO users
+                    </label>
+                    <select
+                      value={cfg?.default_role ?? "viewer"}
+                      onChange={(e) => save(provider, { default_role: e.target.value })}
+                      disabled={saving === provider}
+                      className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="operator">Operator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Setup instructions */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <h4 className="text-sm font-medium text-zinc-300 mb-2">Setup instructions</h4>
+        <ol className="space-y-1.5 text-xs text-zinc-400 list-decimal list-inside">
+          <li>
+            Go to your{" "}
+            <span className="font-medium text-zinc-300">Supabase dashboard → Authentication → Providers</span>.
+          </li>
+          <li>Enable the desired provider (Google, Azure, GitHub) and paste your OAuth app credentials.</li>
+          <li>Set the authorized redirect URI to <code className="text-zinc-300">{typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/auth/callback</code>.</li>
+          <li>Enable and configure the provider above, then users can sign in with it.</li>
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main page                                                          */
 /* ------------------------------------------------------------------ */
 export default function SettingsPage() {
@@ -2027,6 +2336,9 @@ function SettingsPageInner() {
 
         {/* ── API Keys tab ───────────────────────────────────── */}
         {activeTab === "apikeys" && <ApiKeysTab />}
+
+        {/* ── SSO / Identity tab ──────────────────────────────── */}
+        {activeTab === "sso" && <SsoTab />}
 
         {/* ── Desktop App tab ─────────────────────────────────── */}
         {activeTab === "desktop" && <DesktopSettingsPanel />}

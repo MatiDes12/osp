@@ -23,6 +23,7 @@ import { userRoutes } from "./routes/user.routes.js";
 import { configRoutes } from "./routes/config.routes.js";
 import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { apiKeyRoutes } from "./routes/api-key.routes.js";
+import { ssoRoutes } from "./routes/sso.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -110,6 +111,7 @@ app.get("/", (c) => {
       extensions: "/api/v1/extensions",
       analytics: "/api/v1/analytics",
       apiKeys: "/api/v1/api-keys",
+      sso: "/api/v1/auth/sso",
     },
     docs: "/docs",
   });
@@ -119,6 +121,7 @@ app.get("/", (c) => {
 app.route("/docs", docsRoutes);
 app.route("/health", healthRoutes);
 app.route("/api/v1/auth", authRoutes);
+app.route("/api/v1/auth/sso", ssoRoutes);
 app.route("/api/v1/cameras", cameraRoutes);
 app.route("/api/v1/cameras", streamRoutes);
 app.route("/api/v1/streams", streamRoutes);
