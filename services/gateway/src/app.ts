@@ -26,6 +26,7 @@ import { apiKeyRoutes } from "./routes/api-key.routes.js";
 import { ssoRoutes } from "./routes/sso.routes.js";
 import { lprRoutes } from "./routes/lpr.routes.js";
 import { edgeRoutes } from "./routes/edge.routes.js";
+import { adminRoutes } from "./routes/admin.routes.js";
 import type { TenantPlan } from "@osp/shared";
 import { PLAN_LIMITS } from "@osp/shared";
 
@@ -116,6 +117,7 @@ app.get("/", (c) => {
       sso: "/api/v1/auth/sso",
       lpr: "/api/v1/lpr",
       edge: "/api/v1/edge",
+      admin: "/api/v1/admin",
     },
     docs: "/docs",
   });
@@ -143,6 +145,7 @@ app.route("/api/v1/analytics", analyticsRoutes);
 app.route("/api/v1/api-keys", apiKeyRoutes);
 app.route("/api/v1/lpr", lprRoutes);
 app.route("/api/v1/edge", edgeRoutes);
+app.route("/api/v1/admin", adminRoutes);
 app.route("/api/v1/dev", devRoutes);
 
 // 404 fallback
