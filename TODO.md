@@ -197,27 +197,15 @@ To enable: set `TURN_SERVER_URL=turn:localhost:3478`, `TURN_SERVER_USERNAME`, `T
 
 ---
 
-#### TODO-4: Go services compilation + Docker build
-**Why**: The gateway works standalone, but to use gRPC-based camera management in production, Go services must compile.
-**Steps**:
-```bash
-# On any machine with Go 1.22+:
-for svc in camera-ingest video-pipeline event-engine extension-runtime; do
-  cd services/$svc
-  go mod tidy
-  go build ./cmd/server
-  echo "$svc: OK"
-  cd ../..
-done
-```
-Then test Docker build:
-```bash
-docker build -f infra/docker/go-service.Dockerfile --build-arg SERVICE_NAME=camera-ingest services/camera-ingest
-```
+#### ✅ TODO-4: Go services compilation + Docker build
+**Status**: Done. All 4 services compile and produce Docker images via `go-service.Dockerfile`.
+- camera-ingest: 33s build ✅
+- video-pipeline: 51s build ✅
+- event-engine: 37s build ✅
+- extension-runtime: 25s build ✅
 
-**Files**:
-- `services/*/go.mod`
-- `infra/docker/go-service.Dockerfile`
+**Images**: `osp-camera-ingest`, `osp-video-pipeline`, `osp-event-engine`, `osp-extension-runtime`
+**Note**: Go services still can't connect to Supabase in Docker Desktop on Windows due to IPv6-only free tier. Gateway fallback mode handles all functionality. For full gRPC mode: use Supabase paid IPv4 add-on or run on Linux.
 
 ---
 
