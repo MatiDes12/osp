@@ -60,7 +60,9 @@ function formatEventTime(dateString: string): string {
 
 function EventRow({ event }: { readonly event: OSPEvent }) {
   const isRuleTriggered = Boolean(event.metadata?.["ruleTriggered"]);
-  const Icon = isRuleTriggered ? ShieldAlert : (EVENT_ICONS[event.type] ?? Circle);
+  const Icon = isRuleTriggered
+    ? ShieldAlert
+    : (EVENT_ICONS[event.type] ?? Circle);
   const borderColor = isRuleTriggered
     ? "border-l-emerald-500"
     : (SEVERITY_BORDER_COLORS[event.severity] ?? "border-l-zinc-600");
@@ -90,9 +92,11 @@ function EventRow({ event }: { readonly event: OSPEvent }) {
           className="h-10 w-10 rounded object-cover shrink-0"
         />
       ) : (
-        <div className={`h-10 w-10 rounded flex items-center justify-center shrink-0 ${
-          isRuleTriggered ? "bg-emerald-500/10" : "bg-zinc-800"
-        }`}>
+        <div
+          className={`h-10 w-10 rounded flex items-center justify-center shrink-0 ${
+            isRuleTriggered ? "bg-emerald-500/10" : "bg-zinc-800"
+          }`}
+        >
           <Icon className={`h-4 w-4 ${iconColor}`} />
         </div>
       )}
@@ -155,9 +159,7 @@ export function LiveEventFeed({
           {!connected && (
             <span
               className={`text-[10px] font-medium ${
-                error
-                  ? "text-red-400"
-                  : "text-amber-400 animate-pulse"
+                error ? "text-red-400" : "text-amber-400 animate-pulse"
               }`}
             >
               {error ? "Disconnected" : "Reconnecting..."}

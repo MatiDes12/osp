@@ -84,19 +84,27 @@ tenantRoutes.patch("/current", requireAuth("owner"), async (c) => {
       .eq("id", tenantId)
       .single();
 
-    const existingSettings = (current?.settings as Record<string, unknown>) ?? {};
+    const existingSettings =
+      (current?.settings as Record<string, unknown>) ?? {};
     const newSettings = { ...existingSettings };
 
     if (input.settings.defaultRetentionDays !== undefined)
-      newSettings["default_retention_days"] = input.settings.defaultRetentionDays;
+      newSettings["default_retention_days"] =
+        input.settings.defaultRetentionDays;
     if (input.settings.defaultRecordingMode !== undefined)
-      newSettings["default_recording_mode"] = input.settings.defaultRecordingMode;
+      newSettings["default_recording_mode"] =
+        input.settings.defaultRecordingMode;
     if (input.settings.defaultMotionSensitivity !== undefined)
-      newSettings["default_motion_sensitivity"] = input.settings.defaultMotionSensitivity;
+      newSettings["default_motion_sensitivity"] =
+        input.settings.defaultMotionSensitivity;
     if (input.settings.timezone !== undefined)
       newSettings["timezone"] = input.settings.timezone;
     if (input.settings.notificationPreferences !== undefined) {
-      const existingNotif = (existingSettings["notification_preferences"] as Record<string, unknown>) ?? {};
+      const existingNotif =
+        (existingSettings["notification_preferences"] as Record<
+          string,
+          unknown
+        >) ?? {};
       newSettings["notification_preferences"] = {
         ...existingNotif,
         ...input.settings.notificationPreferences,
@@ -137,10 +145,14 @@ tenantRoutes.patch("/current/branding", requireAuth("owner"), async (c) => {
   const existingBranding = (current?.branding as Record<string, unknown>) ?? {};
   const branding = { ...existingBranding };
 
-  if (input.primaryColor !== undefined) branding["primary_color"] = input.primaryColor;
-  if (input.accentColor !== undefined) branding["accent_color"] = input.accentColor;
-  if (input.fontFamily !== undefined) branding["font_family"] = input.fontFamily;
-  if (input.faviconUrl !== undefined) branding["favicon_url"] = input.faviconUrl;
+  if (input.primaryColor !== undefined)
+    branding["primary_color"] = input.primaryColor;
+  if (input.accentColor !== undefined)
+    branding["accent_color"] = input.accentColor;
+  if (input.fontFamily !== undefined)
+    branding["font_family"] = input.fontFamily;
+  if (input.faviconUrl !== undefined)
+    branding["favicon_url"] = input.faviconUrl;
 
   const updates: Record<string, unknown> = {
     branding,
@@ -223,7 +235,11 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
     .single();
 
   if (tenant && (userCount ?? 0) >= (tenant.max_users as number)) {
-    throw new ApiError("USER_LIMIT_REACHED", "User limit reached for your plan", 403);
+    throw new ApiError(
+      "USER_LIMIT_REACHED",
+      "User limit reached for your plan",
+      403,
+    );
   }
 
   // Check if user already exists in this tenant
@@ -235,7 +251,11 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
     .single();
 
   if (existingUser) {
-    throw new ApiError("USER_ALREADY_EXISTS", "User with this email already belongs to this tenant", 409);
+    throw new ApiError(
+      "USER_ALREADY_EXISTS",
+      "User with this email already belongs to this tenant",
+      409,
+    );
   }
 
   // Create invitation record
@@ -278,7 +298,9 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
       "A team member";
     const tenantName = (tenantData?.name as string) ?? "your organization";
 
-    const webUrl = (await import("../lib/config.js")).get("WEB_URL") ?? "http://localhost:3001";
+    const webUrl =
+      (await import("../lib/config.js")).get("WEB_URL") ??
+      "http://localhost:3001";
     const inviteUrl = `${webUrl}/invite/${invitation?.id as string}`;
 
     const html = inviteEmailTemplate({
@@ -306,95 +328,111 @@ tenantRoutes.post("/current/users/invite", requireAuth("admin"), async (c) => {
 });
 
 // Change user role (owner only)
-tenantRoutes.patch("/current/users/:userId/role", requireAuth("owner"), async (c) => {
-  const tenantId = c.get("tenantId");
-  const targetUserId = c.req.param("userId");
-  const body = await c.req.json();
-  const input = ChangeRoleSchema.parse(body);
-  const supabase = getSupabase();
+tenantRoutes.patch(
+  "/current/users/:userId/role",
+  requireAuth("owner"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const targetUserId = c.req.param("userId");
+    const body = await c.req.json();
+    const input = ChangeRoleSchema.parse(body);
+    const supabase = getSupabase();
 
-  // Verify target user belongs to this tenant
-  const { data: targetUser } = await supabase
-    .from("users")
-    .select("id")
-    .eq("id", targetUserId)
-    .eq("tenant_id", tenantId)
-    .single();
+    // Verify target user belongs to this tenant
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", targetUserId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-  if (!targetUser) {
-    throw new ApiError("USER_NOT_FOUND", "User not found in this tenant", 404);
-  }
+    if (!targetUser) {
+      throw new ApiError(
+        "USER_NOT_FOUND",
+        "User not found in this tenant",
+        404,
+      );
+    }
 
-  // Prevent changing owner role
-  const { data: currentRole } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", targetUserId)
-    .eq("tenant_id", tenantId)
-    .single();
+    // Prevent changing owner role
+    const { data: currentRole } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", targetUserId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-  if (currentRole && (currentRole.role as string) === "owner") {
-    throw new ApiError("FORBIDDEN", "Cannot change the owner's role", 403);
-  }
+    if (currentRole && (currentRole.role as string) === "owner") {
+      throw new ApiError("FORBIDDEN", "Cannot change the owner's role", 403);
+    }
 
-  const { data: updatedRole, error } = await supabase
-    .from("user_roles")
-    .update({ role: input.role })
-    .eq("user_id", targetUserId)
-    .eq("tenant_id", tenantId)
-    .select()
-    .single();
+    const { data: updatedRole, error } = await supabase
+      .from("user_roles")
+      .update({ role: input.role })
+      .eq("user_id", targetUserId)
+      .eq("tenant_id", tenantId)
+      .select()
+      .single();
 
-  if (error || !updatedRole) {
-    throw new ApiError("INTERNAL_ERROR", "Failed to update user role", 500);
-  }
+    if (error || !updatedRole) {
+      throw new ApiError("INTERNAL_ERROR", "Failed to update user role", 500);
+    }
 
-  // Update auth metadata
-  await supabase.auth.admin.updateUserById(targetUserId, {
-    user_metadata: { role: input.role },
-  });
+    // Update auth metadata
+    await supabase.auth.admin.updateUserById(targetUserId, {
+      user_metadata: { role: input.role },
+    });
 
-  return c.json(createSuccessResponse(updatedRole));
-});
+    return c.json(createSuccessResponse(updatedRole));
+  },
+);
 
 // Remove user (admin+, cannot remove owner)
-tenantRoutes.delete("/current/users/:userId", requireAuth("admin"), async (c) => {
-  const tenantId = c.get("tenantId");
-  const targetUserId = c.req.param("userId");
-  const supabase = getSupabase();
+tenantRoutes.delete(
+  "/current/users/:userId",
+  requireAuth("admin"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const targetUserId = c.req.param("userId");
+    const supabase = getSupabase();
 
-  // Check target user's role
-  const { data: targetRole } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", targetUserId)
-    .eq("tenant_id", tenantId)
-    .single();
+    // Check target user's role
+    const { data: targetRole } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", targetUserId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-  if (!targetRole) {
-    throw new ApiError("USER_NOT_FOUND", "User not found in this tenant", 404);
-  }
+    if (!targetRole) {
+      throw new ApiError(
+        "USER_NOT_FOUND",
+        "User not found in this tenant",
+        404,
+      );
+    }
 
-  if ((targetRole.role as string) === "owner") {
-    throw new ApiError("FORBIDDEN", "Cannot remove the tenant owner", 403);
-  }
+    if ((targetRole.role as string) === "owner") {
+      throw new ApiError("FORBIDDEN", "Cannot remove the tenant owner", 403);
+    }
 
-  // Remove role
-  await supabase
-    .from("user_roles")
-    .delete()
-    .eq("user_id", targetUserId)
-    .eq("tenant_id", tenantId);
+    // Remove role
+    await supabase
+      .from("user_roles")
+      .delete()
+      .eq("user_id", targetUserId)
+      .eq("tenant_id", tenantId);
 
-  // Remove user from tenant
-  await supabase
-    .from("users")
-    .delete()
-    .eq("id", targetUserId)
-    .eq("tenant_id", tenantId);
+    // Remove user from tenant
+    await supabase
+      .from("users")
+      .delete()
+      .eq("id", targetUserId)
+      .eq("tenant_id", tenantId);
 
-  return c.json(createSuccessResponse({ deleted: true }));
-});
+    return c.json(createSuccessResponse({ deleted: true }));
+  },
+);
 
 // Get tenant usage stats
 tenantRoutes.get("/current/usage", requireAuth("viewer"), async (c) => {

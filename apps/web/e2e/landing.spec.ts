@@ -27,9 +27,9 @@ test.describe("Landing page", () => {
   });
 
   test("renders hero headline", async ({ page }) => {
-    await expect(
-      page.getByRole("heading", { level: 1 }),
-    ).toContainText("Monitor Everything.");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      "Monitor Everything.",
+    );
   });
 
   test("renders OSP badge in hero", async ({ page }) => {
@@ -103,8 +103,6 @@ test.describe("Landing page", () => {
 
   test("footer shows copyright notice", async ({ page }) => {
     const footer = page.locator("footer");
-    await expect(
-      footer.getByText("Open Surveillance Platform"),
-    ).toBeVisible();
+    await expect(footer.getByText("Open Surveillance Platform")).toBeVisible();
   });
 });

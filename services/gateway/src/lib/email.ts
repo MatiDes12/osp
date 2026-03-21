@@ -30,7 +30,10 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
         to: params.to.map((email) => ({ email })),
       },
     ],
-    from: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] ?? from : from, name: "OSP" },
+    from: {
+      email: from.includes("<") ? (from.match(/<(.+)>/)?.[1] ?? from) : from,
+      name: "OSP",
+    },
     subject: params.subject,
     content: [{ type: "text/html", value: params.html }],
   };

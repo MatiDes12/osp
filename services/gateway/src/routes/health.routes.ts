@@ -52,7 +52,11 @@ async function checkRedis(): Promise<ServiceCheck> {
     const latency = Math.round(performance.now() - start);
     return pong === "PONG"
       ? { status: "up", latency_ms: latency }
-      : { status: "down", latency_ms: latency, error: `Unexpected response: ${pong}` };
+      : {
+          status: "down",
+          latency_ms: latency,
+          error: `Unexpected response: ${pong}`,
+        };
   } catch (err) {
     return {
       status: "down",
@@ -63,7 +67,8 @@ async function checkRedis(): Promise<ServiceCheck> {
 }
 
 async function checkGo2rtc(): Promise<ServiceCheck> {
-  const url = get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  const url =
+    get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
   const start = performance.now();
   try {
     const res = await fetch(`${url}/api/streams`, {
@@ -71,7 +76,11 @@ async function checkGo2rtc(): Promise<ServiceCheck> {
     });
     const latency = Math.round(performance.now() - start);
     if (!res.ok) {
-      return { status: "down", latency_ms: latency, error: `HTTP ${res.status}` };
+      return {
+        status: "down",
+        latency_ms: latency,
+        error: `HTTP ${res.status}`,
+      };
     }
     const data = (await res.json()) as Record<string, unknown>;
     const streamCount = Object.keys(data).length;
@@ -106,22 +115,40 @@ async function checkGrpcService(
   try {
     const stub = getStub();
     const health = await checkServiceHealth(name, stub);
-    return { status: health, latency_ms: Math.round(performance.now() - start) };
+    return {
+      status: health,
+      latency_ms: Math.round(performance.now() - start),
+    };
   } catch {
-    return { status: "down", latency_ms: Math.round(performance.now() - start) };
+    return {
+      status: "down",
+      latency_ms: Math.round(performance.now() - start),
+    };
   }
 }
 
 async function checkCameraIngest(): Promise<GrpcServiceCheck> {
-  return checkGrpcService("camera-ingest", getRawCameraIngestStub, "CAMERA_INGEST_GRPC_URL");
+  return checkGrpcService(
+    "camera-ingest",
+    getRawCameraIngestStub,
+    "CAMERA_INGEST_GRPC_URL",
+  );
 }
 
 async function checkVideoPipeline(): Promise<GrpcServiceCheck> {
-  return checkGrpcService("video-pipeline", getRawVideoPipelineStub, "VIDEO_PIPELINE_GRPC_URL");
+  return checkGrpcService(
+    "video-pipeline",
+    getRawVideoPipelineStub,
+    "VIDEO_PIPELINE_GRPC_URL",
+  );
 }
 
 async function checkEventEngine(): Promise<GrpcServiceCheck> {
-  return checkGrpcService("event-engine", getRawEventEngineStub, "EVENT_ENGINE_GRPC_URL");
+  return checkGrpcService(
+    "event-engine",
+    getRawEventEngineStub,
+    "EVENT_ENGINE_GRPC_URL",
+  );
 }
 
 // ── GET /health — basic liveness ─────────────────────────────────────────
@@ -193,18 +220,23 @@ healthRoutes.get("/detailed", async (c) => {
     const db = getSupabase();
     const oneHourAgo = new Date(Date.now() - 3600_000).toISOString();
 
-    const [camerasRes, onlineRes, eventsRes, recordingsRes] = await Promise.all([
-      db.from("cameras").select("id", { count: "exact", head: true }),
-      db.from("cameras").select("id", { count: "exact", head: true }).eq("status", "online"),
-      db
-        .from("events")
-        .select("id", { count: "exact", head: true })
-        .gte("detected_at", oneHourAgo),
-      db
-        .from("recordings")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "recording"),
-    ]);
+    const [camerasRes, onlineRes, eventsRes, recordingsRes] = await Promise.all(
+      [
+        db.from("cameras").select("id", { count: "exact", head: true }),
+        db
+          .from("cameras")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "online"),
+        db
+          .from("events")
+          .select("id", { count: "exact", head: true })
+          .gte("detected_at", oneHourAgo),
+        db
+          .from("recordings")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "recording"),
+      ],
+    );
 
     camerasTotal = camerasRes.count ?? 0;
     camerasOnline = onlineRes.count ?? 0;
@@ -215,9 +247,7 @@ healthRoutes.get("/detailed", async (c) => {
   }
 
   const allUp =
-    supabase.status === "up" &&
-    redis.status === "up" &&
-    go2rtc.status === "up";
+    supabase.status === "up" && redis.status === "up" && go2rtc.status === "up";
 
   return c.json({
     status: allUp ? "healthy" : "degraded",
@@ -256,7 +286,10 @@ healthRoutes.get("/metrics", async (c) => {
 
     const [camerasOnline, camerasTotal, eventsTotal, activeRecordings] =
       await Promise.all([
-        db.from("cameras").select("id", { count: "exact", head: true }).eq("status", "online"),
+        db
+          .from("cameras")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "online"),
         db.from("cameras").select("id", { count: "exact", head: true }),
         db
           .from("events")
@@ -270,7 +303,9 @@ healthRoutes.get("/metrics", async (c) => {
 
     extra.push("# HELP osp_cameras_total Total cameras by status");
     extra.push("# TYPE osp_cameras_total gauge");
-    extra.push(`osp_cameras_total{status="online"} ${camerasOnline.count ?? 0}`);
+    extra.push(
+      `osp_cameras_total{status="online"} ${camerasOnline.count ?? 0}`,
+    );
     extra.push(`osp_cameras_total{status="total"} ${camerasTotal.count ?? 0}`);
 
     extra.push("# HELP osp_events_total Events in the last hour");

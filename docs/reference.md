@@ -37,6 +37,7 @@ OSP is a **complete, standalone surveillance platform** — not just a framework
 What makes OSP unique: beyond being a fully-featured product it's also an **open platform**. Customers can customize it through extensions, custom rules, and white-label theming. Developers can build and sell plugins in the marketplace. This dual nature — **product + platform** — means OSP competes with closed products like Ring and Verkada while offering the flexibility of open systems like Frigate.
 
 **OSP is for**:
+
 - **End users** who want a powerful, vendor-agnostic surveillance system that works immediately
 - **Businesses** who need multi-tenant, role-based camera management across locations
 - **Developers** who want to build custom integrations, AI models, or white-label solutions on a proven platform
@@ -87,37 +88,37 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 
 ## 3. Feature Matrix
 
-| Feature | Home | Business | Retail | Enterprise |
-|---------|------|----------|--------|------------|
-| Live View | Core | Core | Core | Core |
-| Playback / Timeline | Core | Core | Core | Core |
-| Motion-Triggered Recording | Core | Core | Core | Core |
-| Continuous Recording | Extension | Core | Core | Core |
-| Motion Detection | Core | Core | Core | Core |
-| Person Detection | Extension | Extension | Core | Core |
-| Vehicle Detection | Extension | Extension | Extension | Core |
-| Custom Alert Rules | Core (basic) | Core | Core | Core (advanced) |
-| Alert Schedules | Core | Core | Core | Core |
-| Multi-Location Management | N/A | Extension | Core | Core |
-| User Roles & Permissions | Core (2 roles) | Core (3 roles) | Core (full RBAC) | Core (full RBAC + sub-tenant) |
-| Two-Way Audio | Core | Core | Extension | Extension |
-| PTZ Control | Core | Core | Core | Core |
-| Analytics Dashboard | N/A | Extension | Core | Core |
-| Heat Maps | N/A | N/A | Extension | Core |
-| License Plate Recognition | N/A | Extension | Extension | Extension |
-| White-Label / Custom Branding | N/A | N/A | Extension | Core |
-| API Access | N/A | Extension | Core | Core |
-| Custom AI Model Support | N/A | N/A | Extension | Extension |
-| Compliance / Audit Logs | N/A | Extension | Core | Core |
-| Privacy Zone Masking | Extension | Extension | Core | Core |
-| Camera Health Monitoring | Core (basic) | Core | Core | Core (SLA-backed) |
-| Mobile App | Core | Core | Core | Core |
-| Desktop App | Extension | Extension | Core | Core |
-| Extension Marketplace | Extension | Extension | Core | Core |
-| Webhook / Integration | N/A | Extension | Core | Core |
-| SSO / SAML | N/A | N/A | Extension | Core |
-| Command Center (Multi-Monitor) | N/A | N/A | Extension | Core |
-| Sub-Tenant Architecture | N/A | N/A | N/A | Core |
+| Feature                        | Home           | Business       | Retail           | Enterprise                    |
+| ------------------------------ | -------------- | -------------- | ---------------- | ----------------------------- |
+| Live View                      | Core           | Core           | Core             | Core                          |
+| Playback / Timeline            | Core           | Core           | Core             | Core                          |
+| Motion-Triggered Recording     | Core           | Core           | Core             | Core                          |
+| Continuous Recording           | Extension      | Core           | Core             | Core                          |
+| Motion Detection               | Core           | Core           | Core             | Core                          |
+| Person Detection               | Extension      | Extension      | Core             | Core                          |
+| Vehicle Detection              | Extension      | Extension      | Extension        | Core                          |
+| Custom Alert Rules             | Core (basic)   | Core           | Core             | Core (advanced)               |
+| Alert Schedules                | Core           | Core           | Core             | Core                          |
+| Multi-Location Management      | N/A            | Extension      | Core             | Core                          |
+| User Roles & Permissions       | Core (2 roles) | Core (3 roles) | Core (full RBAC) | Core (full RBAC + sub-tenant) |
+| Two-Way Audio                  | Core           | Core           | Extension        | Extension                     |
+| PTZ Control                    | Core           | Core           | Core             | Core                          |
+| Analytics Dashboard            | N/A            | Extension      | Core             | Core                          |
+| Heat Maps                      | N/A            | N/A            | Extension        | Core                          |
+| License Plate Recognition      | N/A            | Extension      | Extension        | Extension                     |
+| White-Label / Custom Branding  | N/A            | N/A            | Extension        | Core                          |
+| API Access                     | N/A            | Extension      | Core             | Core                          |
+| Custom AI Model Support        | N/A            | N/A            | Extension        | Extension                     |
+| Compliance / Audit Logs        | N/A            | Extension      | Core             | Core                          |
+| Privacy Zone Masking           | Extension      | Extension      | Core             | Core                          |
+| Camera Health Monitoring       | Core (basic)   | Core           | Core             | Core (SLA-backed)             |
+| Mobile App                     | Core           | Core           | Core             | Core                          |
+| Desktop App                    | Extension      | Extension      | Core             | Core                          |
+| Extension Marketplace          | Extension      | Extension      | Core             | Core                          |
+| Webhook / Integration          | N/A            | Extension      | Core             | Core                          |
+| SSO / SAML                     | N/A            | N/A            | Extension        | Core                          |
+| Command Center (Multi-Monitor) | N/A            | N/A            | Extension        | Core                          |
+| Sub-Tenant Architecture        | N/A            | N/A            | N/A              | Core                          |
 
 **Legend**: **Core** = built in · **Extension** = plugin/add-on · **N/A** = not available
 
@@ -126,6 +127,7 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 ## 4. Product Roadmap
 
 ### Phase 1: Core Platform (Months 1–4) ✅ Done
+
 **Theme**: "See your cameras anywhere"
 
 - Foundation + Auth + Camera CRUD
@@ -136,6 +138,7 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 ---
 
 ### Phase 2: Intelligence & Extensibility (Months 5–8) ✅ Done
+
 **Theme**: "Make cameras smart"
 
 - AI detection (OpenAI Vision API, person/vehicle/animal events)
@@ -150,6 +153,7 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 ---
 
 ### Phase 3: Enterprise & Analytics (Months 9–12)
+
 **Theme**: "Scale to the enterprise"
 
 - Multi-location management with cross-location search
@@ -160,6 +164,7 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 ---
 
 ### Phase 4: Edge & Advanced AI (Months 13–18)
+
 **Theme**: "Intelligence at the edge"
 
 - Lightweight Go edge agent (on-premise deployment, cloud sync)
@@ -172,62 +177,62 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 
 ### Performance
 
-| Metric | Target |
-|--------|--------|
-| Live view latency (LAN) | <500ms |
-| Live view latency (remote) | <2s |
-| Video playback start (clip) | <1s |
-| Push notification delivery | <3s from detection |
-| API response (p95) | <200ms |
-| API response cached (p95) | <50ms |
-| Camera grid render (16 cams) | <2s |
-| ONVIF discovery | <10s |
-| Motion detection latency | <500ms |
+| Metric                       | Target             |
+| ---------------------------- | ------------------ |
+| Live view latency (LAN)      | <500ms             |
+| Live view latency (remote)   | <2s                |
+| Video playback start (clip)  | <1s                |
+| Push notification delivery   | <3s from detection |
+| API response (p95)           | <200ms             |
+| API response cached (p95)    | <50ms              |
+| Camera grid render (16 cams) | <2s                |
+| ONVIF discovery              | <10s               |
+| Motion detection latency     | <500ms             |
 
 ### Reliability
 
-| Metric | Target |
-|--------|--------|
-| Cloud service uptime | 99.9% (8.7h/year) |
-| Video pipeline uptime | 99.5% |
-| Camera reconnection | Auto within 30s (exponential backoff: 1→2→4→8→16→30s) |
-| Data durability (recordings) | 99.999999999% (S3/R2) |
+| Metric                       | Target                                                |
+| ---------------------------- | ----------------------------------------------------- |
+| Cloud service uptime         | 99.9% (8.7h/year)                                     |
+| Video pipeline uptime        | 99.5%                                                 |
+| Camera reconnection          | Auto within 30s (exponential backoff: 1→2→4→8→16→30s) |
+| Data durability (recordings) | 99.999999999% (S3/R2)                                 |
 
 ### Scalability
 
-| Metric | MVP | Scale (Phase 3+) |
-|--------|-----|-----------------|
-| Cameras per tenant | 50 | 10,000+ |
-| Concurrent streams/user | 4 | 16 |
-| Concurrent streams/tenant | 50 | 1,000 |
-| Events per second | 100 | 10,000 |
+| Metric                    | MVP | Scale (Phase 3+) |
+| ------------------------- | --- | ---------------- |
+| Cameras per tenant        | 50  | 10,000+          |
+| Concurrent streams/user   | 4   | 16               |
+| Concurrent streams/tenant | 50  | 1,000            |
+| Events per second         | 100 | 10,000           |
 
 ### Security
 
-| Requirement | Implementation |
-|-------------|---------------|
-| Data in transit | TLS 1.3 everywhere (HTTPS, WSS, gRPC) |
-| Data at rest | AES-256 on S3/R2, PostgreSQL encryption |
-| Authentication | Supabase Auth (bcrypt, OAuth, JWT 15min expiry) |
-| Authorization | RBAC at gateway + RLS at database |
-| Multi-tenant isolation | RLS on every table + S3 prefix isolation |
-| Rate limiting | Per-tenant, per-endpoint via Redis |
-| Input validation | Zod schemas on every API endpoint |
-| Secrets | Environment variables only, never in code |
-| CORS | Strict origin allowlist per tenant |
-| OWASP compliance | Top 10 audit before each phase launch |
+| Requirement            | Implementation                                  |
+| ---------------------- | ----------------------------------------------- |
+| Data in transit        | TLS 1.3 everywhere (HTTPS, WSS, gRPC)           |
+| Data at rest           | AES-256 on S3/R2, PostgreSQL encryption         |
+| Authentication         | Supabase Auth (bcrypt, OAuth, JWT 15min expiry) |
+| Authorization          | RBAC at gateway + RLS at database               |
+| Multi-tenant isolation | RLS on every table + S3 prefix isolation        |
+| Rate limiting          | Per-tenant, per-endpoint via Redis              |
+| Input validation       | Zod schemas on every API endpoint               |
+| Secrets                | Environment variables only, never in code       |
+| CORS                   | Strict origin allowlist per tenant              |
+| OWASP compliance       | Top 10 audit before each phase launch           |
 
 ---
 
 ## 6. Competitive Analysis
 
-| Competitor | Strengths | Weaknesses | OSP Advantage |
-|------------|-----------|------------|---------------|
-| **Ring** | Brand recognition, Alexa integration, affordable | Proprietary ecosystem, mandatory subscription, no self-host, consumer-only | Any camera brand, self-host, no per-camera subscription, scales beyond consumer |
-| **Arlo** | Best-in-class AI detection, wire-free cameras | $150–400/camera, $13–18/mo subscription, no RTSP on newer models | Bring your own cameras, AI as extensible plugin, no hardware lock-in |
-| **Milestone XProtect** | Extremely mature, 10,000+ cameras, 150+ integrations | $30–100+/camera license, Windows Server only, requires IT team, dated UI | Cloud-native, modern UI, Linux/Docker, no per-camera licensing, 10x lower TCO |
-| **Verkada** | Modern cloud-first, excellent UI, built-in AI | Requires Verkada hardware ($300–1,500+), $200+/camera/year, 2021 breach | BYOC (any RTSP/ONVIF camera), open source, self-host, transparent pricing |
-| **Frigate** | Free + open source, excellent AI (Coral TPU), local privacy | Technical setup, no mobile app, single-node, no multi-tenancy, basic UI | Native mobile apps, multi-tenant, cloud+self-host hybrid, visual config, user management |
+| Competitor             | Strengths                                                   | Weaknesses                                                                 | OSP Advantage                                                                            |
+| ---------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Ring**               | Brand recognition, Alexa integration, affordable            | Proprietary ecosystem, mandatory subscription, no self-host, consumer-only | Any camera brand, self-host, no per-camera subscription, scales beyond consumer          |
+| **Arlo**               | Best-in-class AI detection, wire-free cameras               | $150–400/camera, $13–18/mo subscription, no RTSP on newer models           | Bring your own cameras, AI as extensible plugin, no hardware lock-in                     |
+| **Milestone XProtect** | Extremely mature, 10,000+ cameras, 150+ integrations        | $30–100+/camera license, Windows Server only, requires IT team, dated UI   | Cloud-native, modern UI, Linux/Docker, no per-camera licensing, 10x lower TCO            |
+| **Verkada**            | Modern cloud-first, excellent UI, built-in AI               | Requires Verkada hardware ($300–1,500+), $200+/camera/year, 2021 breach    | BYOC (any RTSP/ONVIF camera), open source, self-host, transparent pricing                |
+| **Frigate**            | Free + open source, excellent AI (Coral TPU), local privacy | Technical setup, no mobile app, single-node, no multi-tenancy, basic UI    | Native mobile apps, multi-tenant, cloud+self-host hybrid, visual config, user management |
 
 **OSP's unique position**: The only **complete product** spanning consumer to enterprise — functional out of the box like Ring/Verkada, yet open and extensible like Frigate. Bridges all segments with a single platform, shared extension ecosystem, and consistent UX across web, mobile, and desktop.
 
@@ -274,13 +279,13 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 
 ### Service Responsibilities
 
-| Service | Language | Responsibility |
-|---------|----------|---------------|
-| **API Gateway** | TypeScript (Hono/Bun) | REST/WS, auth, routing, rate limiting, BFF for all clients |
-| **Camera Ingest** | Go | RTSP/ONVIF connection management, stream multiplexing, health monitoring, PTZ |
-| **Video Pipeline** | Go | FFmpeg orchestration, transcoding, thumbnail generation, HLS packaging, R2 upload |
-| **Event Engine** | Go | Motion events, rule evaluation, notification dispatch, Redis pub/sub |
-| **Extension Runtime** | Go | Sandboxed plugin execution (Node.js `vm`), hook dispatch, resource limits |
+| Service               | Language              | Responsibility                                                                    |
+| --------------------- | --------------------- | --------------------------------------------------------------------------------- |
+| **API Gateway**       | TypeScript (Hono/Bun) | REST/WS, auth, routing, rate limiting, BFF for all clients                        |
+| **Camera Ingest**     | Go                    | RTSP/ONVIF connection management, stream multiplexing, health monitoring, PTZ     |
+| **Video Pipeline**    | Go                    | FFmpeg orchestration, transcoding, thumbnail generation, HLS packaging, R2 upload |
+| **Event Engine**      | Go                    | Motion events, rule evaluation, notification dispatch, Redis pub/sub              |
+| **Extension Runtime** | Go                    | Sandboxed plugin execution (Node.js `vm`), hook dispatch, resource limits         |
 
 ### Inter-Service Communication
 
@@ -290,27 +295,27 @@ What makes OSP unique: beyond being a fully-featured product it's also an **open
 
 ### Tech Stack Rationale
 
-| Layer | Choice | Rationale |
-|-------|--------|-----------|
-| Web | Next.js 15 | SSR performance, App Router, React Server Components |
-| Mobile | React Native + Expo | Single codebase iOS/Android, OTA updates |
-| Desktop | Tauri v2 | 10x lighter than Electron, Rust backend |
-| Core backend | Go | High concurrency, low memory per stream connection |
-| API layer | Hono/Bun | Fast DX, TypeScript shared types with frontend |
-| Database | Supabase (PostgreSQL) | RLS for multi-tenancy, built-in auth, realtime |
-| Video | go2rtc + FFmpeg | Universal protocol support (RTSP, ONVIF, WebRTC) |
-| Storage | Cloudflare R2 | S3-compatible, zero egress fees for video serving |
-| Cache | Redis | Rate limiting, pub/sub, KV cache |
-| Analytics | ClickHouse | Time-series event aggregation, heatmaps |
+| Layer        | Choice                | Rationale                                            |
+| ------------ | --------------------- | ---------------------------------------------------- |
+| Web          | Next.js 15            | SSR performance, App Router, React Server Components |
+| Mobile       | React Native + Expo   | Single codebase iOS/Android, OTA updates             |
+| Desktop      | Tauri v2              | 10x lighter than Electron, Rust backend              |
+| Core backend | Go                    | High concurrency, low memory per stream connection   |
+| API layer    | Hono/Bun              | Fast DX, TypeScript shared types with frontend       |
+| Database     | Supabase (PostgreSQL) | RLS for multi-tenancy, built-in auth, realtime       |
+| Video        | go2rtc + FFmpeg       | Universal protocol support (RTSP, ONVIF, WebRTC)     |
+| Storage      | Cloudflare R2         | S3-compatible, zero egress fees for video serving    |
+| Cache        | Redis                 | Rate limiting, pub/sub, KV cache                     |
+| Analytics    | ClickHouse            | Time-series event aggregation, heatmaps              |
 
 ### Scalability Tiers
 
-| Scale | Architecture |
-|-------|-------------|
-| 1–50 cameras | Single server, Docker Compose |
-| 50–500 cameras | Multi-server, load balanced, separate video pipeline from API |
-| 500–5,000 cameras | Kubernetes, auto-scaling pods, regional go2rtc instances |
-| 5,000–10,000+ | Multi-region, edge nodes per site, cloud for storage/API |
+| Scale             | Architecture                                                  |
+| ----------------- | ------------------------------------------------------------- |
+| 1–50 cameras      | Single server, Docker Compose                                 |
+| 50–500 cameras    | Multi-server, load balanced, separate video pipeline from API |
+| 500–5,000 cameras | Kubernetes, auto-scaling pods, regional go2rtc instances      |
+| 5,000–10,000+     | Multi-region, edge nodes per site, cloud for storage/API      |
 
 ---
 
@@ -331,11 +336,13 @@ tenants ──< cameras ──< recordings
 ### Key Tables
 
 **tenants**
+
 ```
 id (uuid PK) · name · slug · plan (enum) · settings (jsonb) · theme (jsonb) · logo_url · domain
 ```
 
 **cameras**
+
 ```
 id · tenant_id (FK) · name · type (enum) · stream_url · protocol (enum)
 status (enum) · config (jsonb) · location_id (FK) · zones (jsonb[])
@@ -343,18 +350,21 @@ ptz_capable · audio_capable · recording_mode · created_at · updated_at
 ```
 
 **recordings**
+
 ```
 id · camera_id · tenant_id · start_time · end_time · duration_sec
 storage_path · size_bytes · format · trigger (enum) · metadata (jsonb) · created_at
 ```
 
 **events**
+
 ```
 id · camera_id · tenant_id · type (enum) · severity (enum)
 metadata (jsonb) · thumbnail_url · clip_path · detectedAt · acknowledged_at
 ```
 
 **rules**
+
 ```
 id · tenant_id · name · enabled · trigger_event · conditions (jsonb)
 actions (jsonb) · schedule (jsonb) · camera_ids[] · cooldown_seconds
@@ -362,6 +372,7 @@ last_triggered_at · created_at · updated_at
 ```
 
 **webhook_delivery_attempts**
+
 ```
 id · rule_id · event_id · tenant_id · url · status · http_status_code
 attempt_number · response_body · error_message · created_at
@@ -556,12 +567,12 @@ go2rtc (Protocol normalization)
 
 ### Recording Modes
 
-| Mode | Behaviour |
-|------|-----------|
+| Mode         | Behaviour                                                              |
+| ------------ | ---------------------------------------------------------------------- |
 | `continuous` | Starts automatically on camera connect; auto-segments every 30 minutes |
-| `motion` | Starts on motion event; stops after configurable duration |
-| `manual` | Started by user via `POST /cameras/:id/record/start` |
-| `rule` | Started by rule engine action |
+| `motion`     | Starts on motion event; stops after configurable duration              |
+| `manual`     | Started by user via `POST /cameras/:id/record/start`                   |
+| `rule`       | Started by rule engine action                                          |
 
 ### go2rtc Integration
 
@@ -574,11 +585,13 @@ go2rtc (Protocol normalization)
 ### TURN Server (Production WebRTC)
 
 For WebRTC across NAT (remote access), configure coturn or Cloudflare Calls:
+
 ```env
 TURN_SERVER_URL=turn:your-server:3478
 TURN_SERVER_USERNAME=user
 TURN_SERVER_CREDENTIAL=pass
 ```
+
 The gateway includes TURN credentials in the `iceServers` response when env vars are set.
 
 ---
@@ -620,19 +633,20 @@ Event created (POST /api/v1/events)
 **Supported operators**: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `in`
 
 **Supported fields**:
+
 - Direct: `intensity`, `severity`, `type`, `cameraId`, `cameraName`, `zoneId`, `zoneName`
 - Aliases: `confidence`, `object_count`, `zone_name`, `time_of_day`
 - Nested: `metadata.X`, `data.X` (dotted paths)
 
 ### Actions
 
-| Action | Implementation |
-|--------|---------------|
-| **push_notification** | Creates record in `notifications` table; delivers to device via Expo Push API |
-| **email** | Sends via Resend API with HTML template and snapshot preview (requires `RESEND_API_KEY`) |
-| **webhook** | POSTs JSON payload with exponential-backoff retry (1–5 attempts); logs every attempt to `webhook_delivery_attempts` |
-| **start_recording** | Creates recording entry; starts go2rtc MP4 capture; auto-stops after configured duration (default 60s) |
-| **extension_hook** | Dispatches to extension runtime |
+| Action                | Implementation                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **push_notification** | Creates record in `notifications` table; delivers to device via Expo Push API                                       |
+| **email**             | Sends via Resend API with HTML template and snapshot preview (requires `RESEND_API_KEY`)                            |
+| **webhook**           | POSTs JSON payload with exponential-backoff retry (1–5 attempts); logs every attempt to `webhook_delivery_attempts` |
+| **start_recording**   | Creates recording entry; starts go2rtc MP4 capture; auto-stops after configured duration (default 60s)              |
+| **extension_hook**    | Dispatches to extension runtime                                                                                     |
 
 **Template interpolation** — action subject/body support `{{cameraName}}`, `{{severity}}`, `{{eventType}}`, `{{intensity}}`, `{{detectedAt}}`, etc.
 
@@ -666,10 +680,10 @@ The gateway's `CameraHealthChecker` samples frames from go2rtc at 1fps and runs 
 ### Severity Mapping
 
 | Intensity | Severity |
-|-----------|----------|
-| 0–49 | `low` |
-| 50–79 | `medium` |
-| 80–100 | `high` |
+| --------- | -------- |
+| 0–49      | `low`    |
+| 50–79     | `medium` |
+| 80–100    | `high`   |
 
 ### Configuration (env vars)
 
@@ -700,6 +714,7 @@ MOTION_COOLDOWN_SECONDS=10     # minimum seconds between events per camera
 ### Clip Retention
 
 `CameraHealthChecker` runs a cleanup job every hour that:
+
 1. Queries events with `clip_path != null` and `created_at < now() - 7 days`
 2. Deletes local clip files with `rmSync`
 3. Clears `clip_path` in the database
@@ -743,7 +758,7 @@ interface ExtensionManifest {
   author: string;
   hooks: HookRegistration[];
   widgets?: WidgetRegistration[];
-  permissions: Permission[];  // "cameras:read" | "notifications:send" | ...
+  permissions: Permission[]; // "cameras:read" | "notifications:send" | ...
 }
 ```
 
@@ -812,12 +827,12 @@ All tables with tenant data have this policy. The service role key bypasses RLS 
 
 ### RBAC Matrix
 
-| Role | Cameras | Live View | Playback | Rules | Users | Extensions | Billing |
-|------|---------|-----------|----------|-------|-------|------------|---------|
-| **Owner** | CRUD | Yes | Yes | CRUD | CRUD | CRUD | Yes |
-| **Admin** | CRUD | Yes | Yes | CRUD | CRU | CRUD | No |
-| **Operator** | Read | Yes | Yes | Read | No | No | No |
-| **Viewer** | Scoped | Scoped | Scoped | No | No | No | No |
+| Role         | Cameras | Live View | Playback | Rules | Users | Extensions | Billing |
+| ------------ | ------- | --------- | -------- | ----- | ----- | ---------- | ------- |
+| **Owner**    | CRUD    | Yes       | Yes      | CRUD  | CRUD  | CRUD       | Yes     |
+| **Admin**    | CRUD    | Yes       | Yes      | CRUD  | CRU   | CRUD       | No      |
+| **Operator** | Read    | Yes       | Yes      | Read  | No    | No         | No      |
+| **Viewer**   | Scoped  | Scoped    | Scoped   | No    | No    | No         | No      |
 
 Viewer role can be scoped to specific cameras via `camera_ids[]` in `user_roles`.
 
@@ -827,23 +842,23 @@ Viewer role can be scoped to specific cameras via `camera_ids[]` in `user_roles`
 
 ### Naming Conventions
 
-| Domain | Convention | Example |
-|--------|-----------|---------|
-| API routes | kebab-case, plural nouns | `/api/v1/alert-rules/:id` |
-| Database tables | snake_case, plural | `cameras`, `user_roles`, `alert_rules` |
-| Database columns | snake_case | `tenant_id`, `created_at`, `stream_url` |
-| Database indexes | `idx_{table}_{columns}` | `idx_cameras_tenant_id` |
-| Database foreign keys | `fk_{table}_{ref_table}` | `fk_cameras_tenants` |
-| TypeScript types/interfaces | PascalCase, no `I` prefix | `Camera`, `EventType`, `UserRole` |
-| TypeScript variables/functions | camelCase | `getCamera`, `handleMotionEvent` |
-| TypeScript files | kebab-case | `camera-service.ts`, `use-live-feed.ts` |
-| TypeScript components | PascalCase | `CameraGrid.tsx` |
-| TypeScript constants | SCREAMING_SNAKE_CASE | `MAX_RETRY_COUNT` |
-| Go types | PascalCase | `CameraService`, `EventHandler` |
-| Go exported | PascalCase | `HandleStream` |
-| Go unexported | camelCase | `parseConfig` |
-| Go files | snake_case | `camera_service.go` |
-| Go packages | lowercase, single word | `ingest`, `transcode`, `events` |
+| Domain                         | Convention                | Example                                 |
+| ------------------------------ | ------------------------- | --------------------------------------- |
+| API routes                     | kebab-case, plural nouns  | `/api/v1/alert-rules/:id`               |
+| Database tables                | snake_case, plural        | `cameras`, `user_roles`, `alert_rules`  |
+| Database columns               | snake_case                | `tenant_id`, `created_at`, `stream_url` |
+| Database indexes               | `idx_{table}_{columns}`   | `idx_cameras_tenant_id`                 |
+| Database foreign keys          | `fk_{table}_{ref_table}`  | `fk_cameras_tenants`                    |
+| TypeScript types/interfaces    | PascalCase, no `I` prefix | `Camera`, `EventType`, `UserRole`       |
+| TypeScript variables/functions | camelCase                 | `getCamera`, `handleMotionEvent`        |
+| TypeScript files               | kebab-case                | `camera-service.ts`, `use-live-feed.ts` |
+| TypeScript components          | PascalCase                | `CameraGrid.tsx`                        |
+| TypeScript constants           | SCREAMING_SNAKE_CASE      | `MAX_RETRY_COUNT`                       |
+| Go types                       | PascalCase                | `CameraService`, `EventHandler`         |
+| Go exported                    | PascalCase                | `HandleStream`                          |
+| Go unexported                  | camelCase                 | `parseConfig`                           |
+| Go files                       | snake_case                | `camera_service.go`                     |
+| Go packages                    | lowercase, single word    | `ingest`, `transcode`, `events`         |
 
 ### Query Parameters
 
@@ -852,9 +867,11 @@ Use camelCase: `?startDate=&cameraId=&pageSize=`
 ### Error Handling
 
 **Go**: Always wrap errors with context:
+
 ```go
 fmt.Errorf("connecting to camera %s: %w", id, err)
 ```
+
 Never panic in library code. Use typed errors for known conditions.
 
 **TypeScript**: API client throws typed `ApiError` with `code`, `message`, `status`. Components show user-friendly messages, log technical details.
@@ -873,12 +890,12 @@ Branch naming: `feat/camera-discovery`, `fix/stream-reconnect`, `refactor/event-
 
 ## 17. Testing Strategy
 
-| Type | Coverage Target | Tools |
-|------|----------------|-------|
-| Unit | 80%+ | Vitest (TS), go test (Go) |
-| Integration | Key API paths | Vitest + Supertest, real Supabase |
-| E2E | Critical flows | Playwright (web), Detox (mobile) |
-| Load | Benchmarks | k6 — 100/1000/10000 concurrent streams |
+| Type        | Coverage Target | Tools                                  |
+| ----------- | --------------- | -------------------------------------- |
+| Unit        | 80%+            | Vitest (TS), go test (Go)              |
+| Integration | Key API paths   | Vitest + Supertest, real Supabase      |
+| E2E         | Critical flows  | Playwright (web), Detox (mobile)       |
+| Load        | Benchmarks      | k6 — 100/1000/10000 concurrent streams |
 
 ### Security Checklist (before every PR)
 
@@ -909,11 +926,11 @@ Branch naming: `feat/camera-discovery`, `fix/stream-reconnect`, `refactor/event-
 
 ### Log Levels
 
-| Level | Usage |
-|-------|-------|
-| `error` | Failures requiring attention |
-| `warn` | Degraded but functional |
-| `info` | Significant business events |
+| Level   | Usage                                     |
+| ------- | ----------------------------------------- |
+| `error` | Failures requiring attention              |
+| `warn`  | Degraded but functional                   |
+| `info`  | Significant business events               |
 | `debug` | Development troubleshooting (off in prod) |
 
 ### Key Metrics (Prometheus)
@@ -934,74 +951,74 @@ Metrics exposed at `GET /health/metrics` in Prometheus format.
 
 ### Web Dashboard
 
-| Page / Feature | Status |
-|----------------|--------|
-| Login / Register | ✅ Complete |
-| Forgot password + reset | ✅ Complete |
-| Camera list — search, filter, location | ✅ Complete |
-| Camera grid — 1×1, 2×2, 3×3, 4×4 layouts | ✅ Complete |
-| Add Camera — manual + network scan + USB | ✅ Complete |
-| Camera detail — live WebRTC view | ✅ Complete |
-| PTZ controls | ✅ Complete |
-| Zone drawing (canvas polygon editor) | ✅ Complete |
-| Timeline scrubber with playback seeking | ✅ Complete |
-| Recording start/stop + REC badge + timer | ✅ Complete |
-| Two-way audio — mic toggle + volume | ✅ Complete |
-| Events — filters, acknowledge, bulk, real-time | ✅ Complete |
-| Rules — visual pipeline editor (trigger→condition→action) | ✅ Complete |
-| Webhook delivery log | ✅ Complete |
-| Settings — all tabs | ✅ Complete |
-| Settings → Desktop App tab (Tauri only) | ✅ Complete |
-| Extensions marketplace (8 demo) | ✅ Complete |
-| Camera discovery — network scan + USB | ✅ Complete |
-| Multi-location management + floor plan editor | ✅ Complete |
-| Camera tags + bulk actions | ✅ Complete |
-| Dark/light theme toggle | ✅ Complete |
-| Keyboard shortcuts (Cmd+K, ?, 1–6) | ✅ Complete |
-| Onboarding wizard | ✅ Complete |
-| CSV/JSON export | ✅ Complete |
-| Responsive mobile web | ✅ Complete |
-| Health monitoring dashboard + Prometheus metrics | ✅ Complete |
-| API docs at /docs (Swagger UI) | ✅ Complete |
-| Analytics dashboard (ClickHouse) | ✅ Complete |
+| Page / Feature                                             | Status      |
+| ---------------------------------------------------------- | ----------- |
+| Login / Register                                           | ✅ Complete |
+| Forgot password + reset                                    | ✅ Complete |
+| Camera list — search, filter, location                     | ✅ Complete |
+| Camera grid — 1×1, 2×2, 3×3, 4×4 layouts                   | ✅ Complete |
+| Add Camera — manual + network scan + USB                   | ✅ Complete |
+| Camera detail — live WebRTC view                           | ✅ Complete |
+| PTZ controls                                               | ✅ Complete |
+| Zone drawing (canvas polygon editor)                       | ✅ Complete |
+| Timeline scrubber with playback seeking                    | ✅ Complete |
+| Recording start/stop + REC badge + timer                   | ✅ Complete |
+| Two-way audio — mic toggle + volume                        | ✅ Complete |
+| Events — filters, acknowledge, bulk, real-time             | ✅ Complete |
+| Rules — visual pipeline editor (trigger→condition→action)  | ✅ Complete |
+| Webhook delivery log                                       | ✅ Complete |
+| Settings — all tabs                                        | ✅ Complete |
+| Settings → Desktop App tab (Tauri only)                    | ✅ Complete |
+| Extensions marketplace (8 demo)                            | ✅ Complete |
+| Camera discovery — network scan + USB                      | ✅ Complete |
+| Multi-location management + floor plan editor              | ✅ Complete |
+| Camera tags + bulk actions                                 | ✅ Complete |
+| Dark/light theme toggle                                    | ✅ Complete |
+| Keyboard shortcuts (Cmd+K, ?, 1–6)                         | ✅ Complete |
+| Onboarding wizard                                          | ✅ Complete |
+| CSV/JSON export                                            | ✅ Complete |
+| Responsive mobile web                                      | ✅ Complete |
+| Health monitoring dashboard + Prometheus metrics           | ✅ Complete |
+| API docs at /docs (Swagger UI)                             | ✅ Complete |
+| Analytics dashboard (ClickHouse)                           | ✅ Complete |
 | Camera wall (/wall) — 8 layouts, auto-rotate, keyboard nav | ✅ Complete |
-| AI detection badges (person/vehicle/animal) | ✅ Complete |
+| AI detection badges (person/vehicle/animal)                | ✅ Complete |
 
 ### Mobile App
 
-| Feature | Status |
-|---------|--------|
-| Auth flow (login/register) | ✅ Complete |
-| Camera grid with MJPEG thumbnails | ✅ Complete |
+| Feature                                              | Status      |
+| ---------------------------------------------------- | ----------- |
+| Auth flow (login/register)                           | ✅ Complete |
+| Camera grid with MJPEG thumbnails                    | ✅ Complete |
 | Camera detail with WebRTC live view + MJPEG fallback | ✅ Complete |
-| Events list with severity colours | ✅ Complete |
-| Recordings list — offline cache (last 20) | ✅ Complete |
-| Motion zone toggles per camera | ✅ Complete |
-| PTZ controls | ✅ Complete |
-| Recording start/stop screen | ✅ Complete |
-| Push notification token registration (Expo) | ✅ Complete |
-| Offline detection banner | ✅ Complete |
+| Events list with severity colours                    | ✅ Complete |
+| Recordings list — offline cache (last 20)            | ✅ Complete |
+| Motion zone toggles per camera                       | ✅ Complete |
+| PTZ controls                                         | ✅ Complete |
+| Recording start/stop screen                          | ✅ Complete |
+| Push notification token registration (Expo)          | ✅ Complete |
+| Offline detection banner                             | ✅ Complete |
 
 ### Backend (Go Services)
 
-| Service | Status |
-|---------|--------|
-| camera-ingest: gRPC server, go2rtc client, ONVIF discovery, health monitor, PTZ | ✅ Complete |
-| video-pipeline: FFmpeg recording, R2 storage, spool, snapshots, retention | ✅ Complete |
-| event-engine: Redis pub/sub, rule evaluator (condition trees), dispatch, audit | ✅ Complete |
-| extension-runtime: gRPC server scaffold | ✅ Complete |
-| All services: go.mod with correct dependencies | ✅ Written (go mod tidy needs Go 1.22+) |
+| Service                                                                         | Status                                  |
+| ------------------------------------------------------------------------------- | --------------------------------------- |
+| camera-ingest: gRPC server, go2rtc client, ONVIF discovery, health monitor, PTZ | ✅ Complete                             |
+| video-pipeline: FFmpeg recording, R2 storage, spool, snapshots, retention       | ✅ Complete                             |
+| event-engine: Redis pub/sub, rule evaluator (condition trees), dispatch, audit  | ✅ Complete                             |
+| extension-runtime: gRPC server scaffold                                         | ✅ Complete                             |
+| All services: go.mod with correct dependencies                                  | ✅ Written (go mod tidy needs Go 1.22+) |
 
 ### Known Gaps
 
-| Gap | Priority |
-|-----|----------|
-| Go services need `go mod tidy` + `go build` run on a machine with Go 1.22+ | 🟠 High |
-| Production deployment (Vercel + Fly.io) untested end-to-end | 🟠 High |
-| Email sending needs `RESEND_API_KEY` in `.env` | 🟠 High |
-| Sentry error monitoring needs `SENTRY_DSN` in `.env` | 🟡 Medium |
-| Google OAuth button exists but handler not connected | 🟢 Low |
-| Recording download button may not be wired to signed URL | 🟢 Low |
+| Gap                                                                        | Priority  |
+| -------------------------------------------------------------------------- | --------- |
+| Go services need `go mod tidy` + `go build` run on a machine with Go 1.22+ | 🟠 High   |
+| Production deployment (Vercel + Fly.io) untested end-to-end                | 🟠 High   |
+| Email sending needs `RESEND_API_KEY` in `.env`                             | 🟠 High   |
+| Sentry error monitoring needs `SENTRY_DSN` in `.env`                       | 🟡 Medium |
+| Google OAuth button exists but handler not connected                       | 🟢 Low    |
+| Recording download button may not be wired to signed URL                   | 🟢 Low    |
 
 ---
 
@@ -1035,15 +1052,15 @@ Metrics exposed at `GET /health/metrics` in Prometheus format.
 
 ### Bug Fixes
 
-| Bug | Fix |
-|-----|-----|
-| Docker recording paths | Named volume `recordings-data` at `/data/recordings` + `RECORDINGS_DIR` env var |
-| WebSocket reconnect loop | Intercept close code 4001, refresh token before retry (max 3 failures) |
-| JWT refresh race | Guard proactive refresh with `!isRefreshing` |
-| go2rtc stream gap on startup | `syncStreamsOnStartup()` on health-checker `start()` |
-| Event clip retention | Hourly cleanup: delete files + clear `clip_path` older than 7 days |
-| Mobile TypeScript `any` | `Record<string, unknown>` + typed helpers (`str`, `num`, `bool`, `pick`) |
-| Zone drawing on mobile | Motion zone toggles with `PATCH /cameras/:id/zones/:zoneId` + optimistic update |
+| Bug                          | Fix                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| Docker recording paths       | Named volume `recordings-data` at `/data/recordings` + `RECORDINGS_DIR` env var |
+| WebSocket reconnect loop     | Intercept close code 4001, refresh token before retry (max 3 failures)          |
+| JWT refresh race             | Guard proactive refresh with `!isRefreshing`                                    |
+| go2rtc stream gap on startup | `syncStreamsOnStartup()` on health-checker `start()`                            |
+| Event clip retention         | Hourly cleanup: delete files + clear `clip_path` older than 7 days              |
+| Mobile TypeScript `any`      | `Record<string, unknown>` + typed helpers (`str`, `num`, `bool`, `pick`)        |
+| Zone drawing on mobile       | Motion zone toggles with `PATCH /cameras/:id/zones/:zoneId` + optimistic update |
 
 ### New Features (Phase 2)
 
@@ -1062,18 +1079,18 @@ Metrics exposed at `GET /health/metrics` in Prometheus format.
 
 ## 21. Plan Tiers
 
-| Feature | Free | Pro ($10/mo) | Business ($50/mo) | Enterprise (Custom) |
-|---------|------|-------------|-------------------|-------------------|
-| Cameras | 4 | 16 | 100 | Unlimited |
-| Users | 2 | 5 | 25 | Unlimited |
-| Retention | 7 days | 30 days | 90 days | Custom |
-| Concurrent streams | 2 | 4 | 8 | 16 |
-| Motion detection | Yes | Yes | Yes | Yes |
-| AI detection | No | Basic (person) | Full | Full + custom models |
-| Locations | 1 | 1 | 10 | Unlimited |
-| Extensions | 2 | 10 | Unlimited | Unlimited |
-| API access | No | Read-only | Full | Full |
-| White-label | No | No | No | Yes |
-| SSO / SAML | No | No | No | Yes |
-| SLA | None | None | 99.5% | 99.9% |
-| Support | Community | Email | Priority email | Dedicated + SLA |
+| Feature            | Free      | Pro ($10/mo)   | Business ($50/mo) | Enterprise (Custom)  |
+| ------------------ | --------- | -------------- | ----------------- | -------------------- |
+| Cameras            | 4         | 16             | 100               | Unlimited            |
+| Users              | 2         | 5              | 25                | Unlimited            |
+| Retention          | 7 days    | 30 days        | 90 days           | Custom               |
+| Concurrent streams | 2         | 4              | 8                 | 16                   |
+| Motion detection   | Yes       | Yes            | Yes               | Yes                  |
+| AI detection       | No        | Basic (person) | Full              | Full + custom models |
+| Locations          | 1         | 1              | 10                | Unlimited            |
+| Extensions         | 2         | 10             | Unlimited         | Unlimited            |
+| API access         | No        | Read-only      | Full              | Full                 |
+| White-label        | No        | No             | No                | Yes                  |
+| SSO / SAML         | No        | No             | No                | Yes                  |
+| SLA                | None      | None           | 99.5%             | 99.9%                |
+| Support            | Community | Email          | Priority email    | Dedicated + SLA      |

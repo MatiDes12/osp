@@ -36,7 +36,9 @@ export async function isClickHouseAvailable(): Promise<boolean> {
     _available = false;
   }
   // Re-check every 60 s
-  setTimeout(() => { _available = null; }, 60_000);
+  setTimeout(() => {
+    _available = null;
+  }, 60_000);
   return _available;
 }
 
@@ -66,7 +68,10 @@ export async function chQuery<T = Record<string, unknown>>(
 
     if (!res.ok) {
       const body = await res.text();
-      logger.error("ClickHouse query error", { status: String(res.status), body });
+      logger.error("ClickHouse query error", {
+        status: String(res.status),
+        body,
+      });
       return [];
     }
 
@@ -78,7 +83,9 @@ export async function chQuery<T = Record<string, unknown>>(
       .split("\n")
       .map((line) => JSON.parse(line) as T);
   } catch (err) {
-    logger.warn("ClickHouse unavailable, skipping query", { error: String(err) });
+    logger.warn("ClickHouse unavailable, skipping query", {
+      error: String(err),
+    });
     return [];
   }
 }
@@ -105,7 +112,10 @@ export async function chInsert(sql: string): Promise<void> {
 
     if (!res.ok) {
       const body = await res.text();
-      logger.warn("ClickHouse insert failed", { status: String(res.status), body: body.slice(0, 200) });
+      logger.warn("ClickHouse insert failed", {
+        status: String(res.status),
+        body: body.slice(0, 200),
+      });
     }
   } catch (err) {
     logger.warn("ClickHouse insert error (ignored)", { error: String(err) });

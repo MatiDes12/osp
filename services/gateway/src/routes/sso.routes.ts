@@ -87,7 +87,11 @@ ssoRoutes.get("/initiate", async (c) => {
     `${get("WEB_URL") ?? "http://localhost:3001"}/auth/callback`;
 
   if (!provider || !["google", "azure", "github"].includes(provider)) {
-    throw new ApiError("AUTH_SSO_INVALID_PROVIDER", "Invalid SSO provider", 400);
+    throw new ApiError(
+      "AUTH_SSO_INVALID_PROVIDER",
+      "Invalid SSO provider",
+      400,
+    );
   }
 
   const supabaseUrl = process.env["SUPABASE_URL"];
@@ -117,13 +121,20 @@ ssoRoutes.post("/session", async (c) => {
   };
 
   if (!accessToken) {
-    throw new ApiError("AUTH_SSO_MISSING_TOKEN", "accessToken is required", 400);
+    throw new ApiError(
+      "AUTH_SSO_MISSING_TOKEN",
+      "accessToken is required",
+      400,
+    );
   }
 
   const supabase = getSupabase();
 
   // Verify the access token with Supabase
-  const { data: { user }, error } = await supabase.auth.getUser(accessToken);
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(accessToken);
 
   if (error || !user) {
     throw new ApiError("AUTH_INVALID_TOKEN", "Invalid or expired token", 401);
@@ -214,7 +225,10 @@ ssoRoutes.post("/session", async (c) => {
             default_recording_mode: "motion",
             default_motion_sensitivity: 5,
             timezone: "UTC",
-            notification_preferences: { email_digest: "none", push_enabled: true },
+            notification_preferences: {
+              email_digest: "none",
+              push_enabled: true,
+            },
           },
           branding: {},
           max_cameras: 4,
@@ -259,7 +273,11 @@ ssoRoutes.post("/session", async (c) => {
       },
     });
 
-    logger.info("SSO user provisioned", { userId: user.id, tenantId, provider: oauthProvider });
+    logger.info("SSO user provisioned", {
+      userId: user.id,
+      tenantId,
+      provider: oauthProvider,
+    });
   }
 
   // Fetch tenant info
@@ -297,7 +315,8 @@ ssoRoutes.post("/session", async (c) => {
 // ---------------------------------------------------------------------------
 ssoRoutes.get("/config", async (c) => {
   const tenantId = c.get("tenantId");
-  if (!tenantId) throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
+  if (!tenantId)
+    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
 
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -306,7 +325,8 @@ ssoRoutes.get("/config", async (c) => {
     .eq("tenant_id", tenantId)
     .order("provider");
 
-  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to fetch SSO configs", 500);
+  if (error)
+    throw new ApiError("INTERNAL_ERROR", "Failed to fetch SSO configs", 500);
 
   return c.json(createSuccessResponse(data ?? []));
 });
@@ -317,7 +337,8 @@ ssoRoutes.get("/config", async (c) => {
 ssoRoutes.put("/config/:provider", async (c) => {
   const tenantId = c.get("tenantId");
   const userRole = c.get("userRole");
-  if (!tenantId) throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
+  if (!tenantId)
+    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
   if (!["owner", "admin"].includes(userRole)) {
     throw new ApiError("AUTH_FORBIDDEN", "Owner or admin role required", 403);
   }
@@ -327,7 +348,7 @@ ssoRoutes.put("/config/:provider", async (c) => {
     throw new ApiError("AUTH_SSO_INVALID_PROVIDER", "Invalid provider", 400);
   }
 
-  const body = await c.req.json() as {
+  const body = (await c.req.json()) as {
     enabled?: boolean;
     allowed_domains?: string[];
     auto_provision?: boolean;
@@ -352,7 +373,8 @@ ssoRoutes.put("/config/:provider", async (c) => {
     .select()
     .single();
 
-  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to save SSO config", 500);
+  if (error)
+    throw new ApiError("INTERNAL_ERROR", "Failed to save SSO config", 500);
 
   logger.info("SSO config updated", { tenantId, provider });
   return c.json(createSuccessResponse(data));
@@ -364,7 +386,8 @@ ssoRoutes.put("/config/:provider", async (c) => {
 ssoRoutes.delete("/config/:provider", async (c) => {
   const tenantId = c.get("tenantId");
   const userRole = c.get("userRole");
-  if (!tenantId) throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
+  if (!tenantId)
+    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
   if (!["owner", "admin"].includes(userRole)) {
     throw new ApiError("AUTH_FORBIDDEN", "Owner or admin role required", 403);
   }

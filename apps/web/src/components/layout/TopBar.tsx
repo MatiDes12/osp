@@ -188,7 +188,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
           signal: controller.signal,
         });
         if (!res.ok) return;
-        const json = await res.json() as {
+        const json = (await res.json()) as {
           success: boolean;
           data?: { id: string; name: string }[];
         };
@@ -208,7 +208,9 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
       }
     };
 
-    const timer = setTimeout(() => { void run(); }, 250);
+    const timer = setTimeout(() => {
+      void run();
+    }, 250);
     return () => {
       clearTimeout(timer);
       controller.abort();

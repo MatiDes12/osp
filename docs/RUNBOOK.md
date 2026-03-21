@@ -30,10 +30,12 @@ bash scripts/deploy-vercel.sh
 ```
 
 **Deployment status:**
+
 - Check [vercel.com/dashboard](https://vercel.com/dashboard)
 - View logs: Vercel Dashboard → your project → Deployments
 
 **Rollback to previous version:**
+
 1. Go to Vercel Dashboard → Deployments
 2. Find the last working deployment
 3. Click → Settings → Promote to Production
@@ -52,6 +54,7 @@ fly logs
 ```
 
 **Rollback:**
+
 ```bash
 fly apps list
 fly releases -a osp-gateway
@@ -61,6 +64,7 @@ fly releases rollback -a osp-gateway
 ### Deploying Go Services (Docker/Kubernetes)
 
 **Build and push image:**
+
 ```bash
 cd services/camera-ingest
 docker build -t osp-ingest:latest .
@@ -69,12 +73,14 @@ docker push yourregistry/osp-ingest:latest
 ```
 
 **Apply Kubernetes deployment:**
+
 ```bash
 kubectl apply -f infra/k8s/camera-ingest.yaml
 kubectl rollout status deployment/camera-ingest
 ```
 
 **Rollback:**
+
 ```bash
 kubectl rollout undo deployment/camera-ingest
 kubectl rollout status deployment/camera-ingest
@@ -83,18 +89,21 @@ kubectl rollout status deployment/camera-ingest
 ### Deploying Database Migrations
 
 **Test locally first:**
+
 ```bash
 npx supabase migration list
 npx supabase db reset --linked  # Dev/staging only!
 ```
 
 **Apply to production:**
+
 ```bash
 export SUPABASE_ACCESS_TOKEN=<your-token>
 npx supabase db push --linked
 ```
 
 **Verify:**
+
 ```bash
 npx supabase migration list --linked
 ```
@@ -179,6 +188,7 @@ curl http://go2rtc:1984/api/streams
 3. Check for WebRTC errors: `getStats()` in console
 
 **Common issues:**
+
 - `no route to host` — TURN server misconfigured
 - `ICE connection timeout` — NAT traversal failing
 - `permission denied` — Browser permissions or CORS issue
@@ -190,23 +200,27 @@ curl http://go2rtc:1984/api/streams
 ### Logs
 
 **Vercel (Web App):**
+
 ```
 Vercel Dashboard → Deployments → Logs
 ```
 
 **Fly.io (API Gateway):**
+
 ```bash
 fly logs --follow
 fly logs --region <region>
 ```
 
 **Docker Compose (Local/Staging):**
+
 ```bash
 docker compose -f infra/docker/docker-compose.yml logs -f gateway
 docker compose -f infra/docker/docker-compose.yml logs -f camera-ingest
 ```
 
 **Kubernetes:**
+
 ```bash
 kubectl logs deployment/camera-ingest -f
 kubectl logs deployment/video-pipeline -f
@@ -216,20 +230,21 @@ kubectl logs deployment/event-engine -f
 ### Metrics
 
 **Prometheus (if enabled):**
+
 ```bash
 curl http://localhost:9090/api/v1/query?query=up
 ```
 
 **Key metrics to monitor:**
 
-| Metric | Alert Threshold |
-|--------|-----------------|
-| API response time (p95) | > 1000ms |
-| Error rate | > 1% of requests |
-| Redis latency (p95) | > 100ms |
-| Camera offline count | > 25% of total |
-| Recording queue size | > 1000 pending |
-| Disk usage | > 85% |
+| Metric                  | Alert Threshold  |
+| ----------------------- | ---------------- |
+| API response time (p95) | > 1000ms         |
+| Error rate              | > 1% of requests |
+| Redis latency (p95)     | > 100ms          |
+| Camera offline count    | > 25% of total   |
+| Recording queue size    | > 1000 pending   |
+| Disk usage              | > 85%            |
 
 ### Alerting
 
@@ -243,6 +258,7 @@ curl http://localhost:9090/api/v1/query?query=up
 6. **High error rate:** Error logs exceed threshold
 
 **Notification channels:**
+
 - Email: critical incidents
 - Slack: all alerts
 - PagerDuty: p1 incidents (API down, DB down, data loss)
@@ -254,11 +270,13 @@ curl http://localhost:9090/api/v1/query?query=up
 ### API Gateway Not Responding
 
 **Symptoms:**
+
 - `/health` returns 500 or timeout
 - Web app shows "Cannot reach server"
 - New deployments fail
 
 **Check:**
+
 ```bash
 # Is the service running?
 fly status
@@ -274,6 +292,7 @@ kubectl describe pod <pod-name>
 **Troubleshooting:**
 
 1. **Out of memory:** Restart the service
+
    ```bash
    fly apps restart gateway
    # or
@@ -281,6 +300,7 @@ kubectl describe pod <pod-name>
    ```
 
 2. **Database connection pool exhausted:**
+
    ```bash
    # Check connection count
    psql $DATABASE_URL -c "SELECT count(*) FROM pg_stat_activity;"
@@ -290,6 +310,7 @@ kubectl describe pod <pod-name>
    ```
 
 3. **Redis unavailable:**
+
    ```bash
    redis-cli -u $REDIS_URL PING
 
@@ -303,6 +324,7 @@ kubectl describe pod <pod-name>
    - Monitor `/health/detailed` until "supabase": "connected"
 
 **Rollback if critical:**
+
 ```bash
 fly releases rollback
 # or
@@ -314,6 +336,7 @@ kubectl rollout undo deployment/gateway
 ### Cameras Going Offline
 
 **Symptoms:**
+
 - Live view shows "Camera offline"
 - Motion events not triggering
 - go2rtc reports "stream unreachable"
@@ -321,17 +344,20 @@ kubectl rollout undo deployment/gateway
 **Check:**
 
 1. **Is camera reachable?**
+
    ```bash
    ping <camera-ip>
    curl -v rtsp://<camera-ip>:<port>/path
    ```
 
 2. **Check camera-ingest service:**
+
    ```bash
    kubectl logs deployment/camera-ingest | grep <camera-id>
    ```
 
 3. **Check go2rtc logs:**
+
    ```bash
    docker compose logs go2rtc | grep <camera-rtsp-url>
    ```
@@ -343,6 +369,7 @@ kubectl rollout undo deployment/gateway
 **Resolution:**
 
 1. **Restart go2rtc:**
+
    ```bash
    docker compose restart go2rtc
    # or
@@ -361,6 +388,7 @@ kubectl rollout undo deployment/gateway
 ### High Latency / Slow Live View
 
 **Symptoms:**
+
 - Live view has 5+ second lag
 - WebRTC connection times out
 - Mobile app unresponsive
@@ -368,6 +396,7 @@ kubectl rollout undo deployment/gateway
 **Check:**
 
 1. **Network latency to go2rtc:**
+
    ```bash
    ping <go2rtc-host>
    # Should be < 100ms
@@ -378,6 +407,7 @@ kubectl rollout undo deployment/gateway
    - Verify RTSP URL is actually streaming
 
 3. **API response time:**
+
    ```bash
    time curl https://api.yourdomain.com/health
    ```
@@ -409,6 +439,7 @@ kubectl rollout undo deployment/gateway
 ### Recording Not Saving
 
 **Symptoms:**
+
 - "Recordings" tab is empty
 - Videos not appearing in R2 bucket
 - Disk space filling up but no recordings
@@ -416,17 +447,20 @@ kubectl rollout undo deployment/gateway
 **Check:**
 
 1. **Video pipeline is running:**
+
    ```bash
    kubectl get pod -l app=video-pipeline
    kubectl logs deployment/video-pipeline
    ```
 
 2. **R2 credentials are valid:**
+
    ```bash
    aws s3 ls s3://osp-storage/ --endpoint-url https://your-account-id.r2.cloudflarestorage.com
    ```
 
 3. **Storage quota not exceeded:**
+
    ```bash
    # Check R2 usage in Cloudflare dashboard
    # Or:
@@ -442,17 +476,20 @@ kubectl rollout undo deployment/gateway
 **Resolution:**
 
 1. **Restart video pipeline:**
+
    ```bash
    kubectl rollout restart deployment/video-pipeline
    ```
 
 2. **Adjust retention policy:**
+
    ```bash
    # In gateway config, set:
    RECORDING_RETENTION_DAYS=30
    ```
 
 3. **Clear old recordings if disk full:**
+
    ```bash
    # List oldest recordings
    aws s3 ls s3://osp-storage/ --recursive | sort | head -20
@@ -466,6 +503,7 @@ kubectl rollout undo deployment/gateway
 ### Push Notifications Not Sending
 
 **Symptoms:**
+
 - Mobile app doesn't receive alerts
 - Email alerts not arriving
 - No errors in logs
@@ -473,18 +511,21 @@ kubectl rollout undo deployment/gateway
 **Check:**
 
 1. **APNS is configured:**
+
    ```bash
    # Check Fly.io secrets
    fly secrets list | grep APNS
    ```
 
 2. **FCM is configured:**
+
    ```bash
    fly secrets list | grep FCM
    ```
 
 3. **Device tokens are registered:**
    - Check Supabase `device_tokens` table
+
    ```bash
    psql $DATABASE_URL -c "SELECT COUNT(*) FROM device_tokens WHERE active = true;"
    ```
@@ -516,6 +557,7 @@ kubectl rollout undo deployment/gateway
 ### WebSocket Connection Drops
 
 **Symptoms:**
+
 - Real-time alerts delayed or missing
 - "Connection lost" message in UI
 - Mobile app loses connection after idle
@@ -523,12 +565,14 @@ kubectl rollout undo deployment/gateway
 **Check:**
 
 1. **WebSocket server is running:**
+
    ```bash
    netstat -tuln | grep 3002
    # Should show listening on 0.0.0.0:3002
    ```
 
 2. **Firewall allows WebSocket:**
+
    ```bash
    curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
      http://localhost:3002/events
@@ -543,11 +587,13 @@ kubectl rollout undo deployment/gateway
 **Resolution:**
 
 1. **Restart gateway (includes WebSocket server):**
+
    ```bash
    fly apps restart gateway
    ```
 
 2. **Check for connection leaks:**
+
    ```bash
    # Monitor open connections
    watch -n 1 'netstat -tuln | grep 3002'
@@ -568,6 +614,7 @@ kubectl rollout undo deployment/gateway
 ### Out of Disk Space
 
 **Symptoms:**
+
 - Services crashing with "No space left on device"
 - Recording queue backs up
 - Docker container eviction on Kubernetes
@@ -596,6 +643,7 @@ aws s3 rm s3://your-backup-bucket/ --recursive --exclude "*" --include "*2025-01
    - Fly.io: `fly volumes extend storage -s 100` (adjust size)
 
 2. **Implement retention policy:**
+
    ```env
    RECORDING_RETENTION_DAYS=7  # Keep only 7 days
    SNAPSHOT_RETENTION_DAYS=30  # Keep 30 days of snapshots
@@ -612,10 +660,12 @@ aws s3 rm s3://your-backup-bucket/ --recursive --exclude "*" --include "*2025-01
 ### Database Backup/Restore
 
 **Supabase (automatic):**
+
 - Pro plan includes daily backups
 - Access at [supabase.com/dashboard](https://supabase.com/dashboard) → Backups
 
 **Manual backup:**
+
 ```bash
 # Dump entire database
 pg_dump $DATABASE_URL > backup.sql
@@ -647,10 +697,12 @@ psql $DATABASE_URL < backup.sql
 ### Recovering Deleted Data
 
 **Within 30 days (Supabase Pro):**
+
 - Use pitr (point-in-time recovery) from backups
 - Contact Supabase support
 
 **Beyond 30 days:**
+
 - Data is permanently deleted
 - Restore from your own backups (if available)
 
@@ -659,6 +711,7 @@ psql $DATABASE_URL < backup.sql
 **API Gateway is Down:**
 
 1. **Immediate (0-5 min):**
+
    ```bash
    fly apps restart gateway
    kubectl rollout restart deployment/gateway
@@ -689,22 +742,26 @@ psql $DATABASE_URL < backup.sql
 ### Regular Tasks
 
 **Daily:**
+
 - Monitor `/health/detailed` endpoint
 - Check error rates in Sentry
 - Scan alert logs for patterns
 
 **Weekly:**
+
 - Review performance metrics
 - Verify backups completed
 - Update monitoring thresholds if needed
 
 **Monthly:**
+
 - Rotate secrets (API tokens, encryption keys)
 - Upgrade dependencies (run `pnpm outdated`)
 - Review access logs for suspicious activity
 - Clean up old logs (Supabase logs older than 90 days)
 
 **Quarterly:**
+
 - Security audit (check CLAUDE.md security checklist)
 - Capacity planning (disk, bandwidth, database connections)
 - Disaster recovery test (restore from backup, verify)
@@ -713,6 +770,7 @@ psql $DATABASE_URL < backup.sql
 ### Scaling the System
 
 **API Gateway becoming saturated:**
+
 ```bash
 # Increase replica count
 fly scale count 3  # Run 3 instances instead of 1
@@ -722,6 +780,7 @@ fly status
 ```
 
 **Database connections exhausted:**
+
 ```bash
 # Increase connection limit in Supabase
 # (Settings → Database → Connection limit)
@@ -731,6 +790,7 @@ fly status
 ```
 
 **Redis memory full:**
+
 ```bash
 # Increase Redis instance size (Upstash dashboard)
 # Or: implement LRU eviction policy
@@ -738,6 +798,7 @@ redis-cli CONFIG SET maxmemory-policy allkeys-lru
 ```
 
 **Storage running out:**
+
 ```bash
 # Upgrade R2 bucket (automatic)
 # Or: delete old recordings
@@ -747,12 +808,14 @@ redis-cli CONFIG SET maxmemory-policy allkeys-lru
 ### Version Upgrades
 
 **Node.js (web app):**
+
 1. Update `package.json` engines field
 2. Test locally: `nvm use 21`
 3. Update Vercel Node.js version in project settings
 4. Deploy and verify
 
 **Go (services):**
+
 1. Update `go.mod` and `go.sum`
 2. Run `go mod tidy`
 3. Test: `go test ./...`
@@ -760,12 +823,14 @@ redis-cli CONFIG SET maxmemory-policy allkeys-lru
 5. Deploy and monitor
 
 **TypeScript:**
+
 ```bash
 pnpm add -D typescript@latest
 pnpm type-check
 ```
 
 **Dependencies:**
+
 ```bash
 # Check for updates
 pnpm outdated

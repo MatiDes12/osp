@@ -159,10 +159,7 @@ export function VirtualList<T>({
       {visibleItems.map((item, i) => {
         const absoluteIndex = startIndex + i;
         return (
-          <div
-            key={absoluteIndex}
-            style={{ height: itemHeight }}
-          >
+          <div key={absoluteIndex} style={{ height: itemHeight }}>
             {renderItem(item, absoluteIndex)}
           </div>
         );

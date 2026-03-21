@@ -62,23 +62,14 @@ export function createCamerasApi(client: ApiClient) {
 
     // Zones
     listZones(cameraId: string) {
-      return client.get<CameraZone[]>(
-        `/api/v1/cameras/${cameraId}/zones`,
-      );
+      return client.get<CameraZone[]>(`/api/v1/cameras/${cameraId}/zones`);
     },
 
     createZone(cameraId: string, data: CreateZoneInput) {
-      return client.post<CameraZone>(
-        `/api/v1/cameras/${cameraId}/zones`,
-        data,
-      );
+      return client.post<CameraZone>(`/api/v1/cameras/${cameraId}/zones`, data);
     },
 
-    updateZone(
-      cameraId: string,
-      zoneId: string,
-      data: UpdateZoneInput,
-    ) {
+    updateZone(cameraId: string, zoneId: string, data: UpdateZoneInput) {
       return client.patch<CameraZone>(
         `/api/v1/cameras/${cameraId}/zones/${zoneId}`,
         data,
@@ -86,9 +77,7 @@ export function createCamerasApi(client: ApiClient) {
     },
 
     deleteZone(cameraId: string, zoneId: string) {
-      return client.delete<void>(
-        `/api/v1/cameras/${cameraId}/zones/${zoneId}`,
-      );
+      return client.delete<void>(`/api/v1/cameras/${cameraId}/zones/${zoneId}`);
     },
   };
 }

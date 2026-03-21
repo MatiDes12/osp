@@ -14,7 +14,9 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
-  const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "authenticated" | "unauthenticated"
+  >("loading");
   const notificationRequestedRef = useRef(false);
 
   useEffect(() => {

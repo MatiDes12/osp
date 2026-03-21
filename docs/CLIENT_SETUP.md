@@ -19,11 +19,11 @@ That's it. The camera engine starts automatically every time you open OSP.
 
 ### Requirements
 
-| | |
-|---|---|
+|             |                              |
+| ----------- | ---------------------------- |
 | **Windows** | Windows 10 or later (64-bit) |
-| **macOS** | macOS 12 (Monterey) or later |
-| **Linux** | Ubuntu 20.04+ or equivalent |
+| **macOS**   | macOS 12 (Monterey) or later |
+| **Linux**   | Ubuntu 20.04+ or equivalent  |
 
 > **Note:** If your antivirus blocks the app on first launch, add an exception for the OSP folder and try again.
 
@@ -117,11 +117,11 @@ docker logs osp-go2rtc --tail 50
 
 Once the agent is online, click **Add Camera** in the dashboard and enter your camera's connection details.
 
-| Protocol | Connection format |
-|---|---|
-| RTSP | `rtsp://username:password@192.168.1.x:554/stream` |
-| ONVIF | `onvif://username:password@192.168.1.x` |
-| HTTP MJPEG | `http://192.168.1.x/video.cgi` |
+| Protocol   | Connection format                                 |
+| ---------- | ------------------------------------------------- |
+| RTSP       | `rtsp://username:password@192.168.1.x:554/stream` |
+| ONVIF      | `onvif://username:password@192.168.1.x`           |
+| HTTP MJPEG | `http://192.168.1.x/video.cgi`                    |
 
 > **Tip:** Most cameras have their RTSP address printed in the manual or on the manufacturer's website. Search `[camera brand] RTSP URL` if you're unsure.
 

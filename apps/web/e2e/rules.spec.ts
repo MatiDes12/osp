@@ -38,9 +38,9 @@ test.describe("Rules engine", () => {
   test("shows 'Select a rule to edit' placeholder when no rule selected", async ({
     page,
   }) => {
-    await expect(
-      page.getByText("Select a rule to edit"),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Select a rule to edit")).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   /* ------------------------------------------------------------------ */
@@ -57,9 +57,7 @@ test.describe("Rules engine", () => {
     await page.getByText("Person at Front Door").click();
 
     await expect(page.getByText("When this happens")).toBeVisible();
-    await expect(
-      page.getByText("If these conditions are met"),
-    ).toBeVisible();
+    await expect(page.getByText("If these conditions are met")).toBeVisible();
     await expect(page.getByText("Then do this")).toBeVisible();
   });
 
@@ -82,20 +80,14 @@ test.describe("Rules engine", () => {
     await expect(page.getByText("Email")).toBeVisible();
   });
 
-  test("rule editor shows 'Test Rule' and 'Save' buttons", async ({
-    page,
-  }) => {
+  test("rule editor shows 'Test Rule' and 'Save' buttons", async ({ page }) => {
     await expect(page.getByText("Person at Front Door")).toBeVisible({
       timeout: 10_000,
     });
     await page.getByText("Person at Front Door").click();
 
-    await expect(
-      page.getByRole("button", { name: "Test Rule" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Save" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Test Rule" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
   });
 
   /* ------------------------------------------------------------------ */
@@ -126,14 +118,10 @@ test.describe("Rules engine", () => {
       timeout: 10_000,
     });
 
-    await expect(
-      page.getByRole("button", { name: "Name" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Name" })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Last Triggered" }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Created" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Created" })).toBeVisible();
   });
 });

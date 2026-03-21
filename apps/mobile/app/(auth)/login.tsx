@@ -33,10 +33,14 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const result = await api.post<LoginResponse>("/api/v1/auth/login", {
-        email: email.trim(),
-        password,
-      }, { requiresAuth: false });
+      const result = await api.post<LoginResponse>(
+        "/api/v1/auth/login",
+        {
+          email: email.trim(),
+          password,
+        },
+        { requiresAuth: false },
+      );
 
       if (result.success && result.data) {
         await setTokens(result.data.accessToken, result.data.refreshToken);

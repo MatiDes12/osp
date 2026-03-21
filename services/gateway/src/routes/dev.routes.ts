@@ -15,14 +15,14 @@ export const devRoutes = new Hono<Env>();
 // frontend activity alongside backend request logs.
 
 const CLIENT_TAG_COLORS: Record<string, string> = {
-  NAV:   "\x1b[34m",  // blue
-  ACT:   "\x1b[36m",  // cyan
-  API:   "\x1b[33m",  // yellow
-  RES:   "\x1b[32m",  // green
-  ERR:   "\x1b[31m",  // red
-  STATE: "\x1b[35m",  // magenta
-  EVENT: "\x1b[35m",  // magenta
-  WS:    "\x1b[36m",  // cyan
+  NAV: "\x1b[34m", // blue
+  ACT: "\x1b[36m", // cyan
+  API: "\x1b[33m", // yellow
+  RES: "\x1b[32m", // green
+  ERR: "\x1b[31m", // red
+  STATE: "\x1b[35m", // magenta
+  EVENT: "\x1b[35m", // magenta
+  WS: "\x1b[36m", // cyan
 };
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
@@ -35,7 +35,7 @@ devRoutes.post("/client-log", async (c) => {
 
   let body: Record<string, unknown>;
   try {
-    body = await c.req.json() as Record<string, unknown>;
+    body = (await c.req.json()) as Record<string, unknown>;
   } catch {
     // sendBeacon may send text/plain; try parsing the raw text.
     try {
@@ -53,7 +53,14 @@ devRoutes.post("/client-log", async (c) => {
   const ts = String(body["timestamp"] ?? "");
 
   const color = CLIENT_TAG_COLORS[tag] ?? "";
-  const statusChar = status === "ok" ? `${"\x1b[32m"}+${RESET}` : status === "error" ? `${"\x1b[31m"}x${RESET}` : status === "pending" ? `${"\x1b[33m"}~${RESET}` : " ";
+  const statusChar =
+    status === "ok"
+      ? `${"\x1b[32m"}+${RESET}`
+      : status === "error"
+        ? `${"\x1b[31m"}x${RESET}`
+        : status === "pending"
+          ? `${"\x1b[33m"}~${RESET}`
+          : " ";
 
   const line = `${DIM}${ts}${RESET}  ${color}${BOLD}${tag.padEnd(5)}${RESET} ${statusChar} ${label}${detail ? `  ${DIM}${detail}${RESET}` : ""}`;
 

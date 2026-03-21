@@ -99,7 +99,12 @@ export interface CameraIngestClient {
   addCamera(
     id: string,
     rtspUrl: string,
-    options?: { name?: string; onvifUrl?: string; username?: string; password?: string },
+    options?: {
+      name?: string;
+      onvifUrl?: string;
+      username?: string;
+      password?: string;
+    },
   ): Promise<AddCameraResponse>;
   removeCamera(id: string): Promise<void>;
   getCameraStatus(id: string): Promise<CameraStatus>;
@@ -162,11 +167,10 @@ function createGrpcCameraIngestClient(): CameraIngestClient {
 
     async getCameraStatus(id) {
       try {
-        const response = await unaryCall<{ cameraId: string }, CameraStatusResponse>(
-          getStub(),
-          "getCameraStatus",
-          { cameraId: id },
-        );
+        const response = await unaryCall<
+          { cameraId: string },
+          CameraStatusResponse
+        >(getStub(), "getCameraStatus", { cameraId: id });
         return response.status;
       } catch (err) {
         if (isServiceUnavailable(err)) {
@@ -179,11 +183,10 @@ function createGrpcCameraIngestClient(): CameraIngestClient {
 
     async listCameraStatuses() {
       try {
-        const response = await unaryCall<Record<string, never>, ListCameraStatusesResponse>(
-          getStub(),
-          "listCameraStatuses",
-          {},
-        );
+        const response = await unaryCall<
+          Record<string, never>,
+          ListCameraStatusesResponse
+        >(getStub(), "listCameraStatuses", {});
         return response.statuses;
       } catch (err) {
         if (isServiceUnavailable(err)) {
@@ -196,7 +199,10 @@ function createGrpcCameraIngestClient(): CameraIngestClient {
 
     async discoverCameras(timeoutSeconds = 10) {
       try {
-        const response = await unaryCall<{ timeoutSeconds: number }, DiscoverCamerasResponse>(
+        const response = await unaryCall<
+          { timeoutSeconds: number },
+          DiscoverCamerasResponse
+        >(
           getStub(),
           "discoverCameras",
           { timeoutSeconds },
@@ -255,7 +261,9 @@ export class GrpcFallbackError extends Error {
   readonly methodName: string;
 
   constructor(serviceName: string, methodName: string) {
-    super(`gRPC service "${serviceName}" unavailable for method "${methodName}"`);
+    super(
+      `gRPC service "${serviceName}" unavailable for method "${methodName}"`,
+    );
     this.name = "GrpcFallbackError";
     this.serviceName = serviceName;
     this.methodName = methodName;

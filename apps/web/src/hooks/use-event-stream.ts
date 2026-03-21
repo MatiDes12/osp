@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import type { OSPEvent } from "@osp/shared";
 import { showNotification } from "@/lib/notifications";
 import { shouldShowNotification } from "@/stores/notification-prefs";
@@ -153,7 +159,10 @@ class EventStreamManager {
   private handleAuthFailedClose() {
     this.authFailCount++;
     if (this.authFailCount > EventStreamManager.MAX_AUTH_FAILURES) {
-      this.setState({ error: "Session expired. Please log in again.", connected: false });
+      this.setState({
+        error: "Session expired. Please log in again.",
+        connected: false,
+      });
       return;
     }
     const refreshToken = localStorage.getItem("osp_refresh_token");
@@ -161,28 +170,41 @@ class EventStreamManager {
       this.setState({ error: "Not authenticated", connected: false });
       return;
     }
-    const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
+    const apiUrl =
+      process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
     fetch(`${apiUrl}/api/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((json: { data?: { accessToken?: string; refreshToken?: string } } | null) => {
-        if (json?.data?.accessToken) {
-          localStorage.setItem("osp_access_token", json.data.accessToken);
-          if (json.data.refreshToken) {
-            localStorage.setItem("osp_refresh_token", json.data.refreshToken);
+      .then(
+        (
+          json: {
+            data?: { accessToken?: string; refreshToken?: string };
+          } | null,
+        ) => {
+          if (json?.data?.accessToken) {
+            localStorage.setItem("osp_access_token", json.data.accessToken);
+            if (json.data.refreshToken) {
+              localStorage.setItem("osp_refresh_token", json.data.refreshToken);
+            }
+            this.authFailCount = 0;
+            this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
+            this.scheduleReconnect();
+          } else {
+            this.setState({
+              error: "Session expired. Please log in again.",
+              connected: false,
+            });
           }
-          this.authFailCount = 0;
-          this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
-          this.scheduleReconnect();
-        } else {
-          this.setState({ error: "Session expired. Please log in again.", connected: false });
-        }
-      })
+        },
+      )
       .catch(() => {
-        this.setState({ error: "Connection error. Please log in again.", connected: false });
+        this.setState({
+          error: "Connection error. Please log in again.",
+          connected: false,
+        });
       });
   }
 
@@ -234,14 +256,18 @@ class EventStreamManager {
             const event = message.data;
             const updated = [event, ...this.state.events];
             this.setState({
-              events: updated.length > MAX_EVENTS
-                ? updated.slice(0, MAX_EVENTS)
-                : updated,
+              events:
+                updated.length > MAX_EVENTS
+                  ? updated.slice(0, MAX_EVENTS)
+                  : updated,
             });
 
             // Show browser notification respecting user preferences
             if (shouldShowNotification(event.severity)) {
-              const title = event.type === "motion" ? "Motion Detected" : `Event: ${event.type}`;
+              const title =
+                event.type === "motion"
+                  ? "Motion Detected"
+                  : `Event: ${event.type}`;
               showNotification(title, {
                 body: `Camera: ${event.cameraName || "Unknown"}`,
                 tag: `event-${event.id}`,
@@ -278,7 +304,8 @@ class EventStreamManager {
       };
     } catch (err) {
       this.setState({
-        error: err instanceof Error ? err.message : "Failed to create WebSocket",
+        error:
+          err instanceof Error ? err.message : "Failed to create WebSocket",
       });
       this.scheduleReconnect();
     }

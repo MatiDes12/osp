@@ -54,7 +54,9 @@ function createTestApp(config?: Parameters<typeof rateLimit>[0]) {
   app.use("*", rateLimit(config));
 
   app.get("/api/test", (c) => c.json({ success: true }));
-  app.get("/api/cameras/:id", (c) => c.json({ success: true, id: c.req.param("id") }));
+  app.get("/api/cameras/:id", (c) =>
+    c.json({ success: true, id: c.req.param("id") }),
+  );
 
   return app;
 }
@@ -65,7 +67,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("allows requests under the limit", async () => {
-    mockExec.mockResolvedValue([[null, 5], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 5],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 60 });
     const res = await app.request("/api/test");
@@ -76,7 +81,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("includes rate limit headers in successful responses", async () => {
-    mockExec.mockResolvedValue([[null, 10], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 10],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 60 });
     const res = await app.request("/api/test");
@@ -87,7 +95,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("returns 429 when limit is exceeded", async () => {
-    mockExec.mockResolvedValue([[null, 11], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 11],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 10 });
     const res = await app.request("/api/test");
@@ -99,7 +110,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("includes Retry-After header on 429 responses", async () => {
-    mockExec.mockResolvedValue([[null, 61], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 61],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 60 });
     const res = await app.request("/api/test");
@@ -111,7 +125,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("sets remaining to 0 when at exact limit", async () => {
-    mockExec.mockResolvedValue([[null, 60], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 60],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 60 });
     const res = await app.request("/api/test");
@@ -122,7 +139,10 @@ describe("rateLimit middleware", () => {
 
   it("uses plan-based limits when no explicit maxRequests is provided", async () => {
     // With "free" plan, apiRequestsPerMin = 60
-    mockExec.mockResolvedValue([[null, 5], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 5],
+      [null, 1],
+    ]);
 
     const app = createTestApp(); // No config -> uses plan limits
     const res = await app.request("/api/test");
@@ -166,7 +186,10 @@ describe("rateLimit middleware", () => {
   });
 
   it("normalizes endpoint paths with UUIDs", async () => {
-    mockExec.mockResolvedValue([[null, 1], [null, 1]]);
+    mockExec.mockResolvedValue([
+      [null, 1],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 100 });
     await app.request("/api/cameras/550e8400-e29b-41d4-a716-446655440000");
@@ -180,14 +203,20 @@ describe("rateLimit middleware", () => {
 
   it("resets counter after window expires (different window key)", async () => {
     // First request in window 1
-    mockExec.mockResolvedValueOnce([[null, 1], [null, 1]]);
+    mockExec.mockResolvedValueOnce([
+      [null, 1],
+      [null, 1],
+    ]);
 
     const app = createTestApp({ maxRequests: 5, windowMs: 1000 });
     const res1 = await app.request("/api/test");
     expect(res1.status).toBe(200);
 
     // Second request also in same window is fine
-    mockExec.mockResolvedValueOnce([[null, 2], [null, 1]]);
+    mockExec.mockResolvedValueOnce([
+      [null, 2],
+      [null, 1],
+    ]);
     const res2 = await app.request("/api/test");
     expect(res2.status).toBe(200);
     expect(res2.headers.get("X-RateLimit-Remaining")).toBe("3");

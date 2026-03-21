@@ -75,7 +75,10 @@ export class AIDetectionService {
               },
               {
                 type: "image_url",
-                image_url: { url: `data:image/jpeg;base64,${base64}`, detail: "low" },
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64}`,
+                  detail: "low",
+                },
               },
             ],
           },
@@ -109,7 +112,9 @@ export function getAIDetectionService(): AIDetectionService {
   if (!instance) {
     instance = new AIDetectionService();
     if (instance.isConfigured()) {
-      logger.info("AI detection configured", { provider: instance.getStatus().provider });
+      logger.info("AI detection configured", {
+        provider: instance.getStatus().provider,
+      });
     }
   }
   return instance;

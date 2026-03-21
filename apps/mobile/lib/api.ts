@@ -1,6 +1,11 @@
 import type { ApiResponse } from "@osp/shared/types";
 import { router } from "expo-router";
-import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "./auth";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  clearTokens,
+} from "./auth";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -13,7 +18,10 @@ interface RequestOptions {
 
 type ApiParamValue = string | number | undefined;
 
-function buildUrl(path: string, params?: Record<string, string | number | undefined>): string {
+function buildUrl(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+): string {
   const url = new URL(path, API_BASE_URL);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -119,11 +127,21 @@ async function apiRequest<T>(
 }
 
 export const api = {
-  get: <T>(path: string, params?: Record<string, string | number | undefined>) =>
-    apiRequest<T>(path, { params }),
+  get: <T>(
+    path: string,
+    params?: Record<string, string | number | undefined>,
+  ) => apiRequest<T>(path, { params }),
 
-  post: <T>(path: string, body?: unknown, options?: { requiresAuth?: boolean }) =>
-    apiRequest<T>(path, { method: "POST", body, requiresAuth: options?.requiresAuth }),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: { requiresAuth?: boolean },
+  ) =>
+    apiRequest<T>(path, {
+      method: "POST",
+      body,
+      requiresAuth: options?.requiresAuth,
+    }),
 
   put: <T>(path: string, body?: unknown) =>
     apiRequest<T>(path, { method: "PUT", body }),
@@ -132,8 +150,12 @@ export const api = {
     path: string,
     body?: unknown,
     options?: { requiresAuth?: boolean },
-  ) => apiRequest<T>(path, { method: "PATCH", body, requiresAuth: options?.requiresAuth }),
+  ) =>
+    apiRequest<T>(path, {
+      method: "PATCH",
+      body,
+      requiresAuth: options?.requiresAuth,
+    }),
 
-  delete: <T>(path: string) =>
-    apiRequest<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 } as const;

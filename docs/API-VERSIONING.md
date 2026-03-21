@@ -75,10 +75,10 @@ Check for `Deprecation: true` in responses. Display a warning and plan migration
 
 ## Implementation
 
-| File | Purpose |
-|------|---------|
-| `services/gateway/src/middleware/api-version.ts` | `apiVersion()` middleware, `deprecated()` helper, `getRequestedVersion()` parser |
-| `services/gateway/src/app.ts` | `apiVersion()` applied to all `/api/*` routes; root endpoint exposes version metadata |
+| File                                             | Purpose                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `services/gateway/src/middleware/api-version.ts` | `apiVersion()` middleware, `deprecated()` helper, `getRequestedVersion()` parser      |
+| `services/gateway/src/app.ts`                    | `apiVersion()` applied to all `/api/*` routes; root endpoint exposes version metadata |
 
 ---
 

@@ -93,11 +93,7 @@ export function evaluateRules(
 
     // 5. Evaluate conditions
     const conditions = rule.conditions as ConditionNode;
-    if (
-      conditions &&
-      conditions.children &&
-      conditions.children.length > 0
-    ) {
+    if (conditions && conditions.children && conditions.children.length > 0) {
       if (!evaluateConditionNode(conditions, event)) {
         continue;
       }
@@ -154,9 +150,15 @@ function evaluateConditionLeaf(
 
   switch (leaf.operator) {
     case "eq":
-      return fieldValue === conditionValue || String(fieldValue) === String(conditionValue);
+      return (
+        fieldValue === conditionValue ||
+        String(fieldValue) === String(conditionValue)
+      );
     case "neq":
-      return fieldValue !== conditionValue && String(fieldValue) !== String(conditionValue);
+      return (
+        fieldValue !== conditionValue &&
+        String(fieldValue) !== String(conditionValue)
+      );
     case "gt":
       return toNumber(fieldValue) > toNumber(conditionValue);
     case "gte":
@@ -183,10 +185,7 @@ function evaluateConditionLeaf(
  * Resolves a field path against the event object.
  * Supports dotted paths like "metadata.confidence" or shorthand like "intensity".
  */
-function resolveField(
-  field: string,
-  event: EventForEval,
-): unknown {
+function resolveField(field: string, event: EventForEval): unknown {
   // Direct fields on the event
   const directFields: Record<string, unknown> = {
     intensity: event.intensity,
@@ -217,10 +216,7 @@ function resolveField(
   return event.metadata[field] ?? null;
 }
 
-function getNestedValue(
-  obj: Record<string, unknown>,
-  path: string,
-): unknown {
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split(".");
   let current: unknown = obj;
   for (const part of parts) {

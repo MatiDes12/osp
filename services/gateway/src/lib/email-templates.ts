@@ -115,4 +115,3 @@ export function inviteEmailTemplate(params: {
 
   return layout(content);
 }
-

@@ -135,9 +135,9 @@ async function handleExtensionHook(
   event: EventContext,
 ): Promise<void> {
   const extensionId =
-    (action.config["extensionId"] as string | undefined)
-    ?? (action.config["installedExtensionId"] as string | undefined)
-    ?? "";
+    (action.config["extensionId"] as string | undefined) ??
+    (action.config["installedExtensionId"] as string | undefined) ??
+    "";
   if (!extensionId) {
     logger.warn("Extension hook action missing extensionId", {
       ruleId: matchedRule.ruleId,
@@ -198,11 +198,13 @@ async function handlePushNotification(
   const supabase = getSupabase();
 
   const title = interpolateTemplate(
-    (action.config["title"] as string) ?? `Rule triggered: ${matchedRule.ruleName}`,
+    (action.config["title"] as string) ??
+      `Rule triggered: ${matchedRule.ruleName}`,
     event,
   );
   const body = interpolateTemplate(
-    (action.config["body"] as string) ?? `${event.type} detected on ${event.cameraName}`,
+    (action.config["body"] as string) ??
+      `${event.type} detected on ${event.cameraName}`,
     event,
   );
 
@@ -258,7 +260,10 @@ async function handlePushNotification(
   // Deliver via Expo Push API to devices that have registered a push token
   const pushTokens = users
     .map((u) => u.push_token as string | null)
-    .filter((t): t is string => typeof t === "string" && t.startsWith("ExponentPushToken["));
+    .filter(
+      (t): t is string =>
+        typeof t === "string" && t.startsWith("ExponentPushToken["),
+    );
 
   if (pushTokens.length === 0) return;
 
@@ -337,9 +342,7 @@ async function handleEmail(
       .select("email")
       .eq("tenant_id", tenantId);
 
-    recipients = (users ?? [])
-      .map((u) => u.email as string)
-      .filter(Boolean);
+    recipients = (users ?? []).map((u) => u.email as string).filter(Boolean);
   }
 
   if (recipients.length === 0) {
@@ -415,7 +418,9 @@ async function handleWebhook(
   };
 
   // Allow custom headers from config
-  const customHeaders = action.config["headers"] as Record<string, string> | undefined;
+  const customHeaders = action.config["headers"] as
+    | Record<string, string>
+    | undefined;
   if (customHeaders && typeof customHeaders === "object") {
     for (const [key, value] of Object.entries(customHeaders)) {
       if (typeof value === "string") {
@@ -447,7 +452,8 @@ async function handleWebhook(
     Math.min(
       30_000,
       Number(
-        (action.config["retry_backoff_ms"] as number | string | undefined) ?? 1_000,
+        (action.config["retry_backoff_ms"] as number | string | undefined) ??
+          1_000,
       ),
     ),
   );
@@ -569,7 +575,10 @@ async function handleStartRecording(
   event: EventContext,
   tenantId: string,
 ): Promise<void> {
-  const durationSec = (action.config["duration_sec"] as number) ?? (action.config["duration"] as number) ?? 60;
+  const durationSec =
+    (action.config["duration_sec"] as number) ??
+    (action.config["duration"] as number) ??
+    60;
   const durationMs = durationSec * 1000;
 
   try {
@@ -615,10 +624,7 @@ async function handleStartRecording(
  * Simple template interpolation for notification text.
  * Replaces {{field}} placeholders with event values.
  */
-function interpolateTemplate(
-  template: string,
-  event: EventContext,
-): string {
+function interpolateTemplate(template: string, event: EventContext): string {
   const replacements: Record<string, string> = {
     cameraName: event.cameraName,
     cameraId: event.cameraId,

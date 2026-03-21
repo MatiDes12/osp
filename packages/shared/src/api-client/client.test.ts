@@ -3,13 +3,14 @@ import { ApiClient } from "./client.js";
 
 const BASE_URL = "http://localhost:3000";
 
-function createMockFetch(response: {
-  status?: number;
-  body?: unknown;
-}) {
+function createMockFetch(response: { status?: number; body?: unknown }) {
   return vi.fn().mockResolvedValue({
     status: response.status ?? 200,
-    json: vi.fn().mockResolvedValue(response.body ?? { success: true, data: null, error: null, meta: null }),
+    json: vi
+      .fn()
+      .mockResolvedValue(
+        response.body ?? { success: true, data: null, error: null, meta: null },
+      ),
   });
 }
 
@@ -27,7 +28,10 @@ describe("ApiClient", () => {
   }) {
     return new ApiClient({
       baseUrl: BASE_URL,
-      getAccessToken: () => overrides && "token" in overrides ? overrides.token ?? null : "test-token",
+      getAccessToken: () =>
+        overrides && "token" in overrides
+          ? (overrides.token ?? null)
+          : "test-token",
       onUnauthorized: overrides?.onUnauthorized,
     });
   }

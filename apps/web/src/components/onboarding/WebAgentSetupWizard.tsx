@@ -18,7 +18,8 @@ import { decodeJWT } from "@/lib/jwt";
 export const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-const GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://osp-gateway.fly.dev";
+const GATEWAY_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "https://osp-gateway.fly.dev";
 
 type OS = "windows" | "mac" | "linux";
 type Step = "welcome" | "docker" | "run" | "waiting" | "done";
@@ -37,7 +38,9 @@ function detectOS(): OS {
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
-  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+  return token
+    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
 }
 
 function getTenantId(): string | null {
@@ -48,7 +51,13 @@ function getTenantId(): string | null {
 
 // ── Copy button ───────────────────────────────────────────────────────────────
 
-function CopyButton({ text, className = "" }: { text: string; className?: string }) {
+function CopyButton({
+  text,
+  className = "",
+}: {
+  text: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const handle = async () => {
     await navigator.clipboard.writeText(text);
@@ -156,7 +165,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
       if (!key) throw new Error("key missing from response");
       setApiToken(key);
     } catch (e) {
-      setKeyError(`Could not generate API key — ${e instanceof Error ? e.message : "unknown error"}`);
+      setKeyError(
+        `Could not generate API key — ${e instanceof Error ? e.message : "unknown error"}`,
+      );
     } finally {
       setGeneratingKey(false);
     }
@@ -175,7 +186,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
       });
       if (!res.ok) return;
       const json = await res.json();
-      const agents: { status: string; last_seen_at?: string }[] = json.data ?? [];
+      const agents: { status: string; last_seen_at?: string }[] =
+        json.data ?? [];
       const now = Date.now();
       const online = agents.some((a) => {
         if (a.status !== "online") return false;
@@ -211,14 +223,14 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4">
       <div className="w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
-
         {/* ── Progress dots ── */}
         <div className="flex items-center gap-1.5 px-7 pt-5">
           {(["welcome", "docker", "run", "waiting"] as Step[]).map((s, i) => (
             <div
               key={s}
               className={`h-1 rounded-full transition-all duration-300 ${
-                step === "done" || ["welcome", "docker", "run", "waiting"].indexOf(step) >= i
+                step === "done" ||
+                ["welcome", "docker", "run", "waiting"].indexOf(step) >= i
                   ? "bg-[var(--color-accent)]"
                   : "bg-[var(--color-border)]"
               } ${s === step ? "w-6" : "w-3"}`}
@@ -240,7 +252,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               {step === "done" && "Agent Connected!"}
             </h2>
             <p className="text-xs text-[var(--color-muted)] mt-0.5">
-              {step === "welcome" && "A lightweight agent runs on your network to stream cameras"}
+              {step === "welcome" &&
+                "A lightweight agent runs on your network to stream cameras"}
               {step === "docker" && "Docker runs the agent on your computer"}
               {step === "run" && "Run these two commands in a terminal"}
               {step === "waiting" && "Checking every 5 seconds…"}
@@ -279,14 +292,33 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
 
             <div className="grid grid-cols-3 gap-3 mb-6">
               {[
-                { icon: <Wifi className="w-4 h-4" />, label: "Local Network", sub: "Cameras never leave your LAN" },
-                { icon: <Camera className="w-4 h-4" />, label: "Any Camera", sub: "RTSP, ONVIF, Hikvision…" },
-                { icon: <Server className="w-4 h-4" />, label: "Auto-Start", sub: "Restarts with your machine" },
+                {
+                  icon: <Wifi className="w-4 h-4" />,
+                  label: "Local Network",
+                  sub: "Cameras never leave your LAN",
+                },
+                {
+                  icon: <Camera className="w-4 h-4" />,
+                  label: "Any Camera",
+                  sub: "RTSP, ONVIF, Hikvision…",
+                },
+                {
+                  icon: <Server className="w-4 h-4" />,
+                  label: "Auto-Start",
+                  sub: "Restarts with your machine",
+                },
               ].map((f) => (
-                <div key={f.label} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-3">
+                <div
+                  key={f.label}
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-3"
+                >
                   <span className="text-[var(--color-accent)]">{f.icon}</span>
-                  <div className="mt-2 text-xs font-medium text-[var(--color-fg)]">{f.label}</div>
-                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5">{f.sub}</div>
+                  <div className="mt-2 text-xs font-medium text-[var(--color-fg)]">
+                    {f.label}
+                  </div>
+                  <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                    {f.sub}
+                  </div>
                 </div>
               ))}
             </div>
@@ -319,11 +351,15 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-[var(--color-fg)] mb-1">Docker Desktop</p>
+                  <p className="text-sm font-medium text-[var(--color-fg)] mb-1">
+                    Docker Desktop
+                  </p>
                   <p className="text-xs text-[var(--color-muted)]">
                     The OSP agent runs inside Docker so it works on any computer
                     without installing extra software.{" "}
-                    {os === "linux" ? "Install Docker Engine (not Desktop) on Linux." : ""}
+                    {os === "linux"
+                      ? "Install Docker Engine (not Desktop) on Linux."
+                      : ""}
                   </p>
                 </div>
                 <a
@@ -354,7 +390,10 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             </p>
 
             <div className="flex gap-3">
-              <button onClick={() => setStep("welcome")} className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors">
+              <button
+                onClick={() => setStep("welcome")}
+                className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors"
+              >
                 Back
               </button>
               <button
@@ -389,20 +428,34 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs text-red-400">{keyError}</p>
-                  <button onClick={generateApiKey} className="text-xs text-red-400 underline mt-1">Retry</button>
+                  <button
+                    onClick={generateApiKey}
+                    className="text-xs text-red-400 underline mt-1"
+                  >
+                    Retry
+                  </button>
                 </div>
               </div>
             )}
 
             {cmds && (
               <div className="space-y-3 mb-5">
-                <CommandBlock label="Step 1 — Start camera proxy" command={cmds.go2rtc} />
-                <CommandBlock label="Step 2 — Start OSP agent" command={cmds.agent} />
+                <CommandBlock
+                  label="Step 1 — Start camera proxy"
+                  command={cmds.go2rtc}
+                />
+                <CommandBlock
+                  label="Step 2 — Start OSP agent"
+                  command={cmds.agent}
+                />
               </div>
             )}
 
             <div className="flex gap-3">
-              <button onClick={() => setStep("docker")} className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors">
+              <button
+                onClick={() => setStep("docker")}
+                className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors"
+              >
                 Back
               </button>
               <button
@@ -425,18 +478,24 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               <>
                 {/* Animated terminal */}
                 <div className="rounded-xl border border-[#30363d] bg-[#0d1117] p-4 mb-5 font-mono text-[11px]">
-                  <p className="text-[#79c0ff]">{"> $ osp-agent --wait-for-connect"}</p>
+                  <p className="text-[#79c0ff]">
+                    {"> $ osp-agent --wait-for-connect"}
+                  </p>
                   <p className="text-[#c9d1d9] mt-1">
                     Polling {API_URL}/api/v1/edge/agents …
                   </p>
                   <p className="text-[#8b949e] mt-1">
                     Attempt {pollCount}
-                    {Array.from({ length: (pollCount % 3) + 1 }, (_, i) => ".").join("")}
+                    {Array.from(
+                      { length: (pollCount % 3) + 1 },
+                      (_, i) => ".",
+                    ).join("")}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-[var(--color-muted)] text-xs mb-5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-                  Waiting for your agent to come online — checking every 5 seconds
+                  Waiting for your agent to come online — checking every 5
+                  seconds
                 </div>
               </>
             )}
@@ -469,11 +528,13 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 mb-4">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-amber-400 font-medium">Agent not detected yet</p>
+                    <p className="text-xs text-amber-400 font-medium">
+                      Agent not detected yet
+                    </p>
                     <p className="text-[11px] text-amber-400/80 mt-0.5">
                       Make sure both Docker commands ran without errors. The
-                      agent can take up to 60 seconds on first run while it pulls
-                      the image.
+                      agent can take up to 60 seconds on first run while it
+                      pulls the image.
                     </p>
                   </div>
                 </div>

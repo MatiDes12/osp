@@ -26,7 +26,9 @@ interface DurationBucket {
 const requestCounters = new Map<string, RequestCounter>();
 const durationTrackers = new Map<string, DurationBucket>();
 
-const HISTOGRAM_BOUNDARIES = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+const HISTOGRAM_BOUNDARIES = [
+  5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000,
+];
 
 /**
  * Normalise a path so we don't blow up cardinality with UUIDs / numeric IDs.
@@ -41,7 +43,12 @@ function normalisePath(path: string): string {
     .replace(/\/\d+/g, "/:id");
 }
 
-function recordRequest(method: string, rawPath: string, status: number, durationMs: number): void {
+function recordRequest(
+  method: string,
+  rawPath: string,
+  status: number,
+  durationMs: number,
+): void {
   const path = normalisePath(rawPath);
 
   // Counter
@@ -73,7 +80,13 @@ function recordRequest(method: string, rawPath: string, status: number, duration
       buckets[String(boundary)] = durationMs <= boundary ? 1 : 0;
     }
     buckets["+Inf"] = 1;
-    durationTrackers.set(durKey, { method, path, count: 1, sum: durationMs, buckets });
+    durationTrackers.set(durKey, {
+      method,
+      path,
+      count: 1,
+      sum: durationMs,
+      buckets,
+    });
   }
 }
 
@@ -103,7 +116,9 @@ export function getPrometheusMetrics(extra: string): string {
   }
 
   // Duration histogram
-  lines.push("# HELP osp_api_request_duration_ms API request duration in milliseconds");
+  lines.push(
+    "# HELP osp_api_request_duration_ms API request duration in milliseconds",
+  );
   lines.push("# TYPE osp_api_request_duration_ms histogram");
   for (const d of durationTrackers.values()) {
     for (const [le, count] of Object.entries(d.buckets)) {

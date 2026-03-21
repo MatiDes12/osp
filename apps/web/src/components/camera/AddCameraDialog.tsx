@@ -22,7 +22,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
@@ -32,10 +34,22 @@ function getAuthHeaders(): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 type AllProtocol =
-  | "rtsp" | "onvif" | "isapi" | "dvrip"
-  | "rtmp" | "hls" | "mjpeg" | "webrtc"
-  | "ring" | "wyze" | "arlo" | "tuya" | "gopro"
-  | "usb" | "ffmpeg" | "exec";
+  | "rtsp"
+  | "onvif"
+  | "isapi"
+  | "dvrip"
+  | "rtmp"
+  | "hls"
+  | "mjpeg"
+  | "webrtc"
+  | "ring"
+  | "wyze"
+  | "arlo"
+  | "tuya"
+  | "gopro"
+  | "usb"
+  | "ffmpeg"
+  | "exec";
 
 type FieldType = "text" | "password" | "number" | "select" | "textarea";
 
@@ -72,11 +86,26 @@ const PROTOCOLS: ProtocolDef[] = [
     icon: "📷",
     category: "ip",
     fields: [
-      { key: "host", label: "IP Address / Hostname", placeholder: "192.168.1.100", required: true },
+      {
+        key: "host",
+        label: "IP Address / Hostname",
+        placeholder: "192.168.1.100",
+        required: true,
+      },
       { key: "port", label: "Port", placeholder: "554", defaultValue: "554" },
-      { key: "path", label: "Stream Path", placeholder: "/stream", defaultValue: "/stream" },
+      {
+        key: "path",
+        label: "Stream Path",
+        placeholder: "/stream",
+        defaultValue: "/stream",
+      },
       { key: "username", label: "Username", placeholder: "admin" },
-      { key: "password", label: "Password", type: "password", placeholder: "••••••••" },
+      {
+        key: "password",
+        label: "Password",
+        type: "password",
+        placeholder: "••••••••",
+      },
     ],
     buildUri: (v) => {
       const auth = v.username
@@ -94,10 +123,20 @@ const PROTOCOLS: ProtocolDef[] = [
     icon: "🔗",
     category: "ip",
     fields: [
-      { key: "host", label: "IP Address / Hostname", placeholder: "192.168.1.100", required: true },
+      {
+        key: "host",
+        label: "IP Address / Hostname",
+        placeholder: "192.168.1.100",
+        required: true,
+      },
       { key: "port", label: "Port", placeholder: "80", defaultValue: "80" },
       { key: "username", label: "Username", placeholder: "admin" },
-      { key: "password", label: "Password", type: "password", placeholder: "••••••••" },
+      {
+        key: "password",
+        label: "Password",
+        type: "password",
+        placeholder: "••••••••",
+      },
     ],
     buildUri: (v) => {
       const auth = v.username
@@ -114,10 +153,20 @@ const PROTOCOLS: ProtocolDef[] = [
     icon: "🎥",
     category: "ip",
     fields: [
-      { key: "host", label: "IP Address / Hostname", placeholder: "192.168.1.100", required: true },
+      {
+        key: "host",
+        label: "IP Address / Hostname",
+        placeholder: "192.168.1.100",
+        required: true,
+      },
       { key: "port", label: "Port", placeholder: "80", defaultValue: "80" },
       { key: "username", label: "Username", placeholder: "admin" },
-      { key: "password", label: "Password", type: "password", placeholder: "••••••••" },
+      {
+        key: "password",
+        label: "Password",
+        type: "password",
+        placeholder: "••••••••",
+      },
       {
         key: "channel",
         label: "Channel",
@@ -142,10 +191,25 @@ const PROTOCOLS: ProtocolDef[] = [
     icon: "📸",
     category: "ip",
     fields: [
-      { key: "host", label: "IP Address / Hostname", placeholder: "192.168.1.100", required: true },
-      { key: "port", label: "Port", placeholder: "37777", defaultValue: "37777" },
+      {
+        key: "host",
+        label: "IP Address / Hostname",
+        placeholder: "192.168.1.100",
+        required: true,
+      },
+      {
+        key: "port",
+        label: "Port",
+        placeholder: "37777",
+        defaultValue: "37777",
+      },
       { key: "username", label: "Username", placeholder: "admin" },
-      { key: "password", label: "Password", type: "password", placeholder: "••••••••" },
+      {
+        key: "password",
+        label: "Password",
+        type: "password",
+        placeholder: "••••••••",
+      },
       { key: "channel", label: "Channel", placeholder: "1", defaultValue: "1" },
       {
         key: "subtype",
@@ -395,7 +459,8 @@ const PROTOCOLS: ProtocolDef[] = [
         key: "command",
         label: "Shell Command",
         type: "textarea",
-        placeholder: "ffmpeg -re -i /dev/video0 -f rtsp rtsp://localhost:8554/camera",
+        placeholder:
+          "ffmpeg -re -i /dev/video0 -f rtsp rtsp://localhost:8554/camera",
         required: true,
         hint: "Command whose stdout produces a video stream",
       },
@@ -473,7 +538,11 @@ function FieldInput({
         {def.required && <span className="text-red-400 ml-1">*</span>}
       </label>
       {def.type === "select" && def.options ? (
-        <select value={value} onChange={(e) => onChange(e.target.value)} className={baseClass}>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={baseClass}
+        >
           {def.options.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -498,7 +567,9 @@ function FieldInput({
           autoComplete={def.type === "password" ? "current-password" : "off"}
         />
       )}
-      {def.hint && !error && <p className="mt-1 text-xs text-zinc-500">{def.hint}</p>}
+      {def.hint && !error && (
+        <p className="mt-1 text-xs text-zinc-500">{def.hint}</p>
+      )}
       {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
     </div>
   );
@@ -520,7 +591,10 @@ function YamlGuide({ proto }: { proto: ProtocolDef }) {
         {proto.icon} {proto.label} requires go2rtc.yaml configuration
       </p>
       <p className="text-xs text-zinc-400">
-        Add this to your <code className="text-zinc-300 bg-zinc-800 px-1 rounded">go2rtc.yaml</code>{" "}
+        Add this to your{" "}
+        <code className="text-zinc-300 bg-zinc-800 px-1 rounded">
+          go2rtc.yaml
+        </code>{" "}
         file, then restart go2rtc:
       </p>
       <div className="relative">
@@ -533,7 +607,11 @@ function YamlGuide({ proto }: { proto: ProtocolDef }) {
           className="absolute top-2 right-2 p-1.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
           aria-label="Copy YAML"
         >
-          {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
         </button>
       </div>
       <p className="text-xs text-zinc-500">
@@ -547,7 +625,11 @@ function YamlGuide({ proto }: { proto: ProtocolDef }) {
 // Main dialog
 // ---------------------------------------------------------------------------
 
-export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProps) {
+export function AddCameraDialog({
+  open,
+  onClose,
+  onSubmit,
+}: AddCameraDialogProps) {
   const [mode, setMode] = useState<DialogMode>("manual");
   const [manualStep, setManualStep] = useState<ManualStep>("pick");
   const [selectedProto, setSelectedProto] = useState<ProtocolDef | null>(null);
@@ -557,7 +639,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
+  const [testResult, setTestResult] = useState<"success" | "error" | null>(
+    null,
+  );
   const [testDetails, setTestDetails] = useState<{
     codec?: string;
     resolution?: string;
@@ -676,7 +760,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       const res = await fetch(`${API_URL}/api/v1/streams/test`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ connectionUri: effectiveUri, protocol: selectedProto?.id }),
+        body: JSON.stringify({
+          connectionUri: effectiveUri,
+          protocol: selectedProto?.id,
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -692,7 +779,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       }
     } catch (err) {
       setTestResult("error");
-      setTestDetails({ error: err instanceof Error ? err.message : "Network error" });
+      setTestDetails({
+        error: err instanceof Error ? err.message : "Network error",
+      });
     } finally {
       setTesting(false);
     }
@@ -722,12 +811,24 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
         resetForm();
         onClose();
       } catch (err) {
-        setSubmitError(err instanceof Error ? err.message : "Failed to add camera");
+        setSubmitError(
+          err instanceof Error ? err.message : "Failed to add camera",
+        );
       } finally {
         setSubmitting(false);
       }
     },
-    [validate, name, selectedProto, effectiveUri, locationLabel, fieldValues, onSubmit, onClose, resetForm],
+    [
+      validate,
+      name,
+      selectedProto,
+      effectiveUri,
+      locationLabel,
+      fieldValues,
+      onSubmit,
+      onClose,
+      resetForm,
+    ],
   );
 
   // Scan handlers
@@ -751,7 +852,11 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       });
       const json = await res.json();
       if (!json.success) {
-        setScan((prev) => ({ ...prev, scanning: false, error: json.error?.message ?? "Scan failed" }));
+        setScan((prev) => ({
+          ...prev,
+          scanning: false,
+          error: json.error?.message ?? "Scan failed",
+        }));
         return;
       }
       const data = json.data as {
@@ -783,8 +888,18 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
     (cam: DiscoveredCamera) => {
       const proto = PROTOCOLS.find((p) => p.id === "rtsp")!;
       setSelectedProto(proto);
-      setFieldValues({ host: cam.ip, port: String(cam.port || 554), path: "/stream", username: "", password: "" });
-      setName(cam.manufacturer ? `${cam.manufacturer} - ${cam.ip}` : `Camera ${cam.ip}`);
+      setFieldValues({
+        host: cam.ip,
+        port: String(cam.port || 554),
+        path: "/stream",
+        username: "",
+        password: "",
+      });
+      setName(
+        cam.manufacturer
+          ? `${cam.manufacturer} - ${cam.ip}`
+          : `Camera ${cam.ip}`,
+      );
       // If discovery gave us a full RTSP URL, override the built URI
       const discovered = selectedPath[cam.ip] ?? cam.rtspUrl;
       if (discovered) setUriOverride(discovered);
@@ -804,7 +919,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
         role="button"
         tabIndex={-1}
         aria-label="Close dialog"
@@ -831,7 +948,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
           {manualStep === "form" && mode === "manual" ? (
             <button
               type="button"
-              onClick={() => { setManualStep("pick"); setTestResult(null); }}
+              onClick={() => {
+                setManualStep("pick");
+                setTestResult(null);
+              }}
               className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer mr-1"
               aria-label="Back to protocol selection"
             >
@@ -851,7 +971,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
         <div className="flex rounded-md border border-zinc-800 bg-zinc-950 overflow-hidden mb-5">
           <button
             type="button"
-            onClick={() => { setMode("manual"); setManualStep("pick"); }}
+            onClick={() => {
+              setMode("manual");
+              setManualStep("pick");
+            }}
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium transition-colors cursor-pointer ${
               mode === "manual"
                 ? "bg-blue-500/15 text-blue-400 border-b-2 border-blue-500"
@@ -886,7 +1009,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
             onScan={handleScanNetwork}
             onSelect={handleSelectDiscovered}
             onClose={onClose}
-            onManual={() => { setMode("manual"); setManualStep("pick"); }}
+            onManual={() => {
+              setMode("manual");
+              setManualStep("pick");
+            }}
           />
         ) : manualStep === "pick" ? (
           /* ── Protocol Picker ── */
@@ -902,24 +1028,38 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
             {/* Protocol warning (e.g. USB Docker limitation) */}
             {selectedProto?.warning && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                <p className="text-xs text-amber-300 leading-relaxed">{selectedProto.warning}</p>
+                <p className="text-xs text-amber-300 leading-relaxed">
+                  {selectedProto.warning}
+                </p>
               </div>
             )}
 
             {/* Camera Name */}
             <div>
-              <label htmlFor="cam-name" className="block text-sm font-medium text-zinc-300 mb-1.5">
+              <label
+                htmlFor="cam-name"
+                className="block text-sm font-medium text-zinc-300 mb-1.5"
+              >
                 Camera Name <span className="text-red-400">*</span>
               </label>
               <input
                 id="cam-name"
                 type="text"
                 value={name}
-                onChange={(e) => { setName(e.target.value); setErrors((p) => { const n = { ...p }; delete n.name; return n; }); }}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setErrors((p) => {
+                    const n = { ...p };
+                    delete n.name;
+                    return n;
+                  });
+                }}
                 placeholder="Front Door Camera"
                 className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               />
-              {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name}</p>}
+              {errors.name && (
+                <p className="mt-1 text-xs text-red-400">{errors.name}</p>
+              )}
             </div>
 
             {/* Protocol-specific fields */}
@@ -937,7 +1077,10 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
             {!selectedProto?.cloud && (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="cam-uri" className="text-sm font-medium text-zinc-300">
+                  <label
+                    htmlFor="cam-uri"
+                    className="text-sm font-medium text-zinc-300"
+                  >
                     Connection URI
                   </label>
                   {uriOverride !== null && (
@@ -956,25 +1099,37 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                   value={effectiveUri}
                   onChange={(e) => {
                     setUriOverride(e.target.value);
-                    setErrors((p) => { const n = { ...p }; delete n.connectionUri; return n; });
+                    setErrors((p) => {
+                      const n = { ...p };
+                      delete n.connectionUri;
+                      return n;
+                    });
                     setTestResult(null);
                   }}
                   className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-mono text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
                   spellCheck={false}
                 />
                 {uriOverride === null && (
-                  <p className="mt-1 text-xs text-zinc-500">Auto-built from fields above — edit to override</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Auto-built from fields above — edit to override
+                  </p>
                 )}
                 {errors.connectionUri && (
-                  <p className="mt-1 text-xs text-red-400">{errors.connectionUri}</p>
+                  <p className="mt-1 text-xs text-red-400">
+                    {errors.connectionUri}
+                  </p>
                 )}
               </div>
             )}
 
             {/* Location */}
             <div>
-              <label htmlFor="cam-location" className="block text-sm font-medium text-zinc-300 mb-1.5">
-                Location <span className="text-zinc-500 font-normal">(optional)</span>
+              <label
+                htmlFor="cam-location"
+                className="block text-sm font-medium text-zinc-300 mb-1.5"
+              >
+                Location{" "}
+                <span className="text-zinc-500 font-normal">(optional)</span>
               </label>
               <input
                 id="cam-location"
@@ -995,19 +1150,35 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
                   disabled={testing || submitting}
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-600 transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
+                  {testing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Wifi className="h-3.5 w-3.5" />
+                  )}
                   {testing ? "Testing..." : "Test Connection"}
                 </button>
 
                 {testResult === "success" && testDetails && (
                   <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 space-y-2">
-                    <p className="text-xs font-medium text-green-400">✓ Connection successful</p>
+                    <p className="text-xs font-medium text-green-400">
+                      ✓ Connection successful
+                    </p>
                     <div className="flex gap-3 text-xs text-zinc-400">
                       {testDetails.codec && (
-                        <span>Codec: <span className="text-zinc-200">{testDetails.codec}</span></span>
+                        <span>
+                          Codec:{" "}
+                          <span className="text-zinc-200">
+                            {testDetails.codec}
+                          </span>
+                        </span>
                       )}
                       {testDetails.resolution && (
-                        <span>Resolution: <span className="text-zinc-200">{testDetails.resolution}</span></span>
+                        <span>
+                          Resolution:{" "}
+                          <span className="text-zinc-200">
+                            {testDetails.resolution}
+                          </span>
+                        </span>
                       )}
                     </div>
                     {testDetails.snapshotUrl && (
@@ -1023,9 +1194,13 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
                 {testResult === "error" && testDetails && (
                   <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-                    <p className="text-xs font-medium text-red-400">✗ Connection failed</p>
+                    <p className="text-xs font-medium text-red-400">
+                      ✗ Connection failed
+                    </p>
                     {testDetails.error && (
-                      <p className="text-xs text-red-300 mt-1">{testDetails.error}</p>
+                      <p className="text-xs text-red-300 mt-1">
+                        {testDetails.error}
+                      </p>
                     )}
                   </div>
                 )}
@@ -1034,7 +1209,9 @@ export function AddCameraDialog({ open, onClose, onSubmit }: AddCameraDialogProp
 
             {/* Submit error */}
             {submitError && (
-              <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-md">{submitError}</p>
+              <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-md">
+                {submitError}
+              </p>
             )}
 
             {/* Actions */}
@@ -1075,7 +1252,9 @@ function ProtocolPicker({ onSelect }: { onSelect: (p: ProtocolDef) => void }) {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-zinc-400">Choose the camera type to connect:</p>
+      <p className="text-sm text-zinc-400">
+        Choose the camera type to connect:
+      </p>
       {byCategory.map(({ cat, items }) => (
         <div key={cat}>
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
@@ -1093,7 +1272,9 @@ function ProtocolPicker({ onSelect }: { onSelect: (p: ProtocolDef) => void }) {
                 <span className="text-sm font-medium text-zinc-200 group-hover:text-blue-300 transition-colors">
                   {proto.label}
                 </span>
-                <span className="text-[11px] text-zinc-500 leading-tight">{proto.desc}</span>
+                <span className="text-[11px] text-zinc-500 leading-tight">
+                  {proto.desc}
+                </span>
                 {proto.cloud && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
                     needs yaml
@@ -1127,7 +1308,9 @@ function ScanPanel({
   setSubnet: (v: string) => void;
   scan: ScanState;
   selectedPath: Record<string, string>;
-  setSelectedPath: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
+  setSelectedPath: (
+    fn: (prev: Record<string, string>) => Record<string, string>,
+  ) => void;
   onScan: () => void;
   onSelect: (cam: DiscoveredCamera) => void;
   onClose: () => void;
@@ -1136,8 +1319,14 @@ function ScanPanel({
   return (
     <div className="space-y-4">
       <div>
-        <label htmlFor="subnet-input" className="block text-sm font-medium text-zinc-300 mb-1.5">
-          Subnet <span className="text-zinc-500 font-normal">(auto-detected if empty)</span>
+        <label
+          htmlFor="subnet-input"
+          className="block text-sm font-medium text-zinc-300 mb-1.5"
+        >
+          Subnet{" "}
+          <span className="text-zinc-500 font-normal">
+            (auto-detected if empty)
+          </span>
         </label>
         <div className="flex gap-2">
           <input
@@ -1154,7 +1343,11 @@ function ScanPanel({
             disabled={scan.scanning}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            {scan.scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            {scan.scanning ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
             {scan.scanning ? "Scanning..." : "Scan"}
           </button>
         </div>
@@ -1166,33 +1359,47 @@ function ScanPanel({
           <div>
             <p className="text-sm text-blue-300">Detecting cameras...</p>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Scanning USB devices and network ports (554, 8554, 8080, 37777, 34567, 8000). May take up to 30s.
+              Scanning USB devices and network ports (554, 8554, 8080, 37777,
+              34567, 8000). May take up to 30s.
             </p>
           </div>
         </div>
       )}
 
       {scan.error && (
-        <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-md">{scan.error}</p>
+        <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-md">
+          {scan.error}
+        </p>
       )}
 
       {!scan.scanning && scan.scanDurationMs !== null && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs text-zinc-500">
-              Found {scan.cameras.length} device{scan.cameras.length !== 1 ? "s" : ""}
+              Found {scan.cameras.length} device
+              {scan.cameras.length !== 1 ? "s" : ""}
               {scan.subnetScanned ? (
-                <> on <span className="text-zinc-400">{scan.subnetScanned}.0/24</span></>
+                <>
+                  {" "}
+                  on{" "}
+                  <span className="text-zinc-400">
+                    {scan.subnetScanned}.0/24
+                  </span>
+                </>
               ) : null}
             </p>
-            <p className="text-xs text-zinc-600">{(scan.scanDurationMs / 1000).toFixed(1)}s</p>
+            <p className="text-xs text-zinc-600">
+              {(scan.scanDurationMs / 1000).toFixed(1)}s
+            </p>
           </div>
 
           {scan.cameras.length === 0 ? (
             <div className="text-center py-8">
               <Wifi className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
               <p className="text-sm text-zinc-500">No cameras found</p>
-              <p className="text-xs text-zinc-600 mt-1">Try a different subnet or add manually</p>
+              <p className="text-xs text-zinc-600 mt-1">
+                Try a different subnet or add manually
+              </p>
             </div>
           ) : (
             <div className="space-y-4 max-h-72 overflow-y-auto">
@@ -1272,7 +1479,9 @@ function DiscoveredCameraRow({
   cam: DiscoveredCamera;
   variant: "usb" | "network";
   selectedPath: Record<string, string>;
-  setSelectedPath: (fn: (prev: Record<string, string>) => Record<string, string>) => void;
+  setSelectedPath: (
+    fn: (prev: Record<string, string>) => Record<string, string>,
+  ) => void;
   onSelect: (cam: DiscoveredCamera) => void;
 }) {
   const isUsb = variant === "usb";
@@ -1289,9 +1498,7 @@ function DiscoveredCameraRow({
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            {isUsb ? (
-              <Monitor className="h-3.5 w-3.5 text-zinc-400" />
-            ) : null}
+            {isUsb ? <Monitor className="h-3.5 w-3.5 text-zinc-400" /> : null}
             <span className="text-sm font-medium text-zinc-200">
               {isUsb ? (cam.name ?? "USB Camera") : `${cam.ip}:${cam.port}`}
             </span>
@@ -1315,7 +1522,10 @@ function DiscoveredCameraRow({
             <select
               value={selectedPath[cam.ip] ?? cam.rtspUrl}
               onChange={(e) =>
-                setSelectedPath((prev) => ({ ...prev, [cam.ip]: e.target.value }))
+                setSelectedPath((prev) => ({
+                  ...prev,
+                  [cam.ip]: e.target.value,
+                }))
               }
               className="mt-1.5 w-full text-xs rounded border border-zinc-800 bg-zinc-900 px-2 py-1 text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >

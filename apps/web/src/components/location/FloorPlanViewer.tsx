@@ -32,9 +32,13 @@ export function FloorPlanViewer({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <MapPin className="h-3.5 w-3.5 text-zinc-500" />
-          <span className="text-xs font-medium text-zinc-400">{locationName}</span>
+          <span className="text-xs font-medium text-zinc-400">
+            {locationName}
+          </span>
         </div>
-        <span className="text-[10px] text-blue-400 group-hover:underline">View Map →</span>
+        <span className="text-[10px] text-blue-400 group-hover:underline">
+          View Map →
+        </span>
       </div>
 
       {hasPlan ? (
@@ -94,7 +98,9 @@ export function FloorPlanViewer({
           {/* Camera position indicator */}
           {cameraObj && (
             <div className="absolute bottom-1 right-1">
-              <span className="text-[9px] text-blue-400 font-medium">● Your camera</span>
+              <span className="text-[9px] text-blue-400 font-medium">
+                ● Your camera
+              </span>
             </div>
           )}
         </div>

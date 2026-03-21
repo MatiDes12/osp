@@ -31,7 +31,11 @@ function redact(data: Record<string, unknown>): Record<string, unknown> {
 
     if (isSensitive) {
       result[field] = REDACTED;
-    } else if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    } else if (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
       result[field] = redact(value as Record<string, unknown>);
     } else {
       result[field] = value;
@@ -87,10 +91,17 @@ export interface Logger {
   child(context: Record<string, string>): Logger;
 }
 
-export function createLogger(service: string, context?: Record<string, string>): Logger {
+export function createLogger(
+  service: string,
+  context?: Record<string, string>,
+): Logger {
   const ctx = context ?? {};
 
-  function log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+  function log(
+    level: LogLevel,
+    message: string,
+    data?: Record<string, unknown>,
+  ): void {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
@@ -144,9 +155,7 @@ export function logStartupBanner(
   extras?: Record<string, string>,
 ): void {
   const logger = createLogger(service);
-  const lines: string[] = [
-    `${service} started on port ${port}`,
-  ];
+  const lines: string[] = [`${service} started on port ${port}`];
   if (extras) {
     for (const [key, value] of Object.entries(extras)) {
       lines.push(`  ${key}: ${value}`);
@@ -196,8 +205,14 @@ export function logConnectionStatus(
   const symbol = ok ? "[OK]" : "[FAIL]";
 
   if (ok) {
-    logger.info(`${symbol} ${name}: ${status}`, detail ? { detail } : undefined);
+    logger.info(
+      `${symbol} ${name}: ${status}`,
+      detail ? { detail } : undefined,
+    );
   } else {
-    logger.error(`${symbol} ${name}: ${status}`, detail ? { detail } : undefined);
+    logger.error(
+      `${symbol} ${name}: ${status}`,
+      detail ? { detail } : undefined,
+    );
   }
 }

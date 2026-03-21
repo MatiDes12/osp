@@ -56,22 +56,34 @@ function loadServiceClient<T>(
 ): grpc.ServiceClientConstructor {
   const protoPath = resolve(PROTO_DIR, protoFile);
 
-  const packageDefinition = protoLoader.loadSync(protoPath, PROTO_LOADER_OPTIONS);
+  const packageDefinition = protoLoader.loadSync(
+    protoPath,
+    PROTO_LOADER_OPTIONS,
+  );
   const grpcObject = grpc.loadPackageDefinition(packageDefinition);
 
   // Navigate nested package path (e.g. "osp.cameraingest.v1")
   const parts = packageName.split(".");
-  let current: Record<string, unknown> = grpcObject as unknown as Record<string, unknown>;
+  let current: Record<string, unknown> = grpcObject as unknown as Record<
+    string,
+    unknown
+  >;
   for (const part of parts) {
     current = current[part] as Record<string, unknown>;
     if (!current) {
-      throw new Error(`Package path "${packageName}" not found in proto "${protoFile}"`);
+      throw new Error(
+        `Package path "${packageName}" not found in proto "${protoFile}"`,
+      );
     }
   }
 
-  const ServiceConstructor = current[serviceName] as grpc.ServiceClientConstructor | undefined;
+  const ServiceConstructor = current[serviceName] as
+    | grpc.ServiceClientConstructor
+    | undefined;
   if (!ServiceConstructor) {
-    throw new Error(`Service "${serviceName}" not found in package "${packageName}"`);
+    throw new Error(
+      `Service "${serviceName}" not found in package "${packageName}"`,
+    );
   }
 
   return ServiceConstructor;
@@ -141,7 +153,9 @@ export async function checkServiceHealth(
     const deadline = new Date(Date.now() + 3_000);
     stub.waitForReady(deadline, (err) => {
       if (err) {
-        logger.debug(`${serviceName} health check failed`, { error: String(err) });
+        logger.debug(`${serviceName} health check failed`, {
+          error: String(err),
+        });
         resolvePromise("down");
       } else {
         resolvePromise("up");
@@ -189,13 +203,18 @@ export function unaryCall<TReq, TRes>(
 
     const deadline = new Date(Date.now() + timeoutMs);
 
-    fn.call(stub, request, { deadline }, (err: grpc.ServiceError | null, response: TRes) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolvePromise(response);
-      }
-    });
+    fn.call(
+      stub,
+      request,
+      { deadline },
+      (err: grpc.ServiceError | null, response: TRes) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolvePromise(response);
+        }
+      },
+    );
   });
 }
 

@@ -37,10 +37,10 @@ export class StreamService {
 
   constructor(go2rtcUrl?: string) {
     this.go2rtcUrl =
-      go2rtcUrl
-      ?? get("GO2RTC_API_URL")
-      ?? get("GO2RTC_URL")
-      ?? GO2RTC_DEFAULT_URL;
+      go2rtcUrl ??
+      get("GO2RTC_API_URL") ??
+      get("GO2RTC_URL") ??
+      GO2RTC_DEFAULT_URL;
   }
 
   /**
@@ -60,14 +60,18 @@ export class StreamService {
     rtspUrl: string,
     opts: { twoWayAudio?: boolean } = {},
   ): Promise<void> {
-    const sourceUrl =
-      opts.twoWayAudio ? this.applyBackchannel(rtspUrl) : rtspUrl;
+    const sourceUrl = opts.twoWayAudio
+      ? this.applyBackchannel(rtspUrl)
+      : rtspUrl;
 
     // Try gRPC camera-ingest service first (production path)
     try {
       const client = getCameraIngestClient();
       await client.addCamera(cameraId, sourceUrl, { name: cameraId });
-      logger.info("Stream added via gRPC camera-ingest", { cameraId, twoWayAudio: String(!!opts.twoWayAudio) });
+      logger.info("Stream added via gRPC camera-ingest", {
+        cameraId,
+        twoWayAudio: String(!!opts.twoWayAudio),
+      });
       return;
     } catch (err) {
       if (!(err instanceof GrpcFallbackError)) {
@@ -106,7 +110,9 @@ export class StreamService {
     try {
       const snapUrl = new URL("/api/frame.jpeg", this.go2rtcUrl);
       snapUrl.searchParams.set("src", cameraId);
-      await fetch(snapUrl.toString(), { signal: AbortSignal.timeout(5000) }).catch(() => {});
+      await fetch(snapUrl.toString(), {
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => {});
       logger.info("Stream pre-warmed", { cameraId });
     } catch {
       // Non-fatal — stream will connect on first viewer request
@@ -205,10 +211,15 @@ export class StreamService {
     try {
       const status = await this.getStreamStatus(cameraId);
       if (!status) {
-        logger.warn("Stream not found in go2rtc, returning URL anyway", { cameraId });
+        logger.warn("Stream not found in go2rtc, returning URL anyway", {
+          cameraId,
+        });
       }
     } catch (err) {
-      logger.warn("Could not verify stream in go2rtc", { cameraId, error: String(err) });
+      logger.warn("Could not verify stream in go2rtc", {
+        cameraId,
+        error: String(err),
+      });
     }
 
     // Generate a lightweight token (stored in Redis when available)
@@ -223,7 +234,10 @@ export class StreamService {
         STREAM_TOKEN_TTL_SECONDS,
       );
     } catch (err) {
-      logger.warn("Could not store stream token in Redis", { cameraId, error: String(err) });
+      logger.warn("Could not store stream token in Redis", {
+        cameraId,
+        error: String(err),
+      });
     }
 
     logger.debug("Generated stream token", { cameraId, tenantId });

@@ -9,13 +9,17 @@ const bearerAuth = {
   type: "http" as const,
   scheme: "bearer",
   bearerFormat: "JWT",
-  description: "Supabase JWT access token obtained from /api/v1/auth/login or /api/v1/auth/register",
+  description:
+    "Supabase JWT access token obtained from /api/v1/auth/login or /api/v1/auth/register",
 };
 
 const paginationMeta = {
   type: "object" as const,
   properties: {
-    total: { type: "integer", description: "Total number of items matching the query" },
+    total: {
+      type: "integer",
+      description: "Total number of items matching the query",
+    },
     page: { type: "integer", description: "Current page number (1-based)" },
     limit: { type: "integer", description: "Items per page" },
     hasMore: { type: "boolean", description: "Whether more pages exist" },
@@ -41,7 +45,10 @@ const errorResponse = {
   },
 };
 
-function successEnvelope(dataSchema: Record<string, unknown>, meta?: Record<string, unknown>) {
+function successEnvelope(
+  dataSchema: Record<string, unknown>,
+  meta?: Record<string, unknown>,
+) {
   const schema: Record<string, unknown> = {
     type: "object",
     properties: {
@@ -83,16 +90,37 @@ export const openApiSpec = {
   // ── Tags ──────────────────────────────────────────────────────────────
   tags: [
     { name: "Auth", description: "Authentication and session management" },
-    { name: "Cameras", description: "Camera CRUD, streaming, PTZ, recording controls" },
-    { name: "Camera Zones", description: "Detection zone management per camera" },
-    { name: "Events", description: "Security event listing, acknowledgement, and summary" },
-    { name: "Recordings", description: "Recording playback, timeline, and management" },
+    {
+      name: "Cameras",
+      description: "Camera CRUD, streaming, PTZ, recording controls",
+    },
+    {
+      name: "Camera Zones",
+      description: "Detection zone management per camera",
+    },
+    {
+      name: "Events",
+      description: "Security event listing, acknowledgement, and summary",
+    },
+    {
+      name: "Recordings",
+      description: "Recording playback, timeline, and management",
+    },
     { name: "Rules", description: "Alert rule CRUD and testing" },
-    { name: "Tenants", description: "Tenant settings, branding, users, and usage" },
-    { name: "Extensions", description: "Marketplace browsing, installation, and configuration" },
+    {
+      name: "Tenants",
+      description: "Tenant settings, branding, users, and usage",
+    },
+    {
+      name: "Extensions",
+      description: "Marketplace browsing, installation, and configuration",
+    },
     { name: "Locations", description: "Physical location management" },
     { name: "Tags", description: "Camera tag management and assignment" },
-    { name: "Health", description: "Service health checks and Prometheus metrics" },
+    {
+      name: "Health",
+      description: "Service health checks and Prometheus metrics",
+    },
     { name: "Dev", description: "Development-only utilities" },
   ],
 
@@ -115,10 +143,20 @@ export const openApiSpec = {
         responses: {
           201: {
             description: "Account created successfully",
-            content: { "application/json": { schema: successEnvelope(ref("AuthResponse")) } },
+            content: {
+              "application/json": {
+                schema: successEnvelope(ref("AuthResponse")),
+              },
+            },
           },
-          409: { description: "Email already registered", content: { "application/json": { schema: errorResponse } } },
-          422: { description: "Validation error", content: { "application/json": { schema: errorResponse } } },
+          409: {
+            description: "Email already registered",
+            content: { "application/json": { schema: errorResponse } },
+          },
+          422: {
+            description: "Validation error",
+            content: { "application/json": { schema: errorResponse } },
+          },
         },
       },
     },
@@ -127,7 +165,8 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Log in with email and password",
-        description: "Authenticates the user and returns JWT tokens with tenant context.",
+        description:
+          "Authenticates the user and returns JWT tokens with tenant context.",
         requestBody: {
           required: true,
           content: {
@@ -139,9 +178,16 @@ export const openApiSpec = {
         responses: {
           200: {
             description: "Login successful",
-            content: { "application/json": { schema: successEnvelope(ref("AuthResponse")) } },
+            content: {
+              "application/json": {
+                schema: successEnvelope(ref("AuthResponse")),
+              },
+            },
           },
-          401: { description: "Invalid credentials", content: { "application/json": { schema: errorResponse } } },
+          401: {
+            description: "Invalid credentials",
+            content: { "application/json": { schema: errorResponse } },
+          },
         },
       },
     },
@@ -150,7 +196,8 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Refresh access token",
-        description: "Uses a refresh token to obtain a new access/refresh token pair.",
+        description:
+          "Uses a refresh token to obtain a new access/refresh token pair.",
         requestBody: {
           required: true,
           content: {
@@ -181,7 +228,10 @@ export const openApiSpec = {
               },
             },
           },
-          401: { description: "Invalid refresh token", content: { "application/json": { schema: errorResponse } } },
+          401: {
+            description: "Invalid refresh token",
+            content: { "application/json": { schema: errorResponse } },
+          },
         },
       },
     },
@@ -202,35 +252,79 @@ export const openApiSpec = {
       get: {
         tags: ["Cameras"],
         summary: "List cameras",
-        description: "Returns a paginated list of cameras for the current tenant. Supports filtering by status, search term, and location.",
+        description:
+          "Returns a paginated list of cameras for the current tenant. Supports filtering by status, search term, and location.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
-          { name: "status", in: "query", schema: { type: "string", enum: ["online", "offline", "error", "connecting", "disabled"] } },
-          { name: "search", in: "query", schema: { type: "string" }, description: "Filter by camera name (case-insensitive)" },
-          { name: "locationId", in: "query", schema: { type: "string", format: "uuid" } },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 20, maximum: 100 },
+          },
+          {
+            name: "status",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["online", "offline", "error", "connecting", "disabled"],
+            },
+          },
+          {
+            name: "search",
+            in: "query",
+            schema: { type: "string" },
+            description: "Filter by camera name (case-insensitive)",
+          },
+          {
+            name: "locationId",
+            in: "query",
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         responses: {
           200: {
             description: "Camera list",
-            content: { "application/json": { schema: successEnvelope({ type: "array", items: ref("Camera") }, paginationMeta) } },
+            content: {
+              "application/json": {
+                schema: successEnvelope(
+                  { type: "array", items: ref("Camera") },
+                  paginationMeta,
+                ),
+              },
+            },
           },
         },
       },
       post: {
         tags: ["Cameras"],
         summary: "Create a camera",
-        description: "Adds a new camera to the tenant. Registers the RTSP stream in go2rtc automatically.",
+        description:
+          "Adds a new camera to the tenant. Registers the RTSP stream in go2rtc automatically.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("CreateCameraInput") } },
         },
         responses: {
-          201: { description: "Camera created", content: { "application/json": { schema: successEnvelope(ref("Camera")) } } },
-          403: { description: "Camera limit reached", content: { "application/json": { schema: errorResponse } } },
-          409: { description: "Duplicate connection URI", content: { "application/json": { schema: errorResponse } } },
+          201: {
+            description: "Camera created",
+            content: {
+              "application/json": { schema: successEnvelope(ref("Camera")) },
+            },
+          },
+          403: {
+            description: "Camera limit reached",
+            content: { "application/json": { schema: errorResponse } },
+          },
+          409: {
+            description: "Duplicate connection URI",
+            content: { "application/json": { schema: errorResponse } },
+          },
         },
       },
     },
@@ -240,32 +334,67 @@ export const openApiSpec = {
         tags: ["Cameras"],
         summary: "Get camera by ID",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
-          200: { description: "Camera details", content: { "application/json": { schema: successEnvelope(ref("Camera")) } } },
-          404: { description: "Camera not found", content: { "application/json": { schema: errorResponse } } },
+          200: {
+            description: "Camera details",
+            content: {
+              "application/json": { schema: successEnvelope(ref("Camera")) },
+            },
+          },
+          404: {
+            description: "Camera not found",
+            content: { "application/json": { schema: errorResponse } },
+          },
         },
       },
       patch: {
         tags: ["Cameras"],
         summary: "Update camera",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("UpdateCameraInput") } },
         },
         responses: {
-          200: { description: "Camera updated", content: { "application/json": { schema: successEnvelope(ref("Camera")) } } },
+          200: {
+            description: "Camera updated",
+            content: {
+              "application/json": { schema: successEnvelope(ref("Camera")) },
+            },
+          },
           404: { description: "Camera not found" },
         },
       },
       delete: {
         tags: ["Cameras"],
         summary: "Delete camera",
-        description: "Removes the camera and its go2rtc stream. Cascades to zones, events, and recordings.",
+        description:
+          "Removes the camera and its go2rtc stream. Cascades to zones, events, and recordings.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Camera deleted" },
           404: { description: "Camera not found" },
@@ -277,9 +406,17 @@ export const openApiSpec = {
       get: {
         tags: ["Cameras"],
         summary: "Get stream connection info",
-        description: "Returns the WHEP URL, ICE servers, and fallback HLS URL for WebRTC streaming.",
+        description:
+          "Returns the WHEP URL, ICE servers, and fallback HLS URL for WebRTC streaming.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: {
             description: "Stream info",
@@ -309,9 +446,21 @@ export const openApiSpec = {
         summary: "Get current camera snapshot",
         description: "Returns a JPEG image of the camera's current frame.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
-          200: { description: "JPEG snapshot", content: { "image/jpeg": { schema: { type: "string", format: "binary" } } } },
+          200: {
+            description: "JPEG snapshot",
+            content: {
+              "image/jpeg": { schema: { type: "string", format: "binary" } },
+            },
+          },
           404: { description: "Camera not found" },
         },
       },
@@ -321,9 +470,17 @@ export const openApiSpec = {
       post: {
         tags: ["Cameras"],
         summary: "Force reconnect camera stream",
-        description: "Removes and re-adds the stream in go2rtc. Useful when a camera goes offline.",
+        description:
+          "Removes and re-adds the stream in go2rtc. Useful when a camera goes offline.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Reconnect initiated" },
           404: { description: "Camera not found" },
@@ -336,7 +493,8 @@ export const openApiSpec = {
       post: {
         tags: ["Cameras"],
         summary: "Discover cameras on the network",
-        description: "Performs a network scan for RTSP-enabled devices. Marks cameras already added to the tenant.",
+        description:
+          "Performs a network scan for RTSP-enabled devices. Marks cameras already added to the tenant.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           content: {
@@ -344,7 +502,11 @@ export const openApiSpec = {
               schema: {
                 type: "object",
                 properties: {
-                  subnet: { type: "string", description: "Subnet to scan (e.g. '192.168.1.0/24'). Defaults to local network." },
+                  subnet: {
+                    type: "string",
+                    description:
+                      "Subnet to scan (e.g. '192.168.1.0/24'). Defaults to local network.",
+                  },
                 },
               },
             },
@@ -362,7 +524,14 @@ export const openApiSpec = {
         summary: "Send PTZ command",
         description: "Sends a Pan/Tilt/Zoom command to the camera.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("PTZCommand") } },
@@ -378,16 +547,34 @@ export const openApiSpec = {
       post: {
         tags: ["Cameras"],
         summary: "Start recording",
-        description: "Starts recording for a camera. Returns the new recording ID.",
+        description:
+          "Starts recording for a camera. Returns the new recording ID.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           content: {
             "application/json": {
               schema: {
                 type: "object",
                 properties: {
-                  trigger: { type: "string", enum: ["manual", "motion", "continuous", "rule", "ai_detection"], default: "manual" },
+                  trigger: {
+                    type: "string",
+                    enum: [
+                      "manual",
+                      "motion",
+                      "continuous",
+                      "rule",
+                      "ai_detection",
+                    ],
+                    default: "manual",
+                  },
                 },
               },
             },
@@ -404,7 +591,14 @@ export const openApiSpec = {
         tags: ["Cameras"],
         summary: "Stop active recording",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Recording stopped" },
           404: { description: "No active recording" },
@@ -417,7 +611,14 @@ export const openApiSpec = {
         tags: ["Cameras"],
         summary: "Get recording status",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: {
             description: "Recording status",
@@ -443,16 +644,37 @@ export const openApiSpec = {
         tags: ["Camera Zones"],
         summary: "List zones for a camera",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
-          200: { description: "Zone list", content: { "application/json": { schema: successEnvelope({ type: "array", items: ref("Zone") }) } } },
+          200: {
+            description: "Zone list",
+            content: {
+              "application/json": {
+                schema: successEnvelope({ type: "array", items: ref("Zone") }),
+              },
+            },
+          },
         },
       },
       post: {
         tags: ["Camera Zones"],
         summary: "Create a zone",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("CreateZoneInput") } },
@@ -469,8 +691,18 @@ export const openApiSpec = {
         summary: "Update a zone",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
-          { name: "zoneId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "zoneId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         requestBody: {
           required: true,
@@ -486,8 +718,18 @@ export const openApiSpec = {
         summary: "Delete a zone",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
-          { name: "zoneId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "zoneId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         responses: {
           200: { description: "Zone deleted" },
@@ -500,37 +742,99 @@ export const openApiSpec = {
       get: {
         tags: ["Events"],
         summary: "List events",
-        description: "Returns a paginated list of security events. Supports filtering by camera, zone, type, severity, acknowledgement status, and date range.",
+        description:
+          "Returns a paginated list of security events. Supports filtering by camera, zone, type, severity, acknowledgement status, and date range.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "cameraId", in: "query", schema: { type: "string", format: "uuid" } },
-          { name: "zoneId", in: "query", schema: { type: "string", format: "uuid" } },
-          { name: "type", in: "query", schema: { type: "string", enum: ["motion", "person", "vehicle", "animal", "camera_offline", "camera_online", "tampering", "audio", "custom"] } },
-          { name: "severity", in: "query", schema: { type: "string", enum: ["low", "medium", "high", "critical"] } },
+          {
+            name: "cameraId",
+            in: "query",
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "zoneId",
+            in: "query",
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "type",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: [
+                "motion",
+                "person",
+                "vehicle",
+                "animal",
+                "camera_offline",
+                "camera_online",
+                "tampering",
+                "audio",
+                "custom",
+              ],
+            },
+          },
+          {
+            name: "severity",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["low", "medium", "high", "critical"],
+            },
+          },
           { name: "acknowledged", in: "query", schema: { type: "boolean" } },
-          { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 50, maximum: 100 } },
+          {
+            name: "from",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+          {
+            name: "to",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 50, maximum: 100 },
+          },
         ],
         responses: {
           200: {
             description: "Event list",
-            content: { "application/json": { schema: successEnvelope({ type: "array", items: ref("Event") }, paginationMeta) } },
+            content: {
+              "application/json": {
+                schema: successEnvelope(
+                  { type: "array", items: ref("Event") },
+                  paginationMeta,
+                ),
+              },
+            },
           },
         },
       },
       post: {
         tags: ["Events"],
         summary: "Create an event",
-        description: "Creates a new security event, publishes it via WebSocket, evaluates alert rules, and may trigger auto-recording.",
+        description:
+          "Creates a new security event, publishes it via WebSocket, evaluates alert rules, and may trigger auto-recording.",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("CreateEventInput") } },
         },
         responses: {
-          201: { description: "Event created", content: { "application/json": { schema: successEnvelope(ref("Event")) } } },
+          201: {
+            description: "Event created",
+            content: {
+              "application/json": { schema: successEnvelope(ref("Event")) },
+            },
+          },
           404: { description: "Camera not found" },
         },
       },
@@ -540,11 +844,22 @@ export const openApiSpec = {
       get: {
         tags: ["Events"],
         summary: "Get event summary",
-        description: "Returns aggregate counts of events grouped by type, severity, and camera for a date range.",
+        description:
+          "Returns aggregate counts of events grouped by type, severity, and camera for a date range.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "from", in: "query", schema: { type: "string", format: "date-time" }, description: "Defaults to 24 hours ago" },
-          { name: "to", in: "query", schema: { type: "string", format: "date-time" }, description: "Defaults to now" },
+          {
+            name: "from",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+            description: "Defaults to 24 hours ago",
+          },
+          {
+            name: "to",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+            description: "Defaults to now",
+          },
         ],
         responses: {
           200: {
@@ -557,9 +872,18 @@ export const openApiSpec = {
                     from: { type: "string" },
                     to: { type: "string" },
                     total: { type: "integer" },
-                    byType: { type: "object", additionalProperties: { type: "integer" } },
-                    bySeverity: { type: "object", additionalProperties: { type: "integer" } },
-                    byCamera: { type: "object", additionalProperties: { type: "integer" } },
+                    byType: {
+                      type: "object",
+                      additionalProperties: { type: "integer" },
+                    },
+                    bySeverity: {
+                      type: "object",
+                      additionalProperties: { type: "integer" },
+                    },
+                    byCamera: {
+                      type: "object",
+                      additionalProperties: { type: "integer" },
+                    },
                   },
                 }),
               },
@@ -574,9 +898,21 @@ export const openApiSpec = {
         tags: ["Events"],
         summary: "Get event by ID",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
-          200: { description: "Event details", content: { "application/json": { schema: successEnvelope(ref("Event")) } } },
+          200: {
+            description: "Event details",
+            content: {
+              "application/json": { schema: successEnvelope(ref("Event")) },
+            },
+          },
           404: { description: "Event not found" },
         },
       },
@@ -587,7 +923,14 @@ export const openApiSpec = {
         tags: ["Events"],
         summary: "Acknowledge an event",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Event acknowledged" },
           404: { description: "Event not found" },
@@ -608,7 +951,10 @@ export const openApiSpec = {
                 type: "object",
                 required: ["eventIds"],
                 properties: {
-                  eventIds: { type: "array", items: { type: "string", format: "uuid" } },
+                  eventIds: {
+                    type: "array",
+                    items: { type: "string", format: "uuid" },
+                  },
                 },
               },
             },
@@ -625,21 +971,63 @@ export const openApiSpec = {
       get: {
         tags: ["Recordings"],
         summary: "List recordings",
-        description: "Returns a paginated list of recordings with camera names and playback URLs.",
+        description:
+          "Returns a paginated list of recordings with camera names and playback URLs.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "cameraId", in: "query", schema: { type: "string", format: "uuid" } },
-          { name: "trigger", in: "query", schema: { type: "string", enum: ["manual", "motion", "continuous", "rule", "ai_detection"] } },
-          { name: "status", in: "query", schema: { type: "string", enum: ["recording", "completed", "failed"] } },
-          { name: "from", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "to", in: "query", schema: { type: "string", format: "date-time" } },
-          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+          {
+            name: "cameraId",
+            in: "query",
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "trigger",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["manual", "motion", "continuous", "rule", "ai_detection"],
+            },
+          },
+          {
+            name: "status",
+            in: "query",
+            schema: {
+              type: "string",
+              enum: ["recording", "completed", "failed"],
+            },
+          },
+          {
+            name: "from",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+          {
+            name: "to",
+            in: "query",
+            schema: { type: "string", format: "date-time" },
+          },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 20, maximum: 100 },
+          },
         ],
         responses: {
           200: {
             description: "Recording list",
-            content: { "application/json": { schema: successEnvelope({ type: "array", items: ref("Recording") }, paginationMeta) } },
+            content: {
+              "application/json": {
+                schema: successEnvelope(
+                  { type: "array", items: ref("Recording") },
+                  paginationMeta,
+                ),
+              },
+            },
           },
         },
       },
@@ -649,11 +1037,23 @@ export const openApiSpec = {
       get: {
         tags: ["Recordings"],
         summary: "Get recording timeline",
-        description: "Returns recording segments for a camera on a specific date, useful for timeline visualization.",
+        description:
+          "Returns recording segments for a camera on a specific date, useful for timeline visualization.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "cameraId", in: "query", required: true, schema: { type: "string", format: "uuid" } },
-          { name: "date", in: "query", required: true, schema: { type: "string", format: "date" }, description: "Date in YYYY-MM-DD format" },
+          {
+            name: "cameraId",
+            in: "query",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "date",
+            in: "query",
+            required: true,
+            schema: { type: "string", format: "date" },
+            description: "Date in YYYY-MM-DD format",
+          },
         ],
         responses: {
           200: { description: "Timeline segments" },
@@ -666,9 +1066,17 @@ export const openApiSpec = {
       get: {
         tags: ["Recordings"],
         summary: "Get recording by ID",
-        description: "Returns recording details with camera name and playback URL.",
+        description:
+          "Returns recording details with camera name and playback URL.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Recording details" },
           404: { description: "Recording not found" },
@@ -678,7 +1086,14 @@ export const openApiSpec = {
         tags: ["Recordings"],
         summary: "Delete a recording",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Recording deleted" },
           404: { description: "Recording not found" },
@@ -690,11 +1105,24 @@ export const openApiSpec = {
       get: {
         tags: ["Recordings"],
         summary: "Play recorded video",
-        description: "Streams the recorded MP4 file. Supports HTTP range requests for seeking.",
+        description:
+          "Streams the recorded MP4 file. Supports HTTP range requests for seeking.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
-          200: { description: "MP4 video stream", content: { "video/mp4": { schema: { type: "string", format: "binary" } } } },
+          200: {
+            description: "MP4 video stream",
+            content: {
+              "video/mp4": { schema: { type: "string", format: "binary" } },
+            },
+          },
           206: { description: "Partial content (range request)" },
           404: { description: "Recording or file not found" },
         },
@@ -708,7 +1136,14 @@ export const openApiSpec = {
         summary: "List alert rules",
         security: [{ BearerAuth: [] }],
         responses: {
-          200: { description: "Rule list", content: { "application/json": { schema: successEnvelope({ type: "array", items: ref("Rule") }) } } },
+          200: {
+            description: "Rule list",
+            content: {
+              "application/json": {
+                schema: successEnvelope({ type: "array", items: ref("Rule") }),
+              },
+            },
+          },
         },
       },
       post: {
@@ -729,14 +1164,40 @@ export const openApiSpec = {
       get: {
         tags: ["Rules"],
         summary: "List webhook delivery attempts",
-        description: "Admin-only. Returns tracked webhook delivery attempts with optional rule/event/status filters.",
+        description:
+          "Admin-only. Returns tracked webhook delivery attempts with optional rule/event/status filters.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "ruleId", in: "query", required: false, schema: { type: "string", format: "uuid" } },
-          { name: "eventId", in: "query", required: false, schema: { type: "string", format: "uuid" } },
-          { name: "status", in: "query", required: false, schema: { type: "string", enum: ["delivered", "failed"] } },
-          { name: "page", in: "query", required: false, schema: { type: "integer", minimum: 1, default: 1 } },
-          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 100, default: 20 } },
+          {
+            name: "ruleId",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "eventId",
+            in: "query",
+            required: false,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "status",
+            in: "query",
+            required: false,
+            schema: { type: "string", enum: ["delivered", "failed"] },
+          },
+          {
+            name: "page",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            required: false,
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
         ],
         responses: {
           200: {
@@ -751,10 +1212,17 @@ export const openApiSpec = {
                       id: { type: "string", format: "uuid" },
                       tenant_id: { type: "string", format: "uuid" },
                       rule_id: { type: "string", format: "uuid" },
-                      event_id: { type: "string", format: "uuid", nullable: true },
+                      event_id: {
+                        type: "string",
+                        format: "uuid",
+                        nullable: true,
+                      },
                       url: { type: "string" },
                       attempt_number: { type: "integer" },
-                      delivery_status: { type: "string", enum: ["delivered", "failed"] },
+                      delivery_status: {
+                        type: "string",
+                        enum: ["delivered", "failed"],
+                      },
                       response_status: { type: "integer", nullable: true },
                       error_message: { type: "string", nullable: true },
                       created_at: { type: "string", format: "date-time" },
@@ -773,7 +1241,14 @@ export const openApiSpec = {
         tags: ["Rules"],
         summary: "Get rule by ID",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Rule details" },
           404: { description: "Rule not found" },
@@ -783,7 +1258,14 @@ export const openApiSpec = {
         tags: ["Rules"],
         summary: "Update a rule",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: { "application/json": { schema: ref("UpdateRuleInput") } },
@@ -797,7 +1279,14 @@ export const openApiSpec = {
         tags: ["Rules"],
         summary: "Delete a rule",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Rule deleted" },
         },
@@ -808,9 +1297,17 @@ export const openApiSpec = {
       post: {
         tags: ["Rules"],
         summary: "Test a rule against recent events",
-        description: "Evaluates the rule against the last 50 matching events and returns how many would have triggered.",
+        description:
+          "Evaluates the rule against the last 50 matching events and returns how many would have triggered.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: {
             description: "Test results",
@@ -847,7 +1344,8 @@ export const openApiSpec = {
       patch: {
         tags: ["Tenants"],
         summary: "Update tenant settings",
-        description: "Owner-only. Updates tenant name and/or settings (retention, recording mode, timezone, notifications).",
+        description:
+          "Owner-only. Updates tenant name and/or settings (retention, recording mode, timezone, notifications).",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -860,14 +1358,28 @@ export const openApiSpec = {
                   settings: {
                     type: "object",
                     properties: {
-                      defaultRetentionDays: { type: "integer", minimum: 1, maximum: 365 },
-                      defaultRecordingMode: { type: "string", enum: ["motion", "continuous", "off"] },
-                      defaultMotionSensitivity: { type: "integer", minimum: 1, maximum: 10 },
+                      defaultRetentionDays: {
+                        type: "integer",
+                        minimum: 1,
+                        maximum: 365,
+                      },
+                      defaultRecordingMode: {
+                        type: "string",
+                        enum: ["motion", "continuous", "off"],
+                      },
+                      defaultMotionSensitivity: {
+                        type: "integer",
+                        minimum: 1,
+                        maximum: 10,
+                      },
                       timezone: { type: "string" },
                       notificationPreferences: {
                         type: "object",
                         properties: {
-                          emailDigest: { type: "string", enum: ["none", "daily", "weekly"] },
+                          emailDigest: {
+                            type: "string",
+                            enum: ["none", "daily", "weekly"],
+                          },
                           pushEnabled: { type: "boolean" },
                         },
                       },
@@ -917,7 +1429,8 @@ export const openApiSpec = {
       get: {
         tags: ["Tenants"],
         summary: "List tenant users",
-        description: "Returns all users in the current tenant with their roles.",
+        description:
+          "Returns all users in the current tenant with their roles.",
         security: [{ BearerAuth: [] }],
         responses: {
           200: { description: "User list with roles" },
@@ -940,8 +1453,14 @@ export const openApiSpec = {
                 required: ["email", "role"],
                 properties: {
                   email: { type: "string", format: "email" },
-                  role: { type: "string", enum: ["admin", "operator", "viewer"] },
-                  cameraIds: { type: "array", items: { type: "string", format: "uuid" } },
+                  role: {
+                    type: "string",
+                    enum: ["admin", "operator", "viewer"],
+                  },
+                  cameraIds: {
+                    type: "array",
+                    items: { type: "string", format: "uuid" },
+                  },
                   message: { type: "string" },
                 },
               },
@@ -962,7 +1481,14 @@ export const openApiSpec = {
         summary: "Change user role",
         description: "Owner-only. Changes a user's role within the tenant.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "userId", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "userId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -971,7 +1497,10 @@ export const openApiSpec = {
                 type: "object",
                 required: ["role"],
                 properties: {
-                  role: { type: "string", enum: ["admin", "operator", "viewer"] },
+                  role: {
+                    type: "string",
+                    enum: ["admin", "operator", "viewer"],
+                  },
                 },
               },
             },
@@ -989,7 +1518,8 @@ export const openApiSpec = {
       get: {
         tags: ["Tenants"],
         summary: "Get tenant usage stats",
-        description: "Returns current usage of cameras, users, storage, extensions, and recordings against plan limits.",
+        description:
+          "Returns current usage of cameras, users, storage, extensions, and recordings against plan limits.",
         security: [{ BearerAuth: [] }],
         responses: {
           200: {
@@ -1000,11 +1530,41 @@ export const openApiSpec = {
                   type: "object",
                   properties: {
                     plan: { type: "string" },
-                    cameras: { type: "object", properties: { used: { type: "integer" }, limit: { type: "integer" } } },
-                    users: { type: "object", properties: { used: { type: "integer" }, limit: { type: "integer" } } },
-                    storage: { type: "object", properties: { usedBytes: { type: "integer" }, limitBytes: { type: "integer" } } },
-                    extensions: { type: "object", properties: { used: { type: "integer" }, limit: { type: "integer" } } },
-                    recordings: { type: "object", properties: { totalCount: { type: "integer" }, totalDurationHours: { type: "number" } } },
+                    cameras: {
+                      type: "object",
+                      properties: {
+                        used: { type: "integer" },
+                        limit: { type: "integer" },
+                      },
+                    },
+                    users: {
+                      type: "object",
+                      properties: {
+                        used: { type: "integer" },
+                        limit: { type: "integer" },
+                      },
+                    },
+                    storage: {
+                      type: "object",
+                      properties: {
+                        usedBytes: { type: "integer" },
+                        limitBytes: { type: "integer" },
+                      },
+                    },
+                    extensions: {
+                      type: "object",
+                      properties: {
+                        used: { type: "integer" },
+                        limit: { type: "integer" },
+                      },
+                    },
+                    recordings: {
+                      type: "object",
+                      properties: {
+                        totalCount: { type: "integer" },
+                        totalDurationHours: { type: "number" },
+                      },
+                    },
                   },
                 }),
               },
@@ -1019,11 +1579,20 @@ export const openApiSpec = {
       get: {
         tags: ["Extensions"],
         summary: "Browse marketplace",
-        description: "Returns a paginated list of published extensions sorted by popularity.",
+        description:
+          "Returns a paginated list of published extensions sorted by popularity.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 20, maximum: 100 } },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 20, maximum: 100 },
+          },
           { name: "category", in: "query", schema: { type: "string" } },
           { name: "search", in: "query", schema: { type: "string" } },
         ],
@@ -1038,7 +1607,14 @@ export const openApiSpec = {
         tags: ["Extensions"],
         summary: "Get marketplace extension details",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Extension details" },
           404: { description: "Extension not found" },
@@ -1087,7 +1663,14 @@ export const openApiSpec = {
         tags: ["Extensions"],
         summary: "Update extension configuration",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -1114,7 +1697,14 @@ export const openApiSpec = {
         tags: ["Extensions"],
         summary: "Enable or disable an extension",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -1141,7 +1731,14 @@ export const openApiSpec = {
         tags: ["Extensions"],
         summary: "Uninstall an extension",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Extension uninstalled" },
           404: { description: "Extension not found" },
@@ -1157,8 +1754,16 @@ export const openApiSpec = {
         description: "Returns paginated locations with camera counts.",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "page", in: "query", schema: { type: "integer", default: 1 } },
-          { name: "limit", in: "query", schema: { type: "integer", default: 50, maximum: 100 } },
+          {
+            name: "page",
+            in: "query",
+            schema: { type: "integer", default: 1 },
+          },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", default: 50, maximum: 100 },
+          },
           { name: "search", in: "query", schema: { type: "string" } },
         ],
         responses: {
@@ -1171,7 +1776,9 @@ export const openApiSpec = {
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
-          content: { "application/json": { schema: ref("CreateLocationInput") } },
+          content: {
+            "application/json": { schema: ref("CreateLocationInput") },
+          },
         },
         responses: {
           201: { description: "Location created" },
@@ -1184,7 +1791,14 @@ export const openApiSpec = {
         tags: ["Locations"],
         summary: "Get location by ID",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Location details with camera count" },
           404: { description: "Location not found" },
@@ -1194,10 +1808,19 @@ export const openApiSpec = {
         tags: ["Locations"],
         summary: "Update a location",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
-          content: { "application/json": { schema: ref("UpdateLocationInput") } },
+          content: {
+            "application/json": { schema: ref("UpdateLocationInput") },
+          },
         },
         responses: {
           200: { description: "Location updated" },
@@ -1207,9 +1830,17 @@ export const openApiSpec = {
       delete: {
         tags: ["Locations"],
         summary: "Delete a location",
-        description: "Deletes the location. Cameras at this location have their location_id set to null.",
+        description:
+          "Deletes the location. Cameras at this location have their location_id set to null.",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Location deleted" },
           404: { description: "Location not found" },
@@ -1222,7 +1853,14 @@ export const openApiSpec = {
         tags: ["Locations"],
         summary: "List cameras at a location",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Camera list" },
         },
@@ -1270,7 +1908,14 @@ export const openApiSpec = {
         tags: ["Tags"],
         summary: "Delete a tag",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Tag deleted" },
           404: { description: "Tag not found" },
@@ -1283,7 +1928,14 @@ export const openApiSpec = {
         tags: ["Tags"],
         summary: "List tags assigned to a camera",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         responses: {
           200: { description: "Tag assignments" },
         },
@@ -1292,7 +1944,14 @@ export const openApiSpec = {
         tags: ["Tags"],
         summary: "Assign tags to a camera",
         security: [{ BearerAuth: [] }],
-        parameters: [{ name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
         requestBody: {
           required: true,
           content: {
@@ -1301,7 +1960,10 @@ export const openApiSpec = {
                 type: "object",
                 required: ["tagIds"],
                 properties: {
-                  tagIds: { type: "array", items: { type: "string", format: "uuid" } },
+                  tagIds: {
+                    type: "array",
+                    items: { type: "string", format: "uuid" },
+                  },
                 },
               },
             },
@@ -1319,8 +1981,18 @@ export const openApiSpec = {
         summary: "Remove a tag from a camera",
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string", format: "uuid" } },
-          { name: "tagId", in: "path", required: true, schema: { type: "string", format: "uuid" } },
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+          {
+            name: "tagId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
         ],
         responses: {
           200: { description: "Tag removed" },
@@ -1333,7 +2005,8 @@ export const openApiSpec = {
       get: {
         tags: ["Health"],
         summary: "Basic health check",
-        description: "Returns OK/degraded status based on Supabase and Redis connectivity.",
+        description:
+          "Returns OK/degraded status based on Supabase and Redis connectivity.",
         responses: {
           200: {
             description: "Health status",
@@ -1367,7 +2040,8 @@ export const openApiSpec = {
       get: {
         tags: ["Health"],
         summary: "Detailed health check",
-        description: "Returns full health snapshot including latency for each service, gRPC service status, WebSocket connections, and camera/event/recording stats.",
+        description:
+          "Returns full health snapshot including latency for each service, gRPC service status, WebSocket connections, and camera/event/recording stats.",
         responses: {
           200: { description: "Detailed health snapshot" },
         },
@@ -1378,9 +2052,13 @@ export const openApiSpec = {
       get: {
         tags: ["Health"],
         summary: "Prometheus metrics",
-        description: "Returns metrics in Prometheus exposition format including request counts, latencies, camera stats, event counts, and WebSocket connections.",
+        description:
+          "Returns metrics in Prometheus exposition format including request counts, latencies, camera stats, event counts, and WebSocket connections.",
         responses: {
-          200: { description: "Prometheus text format", content: { "text/plain": { schema: { type: "string" } } } },
+          200: {
+            description: "Prometheus text format",
+            content: { "text/plain": { schema: { type: "string" } } },
+          },
         },
       },
     },
@@ -1390,7 +2068,8 @@ export const openApiSpec = {
       post: {
         tags: ["Dev"],
         summary: "Simulate a motion event",
-        description: "Development-only. Creates a fake motion event for the specified camera and broadcasts it via WebSocket.",
+        description:
+          "Development-only. Creates a fake motion event for the specified camera and broadcasts it via WebSocket.",
         requestBody: {
           required: true,
           content: {
@@ -1472,7 +2151,10 @@ export const openApiSpec = {
           name: { type: "string" },
           protocol: { type: "string", enum: ["rtsp", "rtmp", "hls", "webrtc"] },
           connection_uri: { type: "string" },
-          status: { type: "string", enum: ["online", "offline", "error", "connecting", "disabled"] },
+          status: {
+            type: "string",
+            enum: ["online", "offline", "error", "connecting", "disabled"],
+          },
           location: { type: "object" },
           capabilities: { type: "object" },
           config: { type: "object" },
@@ -1558,14 +2240,34 @@ export const openApiSpec = {
           camera_id: { type: "string", format: "uuid" },
           zone_id: { type: "string", format: "uuid", nullable: true },
           tenant_id: { type: "string", format: "uuid" },
-          type: { type: "string", enum: ["motion", "person", "vehicle", "animal", "camera_offline", "camera_online", "tampering", "audio", "custom"] },
-          severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
+          type: {
+            type: "string",
+            enum: [
+              "motion",
+              "person",
+              "vehicle",
+              "animal",
+              "camera_offline",
+              "camera_online",
+              "tampering",
+              "audio",
+              "custom",
+            ],
+          },
+          severity: {
+            type: "string",
+            enum: ["low", "medium", "high", "critical"],
+          },
           detected_at: { type: "string", format: "date-time" },
           metadata: { type: "object" },
           intensity: { type: "integer", minimum: 0, maximum: 100 },
           acknowledged: { type: "boolean" },
           acknowledged_by: { type: "string", format: "uuid", nullable: true },
-          acknowledged_at: { type: "string", format: "date-time", nullable: true },
+          acknowledged_at: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+          },
           created_at: { type: "string", format: "date-time" },
         },
       },
@@ -1574,8 +2276,24 @@ export const openApiSpec = {
         required: ["cameraId", "type", "severity"],
         properties: {
           cameraId: { type: "string", format: "uuid" },
-          type: { type: "string", enum: ["motion", "person", "vehicle", "animal", "camera_offline", "camera_online", "tampering", "audio", "custom"] },
-          severity: { type: "string", enum: ["low", "medium", "high", "critical"] },
+          type: {
+            type: "string",
+            enum: [
+              "motion",
+              "person",
+              "vehicle",
+              "animal",
+              "camera_offline",
+              "camera_online",
+              "tampering",
+              "audio",
+              "custom",
+            ],
+          },
+          severity: {
+            type: "string",
+            enum: ["low", "medium", "high", "critical"],
+          },
           metadata: { type: "object", default: {} },
           zoneId: { type: "string", format: "uuid" },
           intensity: { type: "integer", minimum: 0, maximum: 100, default: 50 },
@@ -1587,8 +2305,14 @@ export const openApiSpec = {
           id: { type: "string", format: "uuid" },
           camera_id: { type: "string", format: "uuid" },
           tenant_id: { type: "string", format: "uuid" },
-          trigger: { type: "string", enum: ["manual", "motion", "continuous", "rule", "ai_detection"] },
-          status: { type: "string", enum: ["recording", "completed", "failed"] },
+          trigger: {
+            type: "string",
+            enum: ["manual", "motion", "continuous", "rule", "ai_detection"],
+          },
+          status: {
+            type: "string",
+            enum: ["recording", "completed", "failed"],
+          },
           start_time: { type: "string", format: "date-time" },
           end_time: { type: "string", format: "date-time", nullable: true },
           duration_sec: { type: "integer" },
@@ -1608,8 +2332,14 @@ export const openApiSpec = {
           trigger_event: { type: "string" },
           conditions: { type: "object" },
           actions: { type: "array", items: { type: "object" } },
-          camera_ids: { type: "array", items: { type: "string", format: "uuid" } },
-          zone_ids: { type: "array", items: { type: "string", format: "uuid" } },
+          camera_ids: {
+            type: "array",
+            items: { type: "string", format: "uuid" },
+          },
+          zone_ids: {
+            type: "array",
+            items: { type: "string", format: "uuid" },
+          },
           schedule: { type: "object", nullable: true },
           cooldown_sec: { type: "integer" },
           enabled: { type: "boolean" },
@@ -1626,7 +2356,10 @@ export const openApiSpec = {
           triggerEvent: { type: "string" },
           conditions: { type: "object" },
           actions: { type: "array", items: { type: "object" } },
-          cameraIds: { type: "array", items: { type: "string", format: "uuid" } },
+          cameraIds: {
+            type: "array",
+            items: { type: "string", format: "uuid" },
+          },
           zoneIds: { type: "array", items: { type: "string", format: "uuid" } },
           schedule: { type: "object" },
           cooldownSec: { type: "integer" },
@@ -1641,7 +2374,10 @@ export const openApiSpec = {
           triggerEvent: { type: "string" },
           conditions: { type: "object" },
           actions: { type: "array", items: { type: "object" } },
-          cameraIds: { type: "array", items: { type: "string", format: "uuid" } },
+          cameraIds: {
+            type: "array",
+            items: { type: "string", format: "uuid" },
+          },
           zoneIds: { type: "array", items: { type: "string", format: "uuid" } },
           schedule: { type: "object" },
           cooldownSec: { type: "integer" },

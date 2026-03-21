@@ -29,9 +29,6 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   viewer: 1,
 };
 
-export function hasRole(
-  userRole: UserRole,
-  requiredRole: UserRole,
-): boolean {
+export function hasRole(userRole: UserRole, requiredRole: UserRole): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }

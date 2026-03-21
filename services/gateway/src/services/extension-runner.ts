@@ -61,19 +61,18 @@ export class ExtensionRunner {
     if (!source) {
       return {
         success: false,
-        error:
-          this.allowInlineSource
-            ? "No extension code found. Provide one of config.source, config.code, or config.script."
-            : "Inline extension source is disabled. Set EXTENSION_ALLOW_INLINE_SOURCE=true only in trusted environments.",
+        error: this.allowInlineSource
+          ? "No extension code found. Provide one of config.source, config.code, or config.script."
+          : "Inline extension source is disabled. Set EXTENSION_ALLOW_INLINE_SOURCE=true only in trusted environments.",
         durationMs: Date.now() - start,
       };
     }
 
     const safeTimeout = clampTimeout(timeoutMs);
     const handlerName =
-      asString(config["handlerFunction"])
-      ?? asString(config["handler"])
-      ?? hookName;
+      asString(config["handlerFunction"]) ??
+      asString(config["handler"]) ??
+      hookName;
 
     const exportsRef: Record<string, unknown> = {};
     const sandbox: Record<string, unknown> = {
@@ -117,7 +116,7 @@ export class ExtensionRunner {
           "  fn = globalThis[__handlerName];",
           "}",
           "if (typeof fn !== 'function') {",
-          "  throw new Error(`Handler \"${__handlerName}\" not found in extension code`);",
+          '  throw new Error(`Handler "${__handlerName}" not found in extension code`);',
           "}",
           "__result = fn(__eventData, __config);",
         ].join("\n"),
@@ -156,9 +155,10 @@ export class ExtensionRunner {
 
   private getSourceCode(config: Record<string, unknown>): string | null {
     if (!this.allowInlineSource) return null;
-    const source = asString(config["source"])
-      ?? asString(config["code"])
-      ?? asString(config["script"]);
+    const source =
+      asString(config["source"]) ??
+      asString(config["code"]) ??
+      asString(config["script"]);
     if (!source) return null;
     return source;
   }

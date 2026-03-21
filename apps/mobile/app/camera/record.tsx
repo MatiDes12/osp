@@ -24,9 +24,12 @@ export default function RecordScreen() {
   async function checkStatus() {
     try {
       const token = await getAccessToken();
-      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/cameras/${cameraId}/record/status`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       const json = await res.json();
       if (json.data?.isRecording) {
         setIsRecording(true);
@@ -63,24 +66,39 @@ export default function RecordScreen() {
     try {
       const token = await getAccessToken();
       if (!isRecording) {
-        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/start`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ trigger: "manual" }),
-        });
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ trigger: "manual" }),
+          },
+        );
         const json = await res.json();
         if (json.success) {
           setIsRecording(true);
           setRecordingId(json.data.recordingId);
           startTimer();
         } else {
-          Alert.alert("Error", json.error?.message ?? "Failed to start recording");
+          Alert.alert(
+            "Error",
+            json.error?.message ?? "Failed to start recording",
+          );
         }
       } else {
-        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        });
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/record/stop`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+        );
         const json = await res.json();
         if (json.success) {
           setIsRecording(false);
@@ -88,7 +106,10 @@ export default function RecordScreen() {
           stopTimer();
           Alert.alert("Recording saved", "Your recording has been saved.");
         } else {
-          Alert.alert("Error", json.error?.message ?? "Failed to stop recording");
+          Alert.alert(
+            "Error",
+            json.error?.message ?? "Failed to stop recording",
+          );
         }
       }
     } catch (err) {
@@ -112,12 +133,19 @@ export default function RecordScreen() {
       </View>
 
       <TouchableOpacity
-        style={[styles.button, isRecording ? styles.stopButton : styles.startButton]}
+        style={[
+          styles.button,
+          isRecording ? styles.stopButton : styles.startButton,
+        ]}
         onPress={handleToggleRecording}
         disabled={loading}
       >
         <Text style={styles.buttonText}>
-          {loading ? "..." : isRecording ? "⏹ Stop Recording" : "⏺ Start Recording"}
+          {loading
+            ? "..."
+            : isRecording
+              ? "⏹ Stop Recording"
+              : "⏺ Start Recording"}
         </Text>
       </TouchableOpacity>
 
@@ -165,7 +193,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   startButton: { backgroundColor: "#ef4444" },
-  stopButton: { backgroundColor: "#27272a", borderWidth: 2, borderColor: "#ef4444" },
+  stopButton: {
+    backgroundColor: "#27272a",
+    borderWidth: 2,
+    borderColor: "#ef4444",
+  },
   buttonText: { color: "#fff", fontSize: 17, fontWeight: "700" },
   backButton: { marginTop: 8 },
   backText: { color: "#3b82f6", fontSize: 14 },

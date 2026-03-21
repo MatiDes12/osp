@@ -4,14 +4,15 @@
 
 ## Changes
 
-<!-- Bulleted list of significant changes -->
--
+## <!-- Bulleted list of significant changes -->
+
 -
 -
 
 ## Type
 
 <!-- Check one -->
+
 - [ ] Feature
 - [ ] Bug fix
 - [ ] Refactor
@@ -23,6 +24,7 @@
 ## Affected Services
 
 <!-- Check all that apply -->
+
 - [ ] `apps/web`
 - [ ] `apps/mobile`
 - [ ] `packages/shared`
@@ -38,6 +40,7 @@
 ## Test Plan
 
 <!-- How was this tested? What should reviewers verify? -->
+
 - [ ] Unit tests added/updated
 - [ ] Integration tests added/updated
 - [ ] E2E tests added/updated (if UI change)
@@ -48,6 +51,7 @@
 ## Checklist
 
 <!-- All must be checked before merge -->
+
 - [ ] Follows [naming conventions](./docs/CONSISTENCY-STANDARDS.md#1-naming-conventions)
 - [ ] Error handling uses [standard error format](./docs/CONSISTENCY-STANDARDS.md#3-error-handling-standard)
 - [ ] New endpoints have Zod request validation
@@ -65,4 +69,5 @@
 ## Related Issues
 
 <!-- Link to Jira/GitHub issues -->
+
 Closes OSP-XXX

@@ -144,12 +144,23 @@ function getStatusConfig(status: string) {
   return (STATUS_CONFIG[status] ?? STATUS_CONFIG["offline"])!;
 }
 
-export const CameraCard = memo(function CameraCard({ camera, selectable = false, selected = false, onToggleSelect, tags = [], isActivelyRecording = false }: CameraCardProps) {
+export const CameraCard = memo(function CameraCard({
+  camera,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
+  tags = [],
+  isActivelyRecording = false,
+}: CameraCardProps) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const isOnline = camera.status === "online";
-  const isRecording = isActivelyRecording || camera.config.recordingMode !== "off";
-  const snapshotUrl = useSnapshotUrl(camera.id, isOnline || camera.status === "connecting");
+  const isRecording =
+    isActivelyRecording || camera.config.recordingMode !== "off";
+  const snapshotUrl = useSnapshotUrl(
+    camera.id,
+    isOnline || camera.status === "connecting",
+  );
   const statusCfg = getStatusConfig(camera.status);
 
   const showCheckbox = selectable && (hovered || selected);
@@ -348,7 +359,9 @@ export const CameraCard = memo(function CameraCard({ camera, selectable = false,
     return (
       <div
         className={`group block border rounded-lg overflow-hidden cursor-pointer transition-all duration-200 ${
-          selected ? "border-blue-500" : "border-zinc-800 hover:ring-1 hover:ring-blue-500/30"
+          selected
+            ? "border-blue-500"
+            : "border-zinc-800 hover:ring-1 hover:ring-blue-500/30"
         }`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}

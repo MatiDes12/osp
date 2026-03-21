@@ -45,13 +45,12 @@ VALUES
   );
 }
 
-
 // ─── Query path ──────────────────────────────────────────────────────────────
 
 export type Granularity = "hour" | "day";
 
 export interface TimeSeriesPoint {
-  bucket: string;   // ISO datetime string
+  bucket: string; // ISO datetime string
   count: number;
 }
 
@@ -91,8 +90,8 @@ export async function getEventTimeSeries(opts: {
 }
 
 export interface HeatmapCell {
-  hourOfDay: number;    // 0-23
-  dayOfWeek: number;    // 1=Mon … 7=Sun
+  hourOfDay: number; // 0-23
+  dayOfWeek: number; // 1=Mon … 7=Sun
   count: number;
 }
 
@@ -270,7 +269,9 @@ export async function getRecordingsSummary(opts: {
     totalRecordings: Number(t?.total ?? 0),
     totalDurationSec: Number(t?.duration ?? 0),
     totalSizeBytes: Number(t?.size ?? 0),
-    byTrigger: Object.fromEntries(byTrigger.map((r) => [r.trigger, Number(r.count)])),
+    byTrigger: Object.fromEntries(
+      byTrigger.map((r) => [r.trigger, Number(r.count)]),
+    ),
     dailyStorageBytes: daily.map((r) => ({
       date: String(r.date),
       bytes: Number(r.bytes),

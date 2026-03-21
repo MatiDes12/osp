@@ -17,13 +17,19 @@ export function securityHeaders() {
     c.header("X-Content-Type-Options", "nosniff");
 
     // Force HTTPS for 1 year (only meaningful in production but harmless in dev)
-    c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    c.header(
+      "Strict-Transport-Security",
+      "max-age=31536000; includeSubDomains",
+    );
 
     // Control referrer information
     c.header("Referrer-Policy", "strict-origin-when-cross-origin");
 
     // Disable browser features not needed by an API
-    c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    c.header(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=()",
+    );
 
     // Strict CSP for API responses (JSON only — no scripts/styles needed)
     c.header("Content-Security-Policy", "default-src 'none'");

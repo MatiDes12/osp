@@ -337,9 +337,12 @@ export function startWebSocketServer(): void {
   try {
     subscriber = getRedis().duplicate();
 
-    subscriber.on("pmessage", (_pattern: string, channel: string, message: string) => {
-      handleRedisMessage(channel, message);
-    });
+    subscriber.on(
+      "pmessage",
+      (_pattern: string, channel: string, message: string) => {
+        handleRedisMessage(channel, message);
+      },
+    );
 
     subscriber.on("error", (err) => {
       logger.error("Redis subscriber error", { error: String(err) });

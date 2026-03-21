@@ -35,10 +35,7 @@ export function createTenantApi(client: ApiClient) {
       return client.post<User>("/api/v1/tenant/users/invite", data);
     },
 
-    updateUserRole(
-      userId: string,
-      role: string,
-    ): Promise<ApiResponse<void>> {
+    updateUserRole(userId: string, role: string): Promise<ApiResponse<void>> {
       return client.patch<void>(`/api/v1/tenant/users/${userId}/role`, {
         role,
       });

@@ -26,29 +26,29 @@ Everything you need to run, develop, and deploy OSP across all platforms.
 
 Install these before starting:
 
-| Tool | Version | Install |
-|------|---------|---------|
-| **Node.js** | 20+ | https://nodejs.org |
-| **pnpm** | 10+ | `npm install -g pnpm` |
-| **Docker Desktop** | Latest | https://docker.com/products/docker-desktop |
-| **Git** | Latest | https://git-scm.com |
+| Tool               | Version | Install                                    |
+| ------------------ | ------- | ------------------------------------------ |
+| **Node.js**        | 20+     | https://nodejs.org                         |
+| **pnpm**           | 10+     | `npm install -g pnpm`                      |
+| **Docker Desktop** | Latest  | https://docker.com/products/docker-desktop |
+| **Git**            | Latest  | https://git-scm.com                        |
 
 For mobile development:
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| **Expo Go** | Latest | Install on your phone from the App Store / Play Store |
-| **iOS Simulator** | Xcode (macOS only) | App Store → Xcode |
-| **Android Emulator** | Android Studio | https://developer.android.com/studio |
+| Tool                 | Version            | Notes                                                 |
+| -------------------- | ------------------ | ----------------------------------------------------- |
+| **Expo Go**          | Latest             | Install on your phone from the App Store / Play Store |
+| **iOS Simulator**    | Xcode (macOS only) | App Store → Xcode                                     |
+| **Android Emulator** | Android Studio     | https://developer.android.com/studio                  |
 
 For desktop development (Tauri):
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| **Rust** | 1.77+ | https://rustup.rs |
-| **Microsoft C++ Build Tools** | Latest | Windows only — Visual Studio Installer → "Desktop development with C++" |
-| **Xcode CLI** | Latest | macOS only — `xcode-select --install` |
-| **build-essential + webkit2gtk** | Latest | Linux only — `sudo apt install build-essential libwebkit2gtk-4.1-dev libappindicator3-dev` |
+| Tool                             | Version | Notes                                                                                      |
+| -------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| **Rust**                         | 1.77+   | https://rustup.rs                                                                          |
+| **Microsoft C++ Build Tools**    | Latest  | Windows only — Visual Studio Installer → "Desktop development with C++"                    |
+| **Xcode CLI**                    | Latest  | macOS only — `xcode-select --install`                                                      |
+| **build-essential + webkit2gtk** | Latest  | Linux only — `sudo apt install build-essential libwebkit2gtk-4.1-dev libappindicator3-dev` |
 
 ---
 
@@ -100,6 +100,7 @@ pnpm dev
 Starts on **http://localhost:3000** (REST API) and **ws://localhost:3002** (WebSocket).
 
 Expected output:
+
 ```
 OSP API Gateway running at http://localhost:3000
 WebSocket server started on port 3002
@@ -117,15 +118,15 @@ Opens at **http://localhost:3001**.
 
 ### Service URLs
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Web dashboard | http://localhost:3001 | Main UI |
-| API gateway | http://localhost:3000 | REST API |
-| API docs (Swagger) | http://localhost:3000/docs | Interactive API docs |
-| WebSocket | ws://localhost:3002 | Real-time events |
-| go2rtc admin | http://localhost:1984 | Camera stream manager |
-| go2rtc RTSP re-stream | rtsp://localhost:8554 | Test RTSP streams |
-| ClickHouse | http://localhost:8123 | Analytics DB (Docker only) |
+| Service               | URL                        | Purpose                    |
+| --------------------- | -------------------------- | -------------------------- |
+| Web dashboard         | http://localhost:3001      | Main UI                    |
+| API gateway           | http://localhost:3000      | REST API                   |
+| API docs (Swagger)    | http://localhost:3000/docs | Interactive API docs       |
+| WebSocket             | ws://localhost:3002        | Real-time events           |
+| go2rtc admin          | http://localhost:1984      | Camera stream manager      |
+| go2rtc RTSP re-stream | rtsp://localhost:8554      | Test RTSP streams          |
+| ClickHouse            | http://localhost:8123      | Analytics DB (Docker only) |
 
 ### First Login
 
@@ -159,10 +160,10 @@ cd apps/mobile
 npx expo start
 ```
 
-| Key | Action |
-|-----|--------|
-| `i` | Open in iOS Simulator (macOS only) |
-| `a` | Open in Android Emulator |
+| Key     | Action                                  |
+| ------- | --------------------------------------- |
+| `i`     | Open in iOS Simulator (macOS only)      |
+| `a`     | Open in Android Emulator                |
 | Scan QR | Open in Expo Go on your physical device |
 
 ### Connect a physical device to your local backend
@@ -176,6 +177,7 @@ EXPO_PUBLIC_GO2RTC_URL=http://192.168.x.x:1984
 ```
 
 Replace `192.168.x.x` with your computer's LAN IP:
+
 - Windows: `ipconfig`
 - macOS / Linux: `ifconfig | grep inet`
 
@@ -234,34 +236,34 @@ pnpm build
 
 Output installers at `apps/desktop/src-tauri/target/release/bundle/`:
 
-| Platform | Output |
-|----------|--------|
-| Windows | `bundle/msi/*.msi` and `bundle/nsis/*.exe` |
-| macOS | `bundle/dmg/*.dmg` and `bundle/macos/*.app` |
-| Linux | `bundle/deb/*.deb` and `bundle/appimage/*.AppImage` |
+| Platform | Output                                              |
+| -------- | --------------------------------------------------- |
+| Windows  | `bundle/msi/*.msi` and `bundle/nsis/*.exe`          |
+| macOS    | `bundle/dmg/*.dmg` and `bundle/macos/*.app`         |
+| Linux    | `bundle/deb/*.deb` and `bundle/appimage/*.AppImage` |
 
 In production the app shows a **connection screen** — enter your OSP server URL and it's remembered for future launches.
 
 ### Desktop features
 
-| Feature | How |
-|---------|-----|
-| **System tray** | Shows `x/y cameras online • N alerts` in tooltip |
-| **Show / hide window** | Left-click tray icon, or tray menu → Open Dashboard |
-| **Minimize to tray** | Clicking × hides the window — OSP keeps running |
-| **Quit** | Tray menu → Quit OSP |
-| **Start at login** | Tray menu → Start at Login, or Settings → Desktop App |
-| **Native notifications** | OS-level alerts instead of browser pop-ups |
+| Feature                  | How                                                   |
+| ------------------------ | ----------------------------------------------------- |
+| **System tray**          | Shows `x/y cameras online • N alerts` in tooltip      |
+| **Show / hide window**   | Left-click tray icon, or tray menu → Open Dashboard   |
+| **Minimize to tray**     | Clicking × hides the window — OSP keeps running       |
+| **Quit**                 | Tray menu → Quit OSP                                  |
+| **Start at login**       | Tray menu → Start at Login, or Settings → Desktop App |
+| **Native notifications** | OS-level alerts instead of browser pop-ups            |
 
 ### Tauri commands (called from the web frontend via `invoke`)
 
-| Command | Args | Description |
-|---------|------|-------------|
-| `update_tray_status` | `cameras_online`, `cameras_total`, `alerts_unread` | Updates tray tooltip |
-| `show_os_notification` | `title`, `body` | Shows a native OS notification |
-| `toggle_autostart` | — | Toggles auto-start; returns new state |
-| `get_autostart_enabled` | — | Returns current auto-start state |
-| `show_main_window` | — | Shows and focuses the main window |
+| Command                 | Args                                               | Description                           |
+| ----------------------- | -------------------------------------------------- | ------------------------------------- |
+| `update_tray_status`    | `cameras_online`, `cameras_total`, `alerts_unread` | Updates tray tooltip                  |
+| `show_os_notification`  | `title`, `body`                                    | Shows a native OS notification        |
+| `toggle_autostart`      | —                                                  | Toggles auto-start; returns new state |
+| `get_autostart_enabled` | —                                                  | Returns current auto-start state      |
+| `show_main_window`      | —                                                  | Shows and focuses the main window     |
 
 ---
 
@@ -339,12 +341,12 @@ docker compose -f infra/docker/docker-compose.yml up -d
 
 ### What runs in Docker
 
-| Container | Image | Purpose |
-|-----------|-------|---------|
-| `gateway` | Built from `gateway.Dockerfile` | API server (port 3000), WebSocket (3002) |
-| `go2rtc` | `alexxit/go2rtc` | Camera proxy / WebRTC (port 1984, 8554) |
-| `redis` | `redis:7-alpine` | Cache + pub/sub (port 6379) |
-| `clickhouse` | `clickhouse/clickhouse-server:24-alpine` | Analytics DB (port 8123) |
+| Container    | Image                                    | Purpose                                  |
+| ------------ | ---------------------------------------- | ---------------------------------------- |
+| `gateway`    | Built from `gateway.Dockerfile`          | API server (port 3000), WebSocket (3002) |
+| `go2rtc`     | `alexxit/go2rtc`                         | Camera proxy / WebRTC (port 1984, 8554)  |
+| `redis`      | `redis:7-alpine`                         | Cache + pub/sub (port 6379)              |
+| `clickhouse` | `clickhouse/clickhouse-server:24-alpine` | Analytics DB (port 8123)                 |
 
 Go services (`camera-ingest`, `video-pipeline`, `event-engine`, `extension-runtime`) are not in the default compose stack — the gateway handles everything in fallback mode.
 
@@ -368,15 +370,15 @@ docker compose -f infra/docker/docker-compose.yml down -v
 
 ### Docker service URLs
 
-| Service | URL |
-|---------|-----|
-| API Gateway | http://localhost:3000 |
-| API docs | http://localhost:3000/docs |
-| WebSocket | ws://localhost:3002 |
-| go2rtc admin | http://localhost:1984 |
-| RTSP re-stream | rtsp://localhost:8554 |
-| Redis | localhost:6379 |
-| ClickHouse HTTP | http://localhost:8123 |
+| Service         | URL                        |
+| --------------- | -------------------------- |
+| API Gateway     | http://localhost:3000      |
+| API docs        | http://localhost:3000/docs |
+| WebSocket       | ws://localhost:3002        |
+| go2rtc admin    | http://localhost:1984      |
+| RTSP re-stream  | rtsp://localhost:8554      |
+| Redis           | localhost:6379             |
+| ClickHouse HTTP | http://localhost:8123      |
 
 > The web dashboard (`apps/web`) is **not** in Docker. Run it locally with `cd apps/web && pnpm dev`, or deploy it to Vercel.
 
@@ -425,10 +427,10 @@ bash scripts/seed-dev.sh
 
 ### Overview
 
-| Layer | Platform |
-|-------|----------|
-| Web app (Next.js) | Vercel |
-| API gateway + Go services | Fly.io |
+| Layer                          | Platform                      |
+| ------------------------------ | ----------------------------- |
+| Web app (Next.js)              | Vercel                        |
+| API gateway + Go services      | Fly.io                        |
 | Infrastructure (Redis, go2rtc) | Docker on a VPS or Kubernetes |
 
 ### Deploy to Vercel (web app)
@@ -473,6 +475,7 @@ bash scripts/deploy-fly.sh all
 - **go2rtc WebRTC** — requires a TURN server for production across symmetric NATs.
 
 TURN options: Cloudflare Calls (free tier), Twilio, or self-hosted coturn. Set in `.env`:
+
 ```env
 TURN_SERVER_URL=turn:your-server:3478
 TURN_SERVER_USERNAME=user
@@ -514,6 +517,7 @@ kubectl apply -k infra/k8s/overlays/production/
 ### CI/CD (GitHub Actions)
 
 `.github/workflows/deploy.yml` runs on push to `main`:
+
 - Detects changed services
 - Builds Docker images
 - Deploys to staging via Fly.io
@@ -526,6 +530,7 @@ Required GitHub secrets: `FLY_API_TOKEN`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERC
 See `infra/production/.env.production.example` for a complete list.
 
 Key values for production Docker:
+
 ```env
 NODE_ENV=production
 SUPABASE_URL=https://<ref>.supabase.co
@@ -540,6 +545,7 @@ GO2RTC_PUBLIC_URL=http://<your-server-ip>:1984
 ```
 
 All Docker services use `restart: unless-stopped`. Enable Docker to start on boot:
+
 ```bash
 sudo systemctl enable docker
 ```
@@ -552,79 +558,89 @@ Variables are loaded from `.env` at the repo root.
 
 > **Do not** set infrastructure URLs (`REDIS_URL`, `GO2RTC_URL`, gRPC addresses) in the `config_secrets` database table — those must come from environment variables so Docker networking works correctly.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SUPABASE_URL` | Yes | Supabase project API URL |
-| `SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (server-side only) |
-| `DATABASE_URL` | Go services | Direct Postgres connection — port 5432, not 6543 |
-| `REDIS_URL` | Auto in Docker | Default: `redis://localhost:6379` |
-| `GO2RTC_URL` | Auto in Docker | Default: `http://localhost:1984` |
-| `R2_ENDPOINT` | For recording | Cloudflare R2 endpoint |
-| `R2_ACCESS_KEY_ID` | For recording | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | For recording | R2 secret key |
-| `R2_BUCKET_NAME` | For recording | R2 bucket name (default: `osp-storage`) |
-| `RECORDINGS_DIR` | Optional | Local recording path (default: `./recordings`) |
-| `AI_PROVIDER` | Optional | `none` (default) or `openai` |
-| `OPENAI_API_KEY` | If AI enabled | OpenAI API key for vision analysis |
-| `RESEND_API_KEY` | For email alerts | Resend API key |
-| `EMAIL_FROM` | For email alerts | Sender address (e.g. `alerts@yourdomain.com`) |
-| `SENTRY_DSN` | Optional | Sentry error monitoring DSN |
-| `OSP_ENCRYPTION_KEY` | Optional | 32-byte hex key — generate: `openssl rand -hex 32` |
-| `TURN_SERVER_URL` | Production WebRTC | TURN server URL |
-| `TURN_SERVER_USERNAME` | Production WebRTC | TURN credentials |
-| `TURN_SERVER_CREDENTIAL` | Production WebRTC | TURN credentials |
-| `GATEWAY_PORT` | Optional | API port (default: `3000`) |
-| `WS_PORT` | Optional | WebSocket port (default: `3002`) |
+| Variable                    | Required          | Description                                        |
+| --------------------------- | ----------------- | -------------------------------------------------- |
+| `SUPABASE_URL`              | Yes               | Supabase project API URL                           |
+| `SUPABASE_ANON_KEY`         | Yes               | Supabase anon/public key                           |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes               | Supabase service role key (server-side only)       |
+| `DATABASE_URL`              | Go services       | Direct Postgres connection — port 5432, not 6543   |
+| `REDIS_URL`                 | Auto in Docker    | Default: `redis://localhost:6379`                  |
+| `GO2RTC_URL`                | Auto in Docker    | Default: `http://localhost:1984`                   |
+| `R2_ENDPOINT`               | For recording     | Cloudflare R2 endpoint                             |
+| `R2_ACCESS_KEY_ID`          | For recording     | R2 access key                                      |
+| `R2_SECRET_ACCESS_KEY`      | For recording     | R2 secret key                                      |
+| `R2_BUCKET_NAME`            | For recording     | R2 bucket name (default: `osp-storage`)            |
+| `RECORDINGS_DIR`            | Optional          | Local recording path (default: `./recordings`)     |
+| `AI_PROVIDER`               | Optional          | `none` (default) or `openai`                       |
+| `OPENAI_API_KEY`            | If AI enabled     | OpenAI API key for vision analysis                 |
+| `RESEND_API_KEY`            | For email alerts  | Resend API key                                     |
+| `EMAIL_FROM`                | For email alerts  | Sender address (e.g. `alerts@yourdomain.com`)      |
+| `SENTRY_DSN`                | Optional          | Sentry error monitoring DSN                        |
+| `OSP_ENCRYPTION_KEY`        | Optional          | 32-byte hex key — generate: `openssl rand -hex 32` |
+| `TURN_SERVER_URL`           | Production WebRTC | TURN server URL                                    |
+| `TURN_SERVER_USERNAME`      | Production WebRTC | TURN credentials                                   |
+| `TURN_SERVER_CREDENTIAL`    | Production WebRTC | TURN credentials                                   |
+| `GATEWAY_PORT`              | Optional          | API port (default: `3000`)                         |
+| `WS_PORT`                   | Optional          | WebSocket port (default: `3002`)                   |
 
 Variables set automatically inside Docker Compose (do not override):
 
-| Variable | Docker value |
-|----------|-------------|
-| `REDIS_URL` | `redis://redis:6379` |
-| `GO2RTC_URL` | `http://go2rtc:1984` |
-| `CAMERA_INGEST_GRPC_URL` | `camera-ingest:50051` |
+| Variable                  | Docker value           |
+| ------------------------- | ---------------------- |
+| `REDIS_URL`               | `redis://redis:6379`   |
+| `GO2RTC_URL`              | `http://go2rtc:1984`   |
+| `CAMERA_INGEST_GRPC_URL`  | `camera-ingest:50051`  |
 | `VIDEO_PIPELINE_GRPC_URL` | `video-pipeline:50052` |
-| `EVENT_ENGINE_GRPC_URL` | `event-engine:50053` |
+| `EVENT_ENGINE_GRPC_URL`   | `event-engine:50053`   |
 
 ---
 
 ## Troubleshooting
 
 ### `Cannot find module @osp/shared`
+
 ```bash
 pnpm --filter @osp/shared build
 ```
 
 ### `SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required`
+
 ```bash
 cp .env.example .env
 # Edit .env with your Supabase credentials
 ```
 
 ### Mobile device can't connect to the gateway
+
 Use your computer's LAN IP in `apps/mobile/.env` — not `localhost`.
 
 ### Docker can't reach LAN cameras (macOS / Windows)
+
 Docker Desktop runs in a VM. Run go2rtc natively on your host instead:
+
 ```bash
 # Download binary from https://github.com/AlexxIT/go2rtc/releases
 ./go2rtc -config infra/docker/go2rtc.yaml
 ```
 
 ### `ECONNREFUSED` on Redis inside Docker
+
 The `config_secrets` table must not have a `REDIS_URL` entry — it overrides the Docker env var. Delete it from Supabase if present.
 
 ### `FATAL: Tenant or user not found` in Go services
+
 You're using the Supabase pooler URL (port 6543). Switch `DATABASE_URL` to the direct connection (port 5432).
 
 ### Desktop: `error: linker 'link.exe' not found` (Windows)
+
 Install Microsoft C++ Build Tools — Visual Studio Installer → "Desktop development with C++".
 
 ### Desktop: Tauri window is blank in dev
+
 Make sure `cd apps/web && pnpm dev` is running on port 3001 **before** starting Tauri.
 
 ### Port already in use
+
 ```bash
 # Windows
 netstat -ano | findstr :3000
@@ -632,15 +648,19 @@ netstat -ano | findstr :3000
 # macOS / Linux
 lsof -i :3000
 ```
+
 Change the port in `.env` (`GATEWAY_PORT=3001`) if needed.
 
 ### Docker build fails — `Cannot find package 'dotenv'`
+
 The pnpm workspace symlinks broke. Rebuild with no cache:
+
 ```bash
 docker compose build --no-cache gateway
 ```
 
 ### go2rtc camera stream not loading
+
 ```bash
 # Check go2rtc sees the stream
 curl http://localhost:1984/api/streams
@@ -650,22 +670,30 @@ ffprobe rtsp://<camera-ip>:554/stream
 ```
 
 ### `RLS policy violation` on registration
+
 Make sure `SUPABASE_SERVICE_ROLE_KEY` (not the anon key) is set in `.env`. The service role bypasses Row Level Security.
 
 ### ClickHouse `get_mempolicy: Operation not permitted` on startup
+
 Docker Desktop on Windows/WSL2 blocks the `get_mempolicy` syscall. The fix is already in `docker-compose.yml` (`cap_add: [SYS_NICE, IPC_LOCK]` + `security_opt: seccomp:unconfined`). If you see this error, make sure you're using the latest compose file.
 
 ### ClickHouse health check stays `unhealthy` on Alpine
+
 Alpine resolves `localhost` to `::1` (IPv6) but ClickHouse only binds IPv4. The health check uses `127.0.0.1` explicitly — already fixed in the compose file.
 
 ### Go services crash with `network is unreachable` (IPv6 address)
+
 Supabase free tier direct connections resolve to an IPv6 address. Docker Desktop on Windows cannot route IPv6. Either:
+
 - Use the gateway's direct mode (default — no action needed)
 - Upgrade to Supabase Pro and enable the IPv4 add-on
 
 ### Gateway container exits immediately with no logs
+
 The `dist/index.js` bundle is likely empty (0 bytes). Rebuild with no cache:
+
 ```bash
 docker compose -f infra/docker/docker-compose.yml build --no-cache gateway
 ```
+
 This was caused by `tsup --dts` silently failing on type errors. The fix (remove `--dts` from the build script) is already in `services/gateway/package.json`.

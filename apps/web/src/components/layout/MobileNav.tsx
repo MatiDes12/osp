@@ -49,7 +49,9 @@ export function MobileNav() {
                 <span className="absolute inset-x-3 top-0 h-[2px] rounded-b-full bg-blue-500" />
               )}
               <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.75} />
-              <span className={`text-[10px] font-medium leading-none ${active ? "text-blue-400" : "text-zinc-500"}`}>
+              <span
+                className={`text-[10px] font-medium leading-none ${active ? "text-blue-400" : "text-zinc-500"}`}
+              >
                 {tab.label}
               </span>
             </Link>

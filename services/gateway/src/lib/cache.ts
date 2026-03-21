@@ -26,7 +26,11 @@ export class CacheService {
     }
   }
 
-  async set(key: string, value: unknown, ttlSec: number = DEFAULT_TTL_SEC): Promise<void> {
+  async set(
+    key: string,
+    value: unknown,
+    ttlSec: number = DEFAULT_TTL_SEC,
+  ): Promise<void> {
     try {
       const serialized = JSON.stringify(value);
       await this.redis.set(key, serialized, "EX", ttlSec);
@@ -63,11 +67,18 @@ export class CacheService {
 
   // --- Domain-specific caches ---
 
-  async getCameraStatus(tenantId: string, cameraId: string): Promise<CameraStatus | null> {
+  async getCameraStatus(
+    tenantId: string,
+    cameraId: string,
+  ): Promise<CameraStatus | null> {
     return this.get<CameraStatus>(`osp:camera:status:${tenantId}:${cameraId}`);
   }
 
-  async setCameraStatus(tenantId: string, cameraId: string, status: CameraStatus): Promise<void> {
+  async setCameraStatus(
+    tenantId: string,
+    cameraId: string,
+    status: CameraStatus,
+  ): Promise<void> {
     await this.set(`osp:camera:status:${tenantId}:${cameraId}`, status, 60);
   }
 

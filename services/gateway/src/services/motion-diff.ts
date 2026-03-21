@@ -17,9 +17,9 @@ export function computePixelDiffRatio(
   deltaThreshold = 24,
 ): number {
   if (
-    previous.width !== current.width
-    || previous.height !== current.height
-    || previous.data.length !== current.data.length
+    previous.width !== current.width ||
+    previous.height !== current.height ||
+    previous.data.length !== current.data.length
   ) {
     return 0;
   }
@@ -97,5 +97,3 @@ function clampSensitivity(sensitivity: number): number {
   if (Number.isNaN(sensitivity)) return 5;
   return Math.max(1, Math.min(10, Math.round(sensitivity)));
 }
-
-

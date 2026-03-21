@@ -20,28 +20,28 @@ OSP provides professional-grade camera management, live monitoring, recording, m
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Web | Next.js 15, Tailwind CSS, shadcn/ui |
-| Mobile | React Native, Expo |
-| Desktop | Tauri v2 |
-| API Gateway | Hono, Bun |
-| Core Services | Go 1.22 |
-| Video | go2rtc + FFmpeg |
-| Database | Supabase (PostgreSQL + Auth + Realtime) |
-| Cache | Redis |
-| Storage | Cloudflare R2 |
+| Layer         | Technology                              |
+| ------------- | --------------------------------------- |
+| Web           | Next.js 15, Tailwind CSS, shadcn/ui     |
+| Mobile        | React Native, Expo                      |
+| Desktop       | Tauri v2                                |
+| API Gateway   | Hono, Bun                               |
+| Core Services | Go 1.22                                 |
+| Video         | go2rtc + FFmpeg                         |
+| Database      | Supabase (PostgreSQL + Auth + Realtime) |
+| Cache         | Redis                                   |
+| Storage       | Cloudflare R2                           |
 
 ---
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [docs/guide.md](docs/guide.md) | How to run OSP — web, mobile, desktop, Docker, deployment |
-| [docs/reference.md](docs/reference.md) | Full technical reference — architecture, API, data models, standards |
-| [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md) | Pre-launch checklist |
-| [TODO.md](TODO.md) | Master task list and project handoff document |
+| Document                                                     | Description                                                          |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| [docs/guide.md](docs/guide.md)                               | How to run OSP — web, mobile, desktop, Docker, deployment            |
+| [docs/reference.md](docs/reference.md)                       | Full technical reference — architecture, API, data models, standards |
+| [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md) | Pre-launch checklist                                                 |
+| [TODO.md](TODO.md)                                           | Master task list and project handoff document                        |
 
 ---
 

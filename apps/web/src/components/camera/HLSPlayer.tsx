@@ -110,7 +110,9 @@ export function HLSPlayer({
   }, [url]);
 
   return (
-    <div className={`relative bg-black rounded-lg overflow-hidden ${className ?? ""}`}>
+    <div
+      className={`relative bg-black rounded-lg overflow-hidden ${className ?? ""}`}
+    >
       <video
         ref={videoRef}
         className="w-full h-full object-contain"
@@ -126,7 +128,9 @@ export function HLSPlayer({
         <div className="absolute inset-0 flex items-center justify-center bg-black/60">
           <div className="flex flex-col items-center gap-2">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--color-muted)] border-t-[var(--color-primary)]" />
-            <span className="text-xs text-[var(--color-muted)]">Loading stream...</span>
+            <span className="text-xs text-[var(--color-muted)]">
+              Loading stream...
+            </span>
           </div>
         </div>
       )}
@@ -147,7 +151,9 @@ export function HLSPlayer({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <p className="text-sm text-[var(--color-error)]">{errorMessage ?? "Stream error"}</p>
+            <p className="text-sm text-[var(--color-error)]">
+              {errorMessage ?? "Stream error"}
+            </p>
           </div>
         </div>
       )}

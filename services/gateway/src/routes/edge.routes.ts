@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
@@ -29,7 +30,7 @@ export const edgeRoutes = new Hono<Env>();
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Resolve tenantId either from JWT context or X-Tenant-Id header. */
-function resolveTenantId(c: Parameters<Parameters<typeof edgeRoutes.use>[0]>[0]): string | null {
+function resolveTenantId(c: Context<Env>): string | null {
   return c.get("tenantId") ?? c.req.header("X-Tenant-Id") ?? null;
 }
 
@@ -46,7 +47,11 @@ const RegisterSchema = z.object({
 edgeRoutes.post("/agents/register", async (c) => {
   const tenantId = resolveTenantId(c);
   if (!tenantId) {
-    throw new ApiError("AUTH_MISSING", "X-Tenant-Id header or JWT required", 401);
+    throw new ApiError(
+      "AUTH_MISSING",
+      "X-Tenant-Id header or JWT required",
+      401,
+    );
   }
 
   const body = await c.req.json().catch(() => {
@@ -95,7 +100,11 @@ const HeartbeatSchema = z.object({
 edgeRoutes.post("/agents/:agentId/heartbeat", async (c) => {
   const tenantId = resolveTenantId(c);
   if (!tenantId) {
-    throw new ApiError("AUTH_MISSING", "X-Tenant-Id header or JWT required", 401);
+    throw new ApiError(
+      "AUTH_MISSING",
+      "X-Tenant-Id header or JWT required",
+      401,
+    );
   }
 
   const { agentId } = c.req.param();

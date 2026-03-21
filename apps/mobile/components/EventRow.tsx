@@ -57,7 +57,9 @@ export function EventRow({ event, onPress }: EventRowProps) {
 
       <View style={styles.content}>
         <View style={styles.topRow}>
-          <Text style={styles.timestamp}>{formatTimestamp(event.detectedAt)}</Text>
+          <Text style={styles.timestamp}>
+            {formatTimestamp(event.detectedAt)}
+          </Text>
           <View style={[styles.typeBadge, { borderColor: severityColor }]}>
             <Text style={[styles.typeText, { color: severityColor }]}>
               {TYPE_LABELS[event.type]}

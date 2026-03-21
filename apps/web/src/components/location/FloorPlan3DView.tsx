@@ -171,9 +171,7 @@ function Window3D({ obj }: { obj: FloorObject }) {
       </mesh>
       {/* Window frame */}
       <lineSegments>
-        <edgesGeometry
-          args={[new THREE.BoxGeometry(w, WINDOW_HEIGHT, 0.04)]}
-        />
+        <edgesGeometry args={[new THREE.BoxGeometry(w, WINDOW_HEIGHT, 0.04)]} />
         <lineBasicMaterial color="#06B6D4" />
       </lineSegments>
     </group>
@@ -223,7 +221,10 @@ function Camera3D({
       </mesh>
 
       {/* FOV cone */}
-      <mesh position={[0, 2.2, 0]} rotation={[0, -rot + Math.PI / 2, -Math.PI / 6]}>
+      <mesh
+        position={[0, 2.2, 0]}
+        rotation={[0, -rot + Math.PI / 2, -Math.PI / 6]}
+      >
         <coneGeometry args={[0.8, 2, 16, 1, true]} />
         <meshStandardMaterial
           color={color}
@@ -325,7 +326,10 @@ function Ground({ size }: { size: number }) {
   return (
     <group>
       {/* Ground plane */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[size / 2, -0.01, size / 2]}>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[size / 2, -0.01, size / 2]}
+      >
         <planeGeometry args={[size * 2, size * 2]} />
         <meshStandardMaterial color="#0A0A0B" side={THREE.DoubleSide} />
       </mesh>
@@ -453,12 +457,16 @@ function CameraPopup3D({
         {camera.status === "online" && (
           <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[8px] font-bold text-green-400 uppercase">Live</span>
+            <span className="text-[8px] font-bold text-green-400 uppercase">
+              Live
+            </span>
           </div>
         )}
       </div>
       <div className="p-2">
-        <p className="text-[11px] font-medium text-zinc-200 truncate">{camera.name}</p>
+        <p className="text-[11px] font-medium text-zinc-200 truncate">
+          {camera.name}
+        </p>
         <button
           onClick={() => onNavigate(camera.id)}
           className="mt-1.5 w-full flex items-center justify-center gap-1 px-2 py-1 text-[10px] font-medium rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors cursor-pointer"
@@ -495,7 +503,8 @@ function SceneContent({
   // Calculate scene size from objects
   const sceneSize = useMemo(() => {
     if (objects.length === 0) return 10;
-    let maxX = 0, maxY = 0;
+    let maxX = 0,
+      maxY = 0;
     for (const obj of objects) {
       maxX = Math.max(maxX, (obj.x + Math.abs(obj.w)) * SCALE);
       maxY = Math.max(maxY, (obj.y + Math.abs(obj.h)) * SCALE);
@@ -517,7 +526,11 @@ function SceneContent({
       <directionalLight position={[10, 15, 10]} intensity={0.8} castShadow />
       <directionalLight position={[-5, 10, -5]} intensity={0.3} />
 
-      <PerspectiveCamera makeDefault position={[sceneSize, sceneSize * 0.8, sceneSize]} fov={50} />
+      <PerspectiveCamera
+        makeDefault
+        position={[sceneSize, sceneSize * 0.8, sceneSize]}
+        fov={50}
+      />
       <OrbitControls
         enableDamping
         dampingFactor={0.1}
@@ -540,7 +553,9 @@ function SceneContent({
           case "window":
             return <Window3D key={obj.id} obj={obj} />;
           case "camera": {
-            const linked = obj.cameraId ? cameraMap.get(obj.cameraId) : undefined;
+            const linked = obj.cameraId
+              ? cameraMap.get(obj.cameraId)
+              : undefined;
             return (
               <Camera3D
                 key={obj.id}
@@ -563,11 +578,7 @@ function SceneContent({
       {/* Camera popup as HTML overlay in 3D space */}
       {popupCameraObj && popupCamera && (
         <Html
-          position={[
-            popupCameraObj.x * SCALE,
-            3,
-            popupCameraObj.y * SCALE,
-          ]}
+          position={[popupCameraObj.x * SCALE, 3, popupCameraObj.y * SCALE]}
           center
           distanceFactor={8}
         >
@@ -595,18 +606,25 @@ export function FloorPlan3DView({ objects, cameras }: FloorPlan3DViewProps) {
   const [popupObjId, setPopupObjId] = useState<string | null>(null);
 
   const popupObj = useMemo(
-    () => (popupObjId ? objects.find((o) => o.id === popupObjId) ?? null : null),
+    () =>
+      popupObjId ? (objects.find((o) => o.id === popupObjId) ?? null) : null,
     [objects, popupObjId],
   );
 
   const linkedCamera = useMemo(
-    () => (popupObj?.cameraId ? cameras?.find((c) => c.id === popupObj.cameraId) : undefined),
+    () =>
+      popupObj?.cameraId
+        ? cameras?.find((c) => c.id === popupObj.cameraId)
+        : undefined,
     [popupObj, cameras],
   );
 
   return (
     <div className="w-full h-full bg-[#09090B]">
-      <Canvas shadows gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}>
+      <Canvas
+        shadows
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      >
         <SceneContent
           objects={objects}
           cameras={cameras}
@@ -614,7 +632,9 @@ export function FloorPlan3DView({ objects, cameras }: FloorPlan3DViewProps) {
           popupCameraObj={popupObj}
           popupCamera={linkedCamera}
           onClosePopup={() => setPopupObjId(null)}
-          onNavigateCamera={(id) => { window.location.href = `/cameras/${id}`; }}
+          onNavigateCamera={(id) => {
+            window.location.href = `/cameras/${id}`;
+          }}
         />
       </Canvas>
 

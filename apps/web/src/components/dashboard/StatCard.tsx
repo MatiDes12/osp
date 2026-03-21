@@ -25,11 +25,13 @@ export function StatCard({
   flash = false,
 }: StatCardProps) {
   return (
-    <div className={`bg-zinc-900 border rounded-lg p-4 relative overflow-hidden transition-colors duration-500 ${
-      flash
-        ? "border-blue-500/50 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
-        : "border-zinc-800"
-    }`}>
+    <div
+      className={`bg-zinc-900 border rounded-lg p-4 relative overflow-hidden transition-colors duration-500 ${
+        flash
+          ? "border-blue-500/50 shadow-[0_0_12px_rgba(59,130,246,0.15)]"
+          : "border-zinc-800"
+      }`}
+    >
       {/* Flash overlay */}
       {flash && (
         <div className="absolute inset-0 bg-blue-500/5 animate-[fadeOut_1.5s_ease-out_forwards] pointer-events-none" />
@@ -39,10 +41,12 @@ export function StatCard({
           <p className="text-xs text-zinc-400 uppercase tracking-wider">
             {label}
           </p>
-          <p className={`text-2xl font-semibold transition-all duration-300 ${color}`}>{value}</p>
-          {subtitle && (
-            <p className="text-xs text-zinc-500">{subtitle}</p>
-          )}
+          <p
+            className={`text-2xl font-semibold transition-all duration-300 ${color}`}
+          >
+            {value}
+          </p>
+          {subtitle && <p className="text-xs text-zinc-500">{subtitle}</p>}
         </div>
         <Icon className="h-5 w-5 text-zinc-500 shrink-0" />
       </div>

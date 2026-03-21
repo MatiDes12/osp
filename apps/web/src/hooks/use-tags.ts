@@ -109,11 +109,14 @@ export function useTags(): UseTagsReturn {
 
   const assignTags = useCallback(
     async (cameraId: string, tagIds: string[]): Promise<void> => {
-      const response = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/tags`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ tagIds }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/cameras/${cameraId}/tags`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ tagIds }),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         throw new Error(json.error?.message ?? "Failed to assign tags");
@@ -124,10 +127,13 @@ export function useTags(): UseTagsReturn {
 
   const removeTag = useCallback(
     async (cameraId: string, tagId: string): Promise<void> => {
-      const response = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/tags/${tagId}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/cameras/${cameraId}/tags/${tagId}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         throw new Error(json.error?.message ?? "Failed to remove tag");

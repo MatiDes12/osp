@@ -26,7 +26,11 @@ interface ActionLogState {
   readonly push: (
     kind: ActionKind,
     label: string,
-    opts?: { detail?: string; data?: Record<string, unknown>; status?: "ok" | "error" | "pending" },
+    opts?: {
+      detail?: string;
+      data?: Record<string, unknown>;
+      status?: "ok" | "error" | "pending";
+    },
   ) => void;
   readonly toggle: () => void;
   readonly clear: () => void;
@@ -50,7 +54,7 @@ const KIND_TAG: Record<ActionKind, string> = {
 
 const GATEWAY_LOG_URL =
   (typeof window !== "undefined"
-    ? process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000"
+    ? (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000")
     : "") + "/api/v1/dev/client-log";
 
 function mirrorToTerminal(entry: ActionEntry): void {
@@ -95,4 +99,3 @@ export const useActionLogStore = create<ActionLogState>((set) => ({
   toggle: () => set((state) => ({ visible: !state.visible })),
   clear: () => set({ entries: [] }),
 }));
-

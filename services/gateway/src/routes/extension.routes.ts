@@ -48,7 +48,11 @@ extensionRoutes.get("/marketplace", requireAuth("viewer"), async (c) => {
   const { data: extensions, count, error } = await query;
 
   if (error) {
-    throw new ApiError("INTERNAL_ERROR", "Failed to fetch marketplace extensions", 500);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Failed to fetch marketplace extensions",
+      500,
+    );
   }
 
   return c.json(
@@ -92,7 +96,11 @@ extensionRoutes.get("/", requireAuth("admin"), async (c) => {
     .order("installed_at", { ascending: false });
 
   if (error) {
-    throw new ApiError("INTERNAL_ERROR", "Failed to fetch installed extensions", 500);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Failed to fetch installed extensions",
+      500,
+    );
   }
 
   return c.json(createSuccessResponse(installed ?? []));
@@ -114,7 +122,11 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
     .single();
 
   if (!extension) {
-    throw new ApiError("EXTENSION_NOT_FOUND", "Extension not found or not available", 404);
+    throw new ApiError(
+      "EXTENSION_NOT_FOUND",
+      "Extension not found or not available",
+      404,
+    );
   }
 
   // Check if already installed
@@ -126,7 +138,11 @@ extensionRoutes.post("/", requireAuth("admin"), async (c) => {
     .single();
 
   if (existing) {
-    throw new ApiError("EXTENSION_ALREADY_INSTALLED", "Extension is already installed", 409);
+    throw new ApiError(
+      "EXTENSION_ALREADY_INSTALLED",
+      "Extension is already installed",
+      409,
+    );
   }
 
   const { data: installed, error } = await supabase
@@ -180,7 +196,11 @@ extensionRoutes.patch("/:id/config", requireAuth("admin"), async (c) => {
     .single();
 
   if (error || !installed) {
-    throw new ApiError("EXTENSION_NOT_FOUND", "Installed extension not found", 404);
+    throw new ApiError(
+      "EXTENSION_NOT_FOUND",
+      "Installed extension not found",
+      404,
+    );
   }
 
   return c.json(createSuccessResponse(installed));
@@ -206,7 +226,11 @@ extensionRoutes.patch("/:id/toggle", requireAuth("admin"), async (c) => {
     .single();
 
   if (error || !installed) {
-    throw new ApiError("EXTENSION_NOT_FOUND", "Installed extension not found", 404);
+    throw new ApiError(
+      "EXTENSION_NOT_FOUND",
+      "Installed extension not found",
+      404,
+    );
   }
 
   return c.json(createSuccessResponse(installed));
@@ -227,7 +251,11 @@ extensionRoutes.delete("/:id", requireAuth("admin"), async (c) => {
     .single();
 
   if (!installed) {
-    throw new ApiError("EXTENSION_NOT_FOUND", "Installed extension not found", 404);
+    throw new ApiError(
+      "EXTENSION_NOT_FOUND",
+      "Installed extension not found",
+      404,
+    );
   }
 
   const { error } = await supabase

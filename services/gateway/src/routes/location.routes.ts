@@ -40,7 +40,9 @@ locationRoutes.get("/", requireAuth("viewer"), async (c) => {
   }
 
   // Attach camera counts
-  const locationIds = (locations ?? []).map((l: Record<string, unknown>) => l.id as string);
+  const locationIds = (locations ?? []).map(
+    (l: Record<string, unknown>) => l.id as string,
+  );
 
   let cameraCounts: Record<string, number> = {};
   if (locationIds.length > 0) {

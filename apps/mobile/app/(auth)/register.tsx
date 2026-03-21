@@ -35,18 +35,25 @@ export default function RegisterScreen() {
     }
 
     if (password.length < 8) {
-      Alert.alert("Validation Error", "Password must be at least 8 characters.");
+      Alert.alert(
+        "Validation Error",
+        "Password must be at least 8 characters.",
+      );
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await api.post<RegisterResponse>("/api/v1/auth/register", {
-        displayName: name.trim(),
-        tenantName: organization.trim() || name.trim(),
-        email: email.trim(),
-        password,
-      }, { requiresAuth: false });
+      const result = await api.post<RegisterResponse>(
+        "/api/v1/auth/register",
+        {
+          displayName: name.trim(),
+          tenantName: organization.trim() || name.trim(),
+          email: email.trim(),
+          password,
+        },
+        { requiresAuth: false },
+      );
 
       if (result.success && result.data) {
         await setTokens(result.data.accessToken, result.data.refreshToken);
@@ -54,7 +61,8 @@ export default function RegisterScreen() {
       } else {
         Alert.alert(
           "Registration Failed",
-          result.error?.message ?? "Unable to create account. Please try again.",
+          result.error?.message ??
+            "Unable to create account. Please try again.",
         );
       }
     } catch {

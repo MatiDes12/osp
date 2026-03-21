@@ -41,17 +41,28 @@ async function checkDependencies(): Promise<void> {
   try {
     // Lightweight check — just verify the URL is parseable.
     new URL(redisUrl);
-    logConnectionStatus(logger, "Redis", true, redisUrl.replace(/\/\/.*@/, "//***@"));
+    logConnectionStatus(
+      logger,
+      "Redis",
+      true,
+      redisUrl.replace(/\/\/.*@/, "//***@"),
+    );
   } catch {
     logConnectionStatus(logger, "Redis", false, "Invalid REDIS_URL");
   }
 
   // Supabase (bootstrap - always from env)
   const supabaseUrl = process.env["SUPABASE_URL"] ?? "";
-  logConnectionStatus(logger, "Supabase", supabaseUrl.length > 0, supabaseUrl || "NOT SET");
+  logConnectionStatus(
+    logger,
+    "Supabase",
+    supabaseUrl.length > 0,
+    supabaseUrl || "NOT SET",
+  );
 
   // go2rtc
-  const go2rtcUrl = get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  const go2rtcUrl =
+    get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
   logConnectionStatus(logger, "go2rtc", true, go2rtcUrl);
 }
 

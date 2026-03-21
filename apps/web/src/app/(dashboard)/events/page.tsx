@@ -106,10 +106,34 @@ const SEVERITY_CONFIG: readonly {
   borderColor: string;
   badgeBg: string;
 }[] = [
-  { level: "critical", label: "Critical", color: "text-red-400", borderColor: "border-l-red-500", badgeBg: "bg-red-500/10 text-red-400" },
-  { level: "high", label: "Warning", color: "text-amber-400", borderColor: "border-l-amber-500", badgeBg: "bg-amber-500/10 text-amber-400" },
-  { level: "medium", label: "Info", color: "text-blue-400", borderColor: "border-l-blue-500", badgeBg: "bg-blue-500/10 text-blue-400" },
-  { level: "low", label: "Low", color: "text-zinc-400", borderColor: "border-l-zinc-500", badgeBg: "bg-zinc-500/10 text-zinc-400" },
+  {
+    level: "critical",
+    label: "Critical",
+    color: "text-red-400",
+    borderColor: "border-l-red-500",
+    badgeBg: "bg-red-500/10 text-red-400",
+  },
+  {
+    level: "high",
+    label: "Warning",
+    color: "text-amber-400",
+    borderColor: "border-l-amber-500",
+    badgeBg: "bg-amber-500/10 text-amber-400",
+  },
+  {
+    level: "medium",
+    label: "Info",
+    color: "text-blue-400",
+    borderColor: "border-l-blue-500",
+    badgeBg: "bg-blue-500/10 text-blue-400",
+  },
+  {
+    level: "low",
+    label: "Low",
+    color: "text-zinc-400",
+    borderColor: "border-l-zinc-500",
+    badgeBg: "bg-zinc-500/10 text-zinc-400",
+  },
 ];
 
 function getSeverityBadgeClass(severity: EventSeverity): string {
@@ -118,7 +142,11 @@ function getSeverityBadgeClass(severity: EventSeverity): string {
 }
 
 function getEventBorderColor(event: OSPEvent): string {
-  if (event.type === "person" || event.type === "vehicle" || event.type === "animal") {
+  if (
+    event.type === "person" ||
+    event.type === "vehicle" ||
+    event.type === "animal"
+  ) {
     return "border-l-purple-500";
   }
   const config = SEVERITY_CONFIG.find((s) => s.level === event.severity);
@@ -180,8 +208,10 @@ function buildQueryParams(filters: Filters, page: number): URLSearchParams {
     if (range.from) params.set("from", range.from);
     if (range.to) params.set("to", range.to);
   } else {
-    if (filters.dateFrom) params.set("from", new Date(filters.dateFrom).toISOString());
-    if (filters.dateTo) params.set("to", new Date(filters.dateTo).toISOString());
+    if (filters.dateFrom)
+      params.set("from", new Date(filters.dateFrom).toISOString());
+    if (filters.dateTo)
+      params.set("to", new Date(filters.dateTo).toISOString());
   }
 
   params.set("page", String(page));
@@ -196,7 +226,9 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [selectedEvent, setSelectedEvent] = useState<OSPEvent | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -212,12 +244,15 @@ export default function EventsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [clipModalUrl, setClipModalUrl] = useState<string | null>(null);
-  const [snapshotModalEvent, setSnapshotModalEvent] = useState<OSPEvent | null>(null);
+  const [snapshotModalEvent, setSnapshotModalEvent] = useState<OSPEvent | null>(
+    null,
+  );
 
   // Real-time WebSocket events
   const { events: wsEvents, connected: wsConnected } = useEventStream({
     cameraIds: filters.cameraIds.size > 0 ? [...filters.cameraIds] : undefined,
-    eventTypes: filters.eventTypes.size > 0 ? [...filters.eventTypes] : undefined,
+    eventTypes:
+      filters.eventTypes.size > 0 ? [...filters.eventTypes] : undefined,
   });
 
   // Track new WS events when scrolled down
@@ -275,44 +310,52 @@ export default function EventsPage() {
   }, []);
 
   // Fetch events (supports both initial load and infinite scroll append)
-  const fetchEvents = useCallback(async (append = false) => {
-    if (!append) {
-      setLoading(true);
-      setError(null);
-    } else {
-      setLoadingMore(true);
-    }
-    try {
-      const targetPage = append ? page : 1;
-      const params = buildQueryParams(filters, targetPage);
-
-      const response = await fetch(`${API_URL}/api/v1/events?${params.toString()}`, {
-        headers: getAuthHeaders(),
-      });
-
-      const json = await response.json();
-      if (json.success && json.data) {
-        const newEvents = transformEvents(json.data as Record<string, unknown>[]);
-        if (append) {
-          setEvents((prev) => [...prev, ...newEvents]);
-        } else {
-          setEvents(newEvents);
-        }
-        if (json.meta) {
-          const meta = json.meta as PaginationMeta;
-          setPagination(meta);
-          setHasMore(meta.hasMore);
-        }
+  const fetchEvents = useCallback(
+    async (append = false) => {
+      if (!append) {
+        setLoading(true);
+        setError(null);
       } else {
-        setError(json.error?.message ?? "Failed to load events");
+        setLoadingMore(true);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [filters, page]);
+      try {
+        const targetPage = append ? page : 1;
+        const params = buildQueryParams(filters, targetPage);
+
+        const response = await fetch(
+          `${API_URL}/api/v1/events?${params.toString()}`,
+          {
+            headers: getAuthHeaders(),
+          },
+        );
+
+        const json = await response.json();
+        if (json.success && json.data) {
+          const newEvents = transformEvents(
+            json.data as Record<string, unknown>[],
+          );
+          if (append) {
+            setEvents((prev) => [...prev, ...newEvents]);
+          } else {
+            setEvents(newEvents);
+          }
+          if (json.meta) {
+            const meta = json.meta as PaginationMeta;
+            setPagination(meta);
+            setHasMore(meta.hasMore);
+          }
+        } else {
+          setError(json.error?.message ?? "Failed to load events");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Network error");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [filters, page],
+  );
 
   // Load more events for infinite scroll
   const loadMore = useCallback(() => {
@@ -346,13 +389,18 @@ export default function EventsPage() {
         if (range.from) params.set("from", range.from);
         if (range.to) params.set("to", range.to);
       } else {
-        if (filters.dateFrom) params.set("from", new Date(filters.dateFrom).toISOString());
-        if (filters.dateTo) params.set("to", new Date(filters.dateTo).toISOString());
+        if (filters.dateFrom)
+          params.set("from", new Date(filters.dateFrom).toISOString());
+        if (filters.dateTo)
+          params.set("to", new Date(filters.dateTo).toISOString());
       }
 
-      const response = await fetch(`${API_URL}/api/v1/events/summary?${params.toString()}`, {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/events/summary?${params.toString()}`,
+        {
+          headers: getAuthHeaders(),
+        },
+      );
       const json = await response.json();
       if (json.success && json.data) {
         setSummary(json.data as EventSummaryData);
@@ -389,15 +437,22 @@ export default function EventsPage() {
     setEvents((prev) =>
       prev.map((e) =>
         e.id === eventId
-          ? { ...e, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+          ? {
+              ...e,
+              acknowledged: true,
+              acknowledgedAt: new Date().toISOString(),
+            }
           : e,
       ),
     );
     try {
-      const response = await fetch(`${API_URL}/api/v1/events/${eventId}/acknowledge`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/events/${eventId}/acknowledge`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         // Revert optimistic update on failure
@@ -427,18 +482,25 @@ export default function EventsPage() {
     setEvents((prev) =>
       prev.map((e) =>
         selectedIds.has(e.id)
-          ? { ...e, acknowledged: true, acknowledgedAt: new Date().toISOString() }
+          ? {
+              ...e,
+              acknowledged: true,
+              acknowledgedAt: new Date().toISOString(),
+            }
           : e,
       ),
     );
     setSelectedIds(new Set());
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/events/bulk-acknowledge`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ eventIds: ids }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/events/bulk-acknowledge`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ eventIds: ids }),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         // Fallback to individual requests
@@ -511,14 +573,18 @@ export default function EventsPage() {
   // the API only accepts a single value, so we filter the rest client-side)
   const filteredEvents = useMemo(() => {
     return mergedEvents.filter((event) => {
-      if (filters.cameraIds.size > 1 && !filters.cameraIds.has(event.cameraId)) return false;
-      if (filters.eventTypes.size > 1 && !filters.eventTypes.has(event.type)) return false;
-      if (filters.severities.size > 1 && !filters.severities.has(event.severity)) return false;
+      if (filters.cameraIds.size > 1 && !filters.cameraIds.has(event.cameraId))
+        return false;
+      if (filters.eventTypes.size > 1 && !filters.eventTypes.has(event.type))
+        return false;
+      if (
+        filters.severities.size > 1 &&
+        !filters.severities.has(event.severity)
+      )
+        return false;
       return true;
     });
   }, [mergedEvents, filters.cameraIds, filters.eventTypes, filters.severities]);
-
-
 
   // Export dropdown outside-click handler
   useEffect(() => {
@@ -544,7 +610,9 @@ export default function EventsPage() {
     setExportOpen(false);
   }, [filteredEvents]);
 
-  const isDev = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEV_MODE === "true";
+  const isDev =
+    process.env.NODE_ENV === "development" ||
+    process.env.NEXT_PUBLIC_DEV_MODE === "true";
 
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] -m-4 lg:-m-6 lg:flex-row">
@@ -575,7 +643,10 @@ export default function EventsPage() {
           <button
             key={level}
             onClick={() =>
-              updateFilter("severities", toggleSetItem(filters.severities, level))
+              updateFilter(
+                "severities",
+                toggleSetItem(filters.severities, level),
+              )
             }
             className={`min-h-[36px] whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-full transition-colors duration-150 cursor-pointer ${
               filters.severities.has(level)
@@ -610,7 +681,9 @@ export default function EventsPage() {
           </h3>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
             {cameras.length === 0 && (
-              <p className="text-[10px] text-zinc-600 italic">No cameras loaded</p>
+              <p className="text-[10px] text-zinc-600 italic">
+                No cameras loaded
+              </p>
             )}
             {cameras.map((cam) => (
               <label
@@ -621,7 +694,10 @@ export default function EventsPage() {
                   type="checkbox"
                   checked={filters.cameraIds.has(cam.id)}
                   onChange={() =>
-                    updateFilter("cameraIds", toggleSetItem(filters.cameraIds, cam.id))
+                    updateFilter(
+                      "cameraIds",
+                      toggleSetItem(filters.cameraIds, cam.id),
+                    )
                   }
                   className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 cursor-pointer"
                 />
@@ -648,7 +724,10 @@ export default function EventsPage() {
                   type="checkbox"
                   checked={filters.eventTypes.has(type)}
                   onChange={() =>
-                    updateFilter("eventTypes", toggleSetItem(filters.eventTypes, type))
+                    updateFilter(
+                      "eventTypes",
+                      toggleSetItem(filters.eventTypes, type),
+                    )
                   }
                   className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 cursor-pointer"
                 />
@@ -676,11 +755,16 @@ export default function EventsPage() {
                   type="checkbox"
                   checked={filters.severities.has(level)}
                   onChange={() =>
-                    updateFilter("severities", toggleSetItem(filters.severities, level))
+                    updateFilter(
+                      "severities",
+                      toggleSetItem(filters.severities, level),
+                    )
                   }
                   className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 cursor-pointer"
                 />
-                <span className={`text-xs ${color} group-hover:brightness-125 transition-colors duration-150`}>
+                <span
+                  className={`text-xs ${color} group-hover:brightness-125 transition-colors duration-150`}
+                >
                   {label}
                 </span>
               </label>
@@ -765,13 +849,22 @@ export default function EventsPage() {
               </span>
             )}
             {/* WebSocket status indicator */}
-            <span className="flex items-center gap-1" title={wsConnected ? "Live updates connected" : "Live updates disconnected"}>
+            <span
+              className="flex items-center gap-1"
+              title={
+                wsConnected
+                  ? "Live updates connected"
+                  : "Live updates disconnected"
+              }
+            >
               {wsConnected ? (
                 <Wifi className="w-3 h-3 text-green-500" />
               ) : (
                 <WifiOff className="w-3 h-3 text-zinc-600" />
               )}
-              <span className={`text-[10px] ${wsConnected ? "text-green-500" : "text-zinc-600"}`}>
+              <span
+                className={`text-[10px] ${wsConnected ? "text-green-500" : "text-zinc-600"}`}
+              >
                 {wsConnected ? "Live" : "Offline"}
               </span>
             </span>
@@ -827,8 +920,12 @@ export default function EventsPage() {
         {!summaryLoading && summary && (
           <div className="flex items-center gap-4 px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 shrink-0 overflow-x-auto">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Total</span>
-              <span className="text-xs font-semibold text-zinc-200">{summary.total}</span>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider">
+                Total
+              </span>
+              <span className="text-xs font-semibold text-zinc-200">
+                {summary.total}
+              </span>
             </div>
             <div className="w-px h-4 bg-zinc-800" />
             {SEVERITY_CONFIG.map(({ level, label, color }) => {
@@ -836,10 +933,18 @@ export default function EventsPage() {
               if (count === 0) return null;
               return (
                 <div key={level} className="flex items-center gap-1.5">
-                  {level === "critical" && <AlertTriangle className={`w-3 h-3 ${color}`} />}
-                  {level === "high" && <AlertTriangle className={`w-3 h-3 ${color}`} />}
-                  {level === "medium" && <Info className={`w-3 h-3 ${color}`} />}
-                  <span className={`text-xs font-medium ${color}`}>{count}</span>
+                  {level === "critical" && (
+                    <AlertTriangle className={`w-3 h-3 ${color}`} />
+                  )}
+                  {level === "high" && (
+                    <AlertTriangle className={`w-3 h-3 ${color}`} />
+                  )}
+                  {level === "medium" && (
+                    <Info className={`w-3 h-3 ${color}`} />
+                  )}
+                  <span className={`text-xs font-medium ${color}`}>
+                    {count}
+                  </span>
                   <span className="text-[10px] text-zinc-500">{label}</span>
                 </div>
               );
@@ -882,12 +987,16 @@ export default function EventsPage() {
             className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/10 border-b border-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/15 transition-colors duration-150 cursor-pointer shrink-0"
           >
             <ArrowDown className="w-3 h-3 rotate-180" />
-            {newWsEventCount} new {newWsEventCount === 1 ? "event" : "events"} -- click to scroll up
+            {newWsEventCount} new {newWsEventCount === 1 ? "event" : "events"}{" "}
+            -- click to scroll up
           </button>
         )}
 
         {/* Event list with virtual scrolling + infinite scroll */}
-        <div ref={listRef} className="flex-1 overflow-hidden px-4 py-3 flex flex-col">
+        <div
+          ref={listRef}
+          className="flex-1 overflow-hidden px-4 py-3 flex flex-col"
+        >
           {loading && (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -915,7 +1024,9 @@ export default function EventsPage() {
               emptyState={
                 <div className="flex flex-col items-center justify-center py-20 text-zinc-500">
                   <Bell className="w-8 h-8 mb-3 opacity-50" />
-                  <p className="text-sm font-medium mb-1">No events match your filters</p>
+                  <p className="text-sm font-medium mb-1">
+                    No events match your filters
+                  </p>
                   <button
                     onClick={clearAllFilters}
                     className="text-xs text-blue-400 hover:text-blue-300 transition-colors duration-150 cursor-pointer"
@@ -941,9 +1052,13 @@ export default function EventsPage() {
                     } ${
                       isSelected ? "ring-1 ring-blue-500/50" : ""
                     } ${selectedEvent?.id === event.id ? "bg-zinc-800/50" : ""}`}
-                    style={isNewFromWs ? {
-                      animation: "slideInEvent 300ms ease-out",
-                    } : undefined}
+                    style={
+                      isNewFromWs
+                        ? {
+                            animation: "slideInEvent 300ms ease-out",
+                          }
+                        : undefined
+                    }
                   >
                     {/* Checkbox */}
                     <input
@@ -960,7 +1075,10 @@ export default function EventsPage() {
                     {/* Thumbnail (hidden on mobile for compact layout) */}
                     {event.snapshotUrl ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setSnapshotModalEvent(event); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSnapshotModalEvent(event);
+                        }}
                         className="hidden w-12 h-12 rounded bg-zinc-800 overflow-hidden shrink-0 sm:block cursor-zoom-in hover:ring-2 hover:ring-blue-500/50 transition-all"
                         aria-label="View snapshot"
                       >
@@ -980,10 +1098,16 @@ export default function EventsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-zinc-200 capitalize">
-                          {event.type === "lpr.detected" ? "Plate Detected" : event.type === "lpr.alert" ? "Plate Alert" : event.type.replace("_", " ")}
+                          {event.type === "lpr.detected"
+                            ? "Plate Detected"
+                            : event.type === "lpr.alert"
+                              ? "Plate Alert"
+                              : event.type.replace("_", " ")}
                         </span>
                         <span className="text-sm text-zinc-200 font-medium">
-                          {event.cameraName ?? cameraNameMap.get(event.cameraId) ?? "Unknown"}
+                          {event.cameraName ??
+                            cameraNameMap.get(event.cameraId) ??
+                            "Unknown"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -997,38 +1121,59 @@ export default function EventsPage() {
                         >
                           {event.severity}
                         </span>
-                        {(event.type === "person" || event.type === "vehicle" || event.type === "animal") && (
+                        {(event.type === "person" ||
+                          event.type === "vehicle" ||
+                          event.type === "animal") && (
                           <span className="inline-flex px-1.5 py-0.5 text-[10px] rounded-full bg-purple-500/10 text-purple-400">
                             AI
                           </span>
                         )}
-                        {(event.type === "lpr.detected" || event.type === "lpr.alert") && (() => {
-                          const meta = event.metadata as Record<string, unknown> | null;
-                          const plates = (meta?.plates as Array<{ plate: string }> | undefined) ?? [];
-                          const alertPlate = meta?.plate as string | undefined;
-                          const label = meta?.label as string | undefined;
-                          const isAlert = event.type === "lpr.alert";
-                          return (
-                            <>
-                              <span className={`inline-flex px-1.5 py-0.5 text-[10px] rounded-full ${isAlert ? "bg-red-500/15 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
-                                LPR
-                              </span>
-                              {isAlert && alertPlate && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 text-red-300 font-mono font-semibold border border-red-500/20">
-                                  {alertPlate}{label ? ` · ${label}` : ""}
+                        {(event.type === "lpr.detected" ||
+                          event.type === "lpr.alert") &&
+                          (() => {
+                            const meta = event.metadata as Record<
+                              string,
+                              unknown
+                            > | null;
+                            const plates =
+                              (meta?.plates as
+                                | Array<{ plate: string }>
+                                | undefined) ?? [];
+                            const alertPlate = meta?.plate as
+                              | string
+                              | undefined;
+                            const label = meta?.label as string | undefined;
+                            const isAlert = event.type === "lpr.alert";
+                            return (
+                              <>
+                                <span
+                                  className={`inline-flex px-1.5 py-0.5 text-[10px] rounded-full ${isAlert ? "bg-red-500/15 text-red-400" : "bg-amber-500/10 text-amber-400"}`}
+                                >
+                                  LPR
                                 </span>
-                              )}
-                              {!isAlert && plates.slice(0, 2).map((p) => (
-                                <span key={p.plate} className="inline-flex px-1.5 py-0.5 text-[10px] rounded bg-zinc-800 text-zinc-300 font-mono font-semibold">
-                                  {p.plate}
-                                </span>
-                              ))}
-                              {!isAlert && plates.length > 2 && (
-                                <span className="text-[10px] text-zinc-500">+{plates.length - 2}</span>
-                              )}
-                            </>
-                          );
-                        })()}
+                                {isAlert && alertPlate && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 text-red-300 font-mono font-semibold border border-red-500/20">
+                                    {alertPlate}
+                                    {label ? ` · ${label}` : ""}
+                                  </span>
+                                )}
+                                {!isAlert &&
+                                  plates.slice(0, 2).map((p) => (
+                                    <span
+                                      key={p.plate}
+                                      className="inline-flex px-1.5 py-0.5 text-[10px] rounded bg-zinc-800 text-zinc-300 font-mono font-semibold"
+                                    >
+                                      {p.plate}
+                                    </span>
+                                  ))}
+                                {!isAlert && plates.length > 2 && (
+                                  <span className="text-[10px] text-zinc-500">
+                                    +{plates.length - 2}
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         {event.acknowledged && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-400">
                             <CheckCircle2 className="w-2.5 h-2.5" />
@@ -1087,7 +1232,9 @@ export default function EventsPage() {
           <div
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={() => setSnapshotModalEvent(null)}
-            onKeyDown={(e) => { if (e.key === "Escape") setSnapshotModalEvent(null); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSnapshotModalEvent(null);
+            }}
             role="button"
             tabIndex={-1}
             aria-label="Close snapshot"
@@ -1134,14 +1281,18 @@ export default function EventsPage() {
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setClipModalUrl(null)}
-            onKeyDown={(e) => { if (e.key === "Escape") setClipModalUrl(null); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setClipModalUrl(null);
+            }}
             role="button"
             tabIndex={-1}
             aria-label="Close clip player"
           />
           <div className="relative z-50 w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-lg shadow-black/40 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
-              <span className="text-sm font-medium text-zinc-200">Event Clip</span>
+              <span className="text-sm font-medium text-zinc-200">
+                Event Clip
+              </span>
               <button
                 onClick={() => setClipModalUrl(null)}
                 className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"

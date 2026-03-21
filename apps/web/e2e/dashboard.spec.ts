@@ -87,9 +87,7 @@ test.describe("Dashboard / main layout", () => {
   });
 
   test("sidebar: Settings link navigates to /settings", async ({ page }) => {
-    const link = page
-      .locator("aside")
-      .getByRole("link", { name: "Settings" });
+    const link = page.locator("aside").getByRole("link", { name: "Settings" });
     await expect(link).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(/\/settings/);
@@ -113,8 +111,6 @@ test.describe("Dashboard / main layout", () => {
 
     // Expand again
     await expandBtn.click();
-    await expect(
-      page.getByRole("button", { name: /collapse/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /collapse/i })).toBeVisible();
   });
 });

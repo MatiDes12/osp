@@ -1,9 +1,16 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import type { Env } from "../app.js";
 import { get } from "../lib/config.js";
 import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
-import { RegisterSchema, LoginSchema, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema } from "@osp/shared";
+import {
+  RegisterSchema,
+  LoginSchema,
+  RefreshTokenSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from "@osp/shared";
 import { createSuccessResponse } from "@osp/shared";
 import { getRedis } from "../lib/redis.js";
 import { createLogger } from "../lib/logger.js";
@@ -15,9 +22,14 @@ const logger = createLogger("auth");
  * Blocks after maxAttempts within windowSec regardless of tenant.
  * Uses X-Forwarded-For in production (behind a proxy); falls back to remoteAddr.
  */
-async function checkAuthRateLimit(c: Parameters<Parameters<typeof authRoutes.use>[1]>[0], action: string): Promise<void> {
+async function checkAuthRateLimit(
+  c: Context<Env>,
+  action: string,
+): Promise<void> {
   const xff = c.req.header("X-Forwarded-For");
-  const ip = xff ? xff.split(",")[0]!.trim() : (c.req.header("X-Real-IP") ?? "unknown");
+  const ip = xff
+    ? xff.split(",")[0]!.trim()
+    : (c.req.header("X-Real-IP") ?? "unknown");
   const key = `osp:auth:${action}:${ip}`;
   const windowSec = 900; // 15 minutes
   const maxAttempts = action === "register" ? 5 : 10;
@@ -53,14 +65,15 @@ authRoutes.post("/register", async (c) => {
   const supabase = getSupabase();
 
   // Create auth user
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: input.email,
-    password: input.password,
-    email_confirm: true,
-    user_metadata: {
-      display_name: input.displayName,
-    },
-  });
+  const { data: authData, error: authError } =
+    await supabase.auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
+        display_name: input.displayName,
+      },
+    });
 
   if (authError) {
     if (authError.message.includes("already")) {
@@ -101,7 +114,11 @@ authRoutes.post("/register", async (c) => {
 
   if (tenantError) {
     logger.error("Tenant creation failed", { error: tenantError.message });
-    throw new ApiError("INTERNAL_ERROR", "Failed to create account. Please try again.", 500);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Failed to create account. Please try again.",
+      500,
+    );
   }
 
   // Create user record
@@ -139,7 +156,11 @@ authRoutes.post("/register", async (c) => {
     });
 
   if (signInError || !session.session) {
-    throw new ApiError("INTERNAL_ERROR", "Account created but login failed", 500);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Account created but login failed",
+      500,
+    );
   }
 
   return c.json(
@@ -260,7 +281,8 @@ authRoutes.post("/forgot-password", async (c) => {
   // Always return success (don't leak whether email exists)
   return c.json(
     createSuccessResponse({
-      message: "If an account with that email exists, a reset link has been sent.",
+      message:
+        "If an account with that email exists, a reset link has been sent.",
     }),
   );
 });
@@ -276,10 +298,16 @@ authRoutes.post("/reset-password", async (c) => {
   });
 
   if (verifyError) {
-    throw new ApiError("AUTH_RESET_FAILED", "Invalid or expired reset token", 400);
+    throw new ApiError(
+      "AUTH_RESET_FAILED",
+      "Invalid or expired reset token",
+      400,
+    );
   }
 
-  const { error: updateError } = await authSupabase.auth.updateUser({ password });
+  const { error: updateError } = await authSupabase.auth.updateUser({
+    password,
+  });
 
   if (updateError) {
     throw new ApiError("AUTH_RESET_FAILED", "Failed to update password", 400);

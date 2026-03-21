@@ -33,19 +33,20 @@ For detailed platform-specific setup (mobile, desktop), see [docs/guide.md](./gu
 ## Development Workspace
 
 <!-- AUTO-GENERATED: Root Scripts -->
+
 ### Root Commands
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm dev` | Start all services (Turborepo) |
-| `pnpm build` | Build all packages |
-| `pnpm lint` | Lint all packages |
-| `pnpm type-check` | Type check all packages |
-| `pnpm test` | Run all tests |
-| `pnpm test:integration` | Run integration tests |
-| `pnpm clean` | Clean build artifacts |
-| `pnpm format` | Format code with Prettier |
-| `pnpm smoke:motion` | Run motion detection smoke test |
+| Command                 | Purpose                         |
+| ----------------------- | ------------------------------- |
+| `pnpm dev`              | Start all services (Turborepo)  |
+| `pnpm build`            | Build all packages              |
+| `pnpm lint`             | Lint all packages               |
+| `pnpm type-check`       | Type check all packages         |
+| `pnpm test`             | Run all tests                   |
+| `pnpm test:integration` | Run integration tests           |
+| `pnpm clean`            | Clean build artifacts           |
+| `pnpm format`           | Format code with Prettier       |
+| `pnpm smoke:motion`     | Run motion detection smoke test |
 
 <!-- /AUTO-GENERATED -->
 
@@ -132,11 +133,13 @@ pnpm clean
 ### TypeScript/JavaScript
 
 **File naming:**
+
 - Components: `PascalCase` (`CameraGrid.tsx`)
 - Utilities: `kebab-case` (`use-live-feed.ts`, `camera-service.ts`)
 - Constants: `SCREAMING_SNAKE_CASE`
 
 **Formatting:**
+
 ```bash
 # Run before every commit
 pnpm format
@@ -147,6 +150,7 @@ pnpm type-check
 ```
 
 **Rules:**
+
 - No `I` prefix on interfaces (use `PascalCase`)
 - Use arrow functions for callbacks
 - Prefer `const` and `let` (no `var`)
@@ -154,6 +158,7 @@ pnpm type-check
 - Export types with `export type` keyword
 
 **Example:**
+
 ```typescript
 // ❌ Bad
 interface IUser {
@@ -179,10 +184,12 @@ export const fetchUser = async (id: string): Promise<User> => {
 **Package names:** lowercase, single word (e.g., `ingest`, `transcode`, `events`)
 
 **Exports:**
+
 - Public: `PascalCase`
 - Private: `camelCase`
 
 **Style:** Run `gofmt` before committing:
+
 ```bash
 cd services/camera-ingest
 gofmt -w .
@@ -191,6 +198,7 @@ gofmt -w .
 ### API Routes
 
 **Naming:**
+
 ```
 kebab-case, plural
 /api/v1/alert-rules/:id
@@ -198,11 +206,13 @@ kebab-case, plural
 ```
 
 **Query params:** camelCase
+
 ```
 ?startDate=&cameraId=
 ```
 
 **Request/Response bodies:** camelCase JSON
+
 ```json
 {
   "cameraId": "uuid",
@@ -214,21 +224,25 @@ kebab-case, plural
 ### Database
 
 **Tables:** `snake_case`, plural
+
 ```sql
 users, camera_zones, alert_rules
 ```
 
 **Columns:** `snake_case`
+
 ```sql
 created_at, tenant_id, is_active
 ```
 
 **Indexes:** `idx_{table}_{columns}`
+
 ```sql
 CREATE INDEX idx_alert_rules_camera_id ON alert_rules(camera_id);
 ```
 
 **Foreign keys:** `fk_{table}_{ref_table}`
+
 ```sql
 ALTER TABLE alert_rules
 ADD CONSTRAINT fk_alert_rules_cameras
@@ -268,20 +282,22 @@ pnpm --filter @osp/web test -- --coverage
 ### Writing Tests
 
 **TypeScript (Vitest):**
-```typescript
-import { describe, it, expect } from 'vitest';
-import { getUserByEmail } from './user-service';
 
-describe('UserService', () => {
-  it('should fetch user by email', async () => {
-    const user = await getUserByEmail('test@example.com');
+```typescript
+import { describe, it, expect } from "vitest";
+import { getUserByEmail } from "./user-service";
+
+describe("UserService", () => {
+  it("should fetch user by email", async () => {
+    const user = await getUserByEmail("test@example.com");
     expect(user).toBeDefined();
-    expect(user.email).toBe('test@example.com');
+    expect(user.email).toBe("test@example.com");
   });
 });
 ```
 
 **Go:**
+
 ```go
 func TestCreateCamera(t *testing.T) {
   camera, err := CreateCamera("Test Camera", "rtsp://stream")
@@ -291,20 +307,21 @@ func TestCreateCamera(t *testing.T) {
 ```
 
 **E2E (Playwright):**
+
 ```typescript
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 
-test('user can add a camera', async ({ page }) => {
-  await page.goto('http://localhost:3001/login');
-  await page.fill('[name="email"]', 'test@example.com');
-  await page.fill('[name="password"]', 'password123');
-  await page.click('text=Sign in');
+test("user can add a camera", async ({ page }) => {
+  await page.goto("http://localhost:3001/login");
+  await page.fill('[name="email"]', "test@example.com");
+  await page.fill('[name="password"]', "password123");
+  await page.click("text=Sign in");
 
-  await page.click('text=Add Camera');
-  await page.fill('[name="rtspUrl"]', 'rtsp://example.com/stream');
-  await page.click('text=Save');
+  await page.click("text=Add Camera");
+  await page.fill('[name="rtspUrl"]', "rtsp://example.com/stream");
+  await page.click("text=Save");
 
-  await expect(page.locator('text=Test Camera')).toBeVisible();
+  await expect(page.locator("text=Test Camera")).toBeVisible();
 });
 ```
 
@@ -339,11 +356,13 @@ chore: upgrade Next.js to 15.2.0
 ### Pull Request Process
 
 1. **Create a feature branch:**
+
    ```bash
    git checkout -b feature/my-feature
    ```
 
 2. **Make changes and test:**
+
    ```bash
    pnpm lint
    pnpm type-check
@@ -351,17 +370,18 @@ chore: upgrade Next.js to 15.2.0
    ```
 
 3. **Format code:**
+
    ```bash
    pnpm format
    ```
 
 4. **Push and create PR:**
+
    ```bash
    git push origin feature/my-feature
    ```
 
 5. **PR checklist** — before requesting review:
-
    - [ ] Code passes `pnpm lint` and `pnpm type-check`
    - [ ] Tests written and passing (`pnpm test`)
    - [ ] No hardcoded secrets or credentials
@@ -488,6 +508,7 @@ docker compose -f infra/docker/docker-compose.yml up -d
 ### TypeScript errors in IDE
 
 Try restarting the TypeScript language server:
+
 - VS Code: `Cmd/Ctrl + Shift + P` → "TypeScript: Restart TS Server"
 
 ---

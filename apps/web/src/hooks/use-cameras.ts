@@ -56,7 +56,11 @@ export function useCameras(): UseCamerasReturn {
       const json = await response.json();
       if (json.success && json.data) {
         const raw = json.data as Record<string, unknown>[];
-        setCameras(raw.map((r) => (isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera))));
+        setCameras(
+          raw.map((r) =>
+            isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera),
+          ),
+        );
       } else {
         setError(json.error?.message ?? "Failed to fetch cameras");
       }
@@ -84,7 +88,9 @@ export function useCameras(): UseCamerasReturn {
         throw new Error(json.error?.message ?? "Failed to add camera");
       }
       const raw = json.data as Record<string, unknown>;
-      const camera = isSnakeCaseRow(raw) ? transformCamera(raw) : (raw as unknown as Camera);
+      const camera = isSnakeCaseRow(raw)
+        ? transformCamera(raw)
+        : (raw as unknown as Camera);
       await fetchCameras();
       return camera;
     },
@@ -103,7 +109,9 @@ export function useCameras(): UseCamerasReturn {
         throw new Error(json.error?.message ?? "Failed to update camera");
       }
       const raw = json.data as Record<string, unknown>;
-      const camera = isSnakeCaseRow(raw) ? transformCamera(raw) : (raw as unknown as Camera);
+      const camera = isSnakeCaseRow(raw)
+        ? transformCamera(raw)
+        : (raw as unknown as Camera);
       await fetchCameras();
       return camera;
     },

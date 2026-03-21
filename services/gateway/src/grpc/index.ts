@@ -26,4 +26,3 @@ export {
   type SnapshotResult,
   type PlaybackURLResult,
 } from "./video-pipeline.client.js";
-

@@ -11,7 +11,11 @@ import { isLprConfigured } from "../services/lpr.service.js";
 const logger = createLogger("lpr-routes");
 
 const AddWatchlistSchema = z.object({
-  plate: z.string().min(1).max(20).transform((s) => s.toUpperCase().replace(/\s+/g, "")),
+  plate: z
+    .string()
+    .min(1)
+    .max(20)
+    .transform((s) => s.toUpperCase().replace(/\s+/g, "")),
   label: z.string().max(100).default(""),
   alertOnDetect: z.boolean().default(true),
 });
@@ -45,7 +49,8 @@ lprRoutes.get("/watchlist", requireAuth("operator"), async (c) => {
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
-  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to fetch watchlist", 500);
+  if (error)
+    throw new ApiError("INTERNAL_ERROR", "Failed to fetch watchlist", 500);
 
   return c.json(createSuccessResponse(data ?? []));
 });
@@ -72,7 +77,11 @@ lprRoutes.post("/watchlist", requireAuth("operator"), async (c) => {
 
   if (error) {
     if (error.code === "23505") {
-      throw new ApiError("LPR_DUPLICATE_PLATE", `Plate ${input.plate} is already on the watchlist`, 409);
+      throw new ApiError(
+        "LPR_DUPLICATE_PLATE",
+        `Plate ${input.plate} is already on the watchlist`,
+        409,
+      );
     }
     throw new ApiError("INTERNAL_ERROR", "Failed to add plate", 500);
   }
@@ -89,9 +98,12 @@ lprRoutes.patch("/watchlist/:id", requireAuth("operator"), async (c) => {
   const input = UpdateWatchlistSchema.parse(body);
   const supabase = getSupabase();
 
-  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
   if (input.label !== undefined) updates["label"] = input.label;
-  if (input.alertOnDetect !== undefined) updates["alert_on_detect"] = input.alertOnDetect;
+  if (input.alertOnDetect !== undefined)
+    updates["alert_on_detect"] = input.alertOnDetect;
 
   const { data, error } = await supabase
     .from("lpr_watchlist")
@@ -101,7 +113,8 @@ lprRoutes.patch("/watchlist/:id", requireAuth("operator"), async (c) => {
     .select("id, plate, label, alert_on_detect, updated_at")
     .single();
 
-  if (error || !data) throw new ApiError("INTERNAL_ERROR", "Failed to update plate", 500);
+  if (error || !data)
+    throw new ApiError("INTERNAL_ERROR", "Failed to update plate", 500);
 
   return c.json(createSuccessResponse(data));
 });
@@ -118,7 +131,8 @@ lprRoutes.delete("/watchlist/:id", requireAuth("operator"), async (c) => {
     .eq("id", id)
     .eq("tenant_id", tenantId);
 
-  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to remove plate", 500);
+  if (error)
+    throw new ApiError("INTERNAL_ERROR", "Failed to remove plate", 500);
 
   logger.info("Plate removed from watchlist", { tenantId, id });
   return c.json(createSuccessResponse({ deleted: true }));
@@ -132,13 +146,16 @@ lprRoutes.get("/detections", requireAuth("operator"), async (c) => {
 
   const { data, error } = await supabase
     .from("events")
-    .select("id, camera_id, type, severity, detected_at, metadata, acknowledged")
+    .select(
+      "id, camera_id, type, severity, detected_at, metadata, acknowledged",
+    )
     .eq("tenant_id", tenantId)
     .in("type", ["lpr.detected", "lpr.alert"])
     .order("detected_at", { ascending: false })
     .limit(limit);
 
-  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to fetch LPR detections", 500);
+  if (error)
+    throw new ApiError("INTERNAL_ERROR", "Failed to fetch LPR detections", 500);
 
   return c.json(createSuccessResponse(data ?? []));
 });

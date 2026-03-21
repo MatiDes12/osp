@@ -79,9 +79,15 @@ export function useDashboardStats(): UseDashboardStatsReturn {
     setLoading(true);
     try {
       const [camerasRes, eventSummaryRes, recordingsRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/cameras`, { headers: getAuthHeaders() }).catch(() => null),
-        fetch(`${API_URL}/api/v1/events/summary`, { headers: getAuthHeaders() }).catch(() => null),
-        fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, { headers: getAuthHeaders() }).catch(() => null),
+        fetch(`${API_URL}/api/v1/cameras`, { headers: getAuthHeaders() }).catch(
+          () => null,
+        ),
+        fetch(`${API_URL}/api/v1/events/summary`, {
+          headers: getAuthHeaders(),
+        }).catch(() => null),
+        fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, {
+          headers: getAuthHeaders(),
+        }).catch(() => null),
       ]);
 
       let totalCameras = 0;

@@ -35,10 +35,12 @@ function createMockRedis() {
     mockExpire,
     redis: {
       get: vi.fn(async (key: string) => store.get(key) ?? null),
-      set: vi.fn(async (key: string, value: string, _mode?: string, _ttl?: number) => {
-        store.set(key, value);
-        return "OK";
-      }),
+      set: vi.fn(
+        async (key: string, value: string, _mode?: string, _ttl?: number) => {
+          store.set(key, value);
+          return "OK";
+        },
+      ),
       del: vi.fn(async (key: string) => {
         const existed = store.has(key);
         store.delete(key);
@@ -113,7 +115,10 @@ describe("CacheService", () => {
 
   describe("increment", () => {
     it("increments a key using MULTI/EXEC", async () => {
-      mock.mockExec.mockResolvedValue([[null, 5], [null, 1]]);
+      mock.mockExec.mockResolvedValue([
+        [null, 5],
+        [null, 1],
+      ]);
 
       const count = await cache.increment("counter", 60);
       expect(count).toBe(5);

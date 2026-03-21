@@ -40,11 +40,14 @@ export function BulkActionBar({
   const handleAssignLocation = async (locationId: string | null) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/cameras/bulk/assign-location`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ cameraIds, locationId }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/cameras/bulk/assign-location`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ cameraIds, locationId }),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         throw new Error(json.error?.message ?? "Failed to assign location");
@@ -60,11 +63,14 @@ export function BulkActionBar({
   const handleRecordStart = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/cameras/bulk/record-start`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ cameraIds }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/cameras/bulk/record-start`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ cameraIds }),
+        },
+      );
       const json = await response.json();
       if (!json.success) {
         throw new Error(json.error?.message ?? "Failed to start recording");

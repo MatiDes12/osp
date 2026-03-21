@@ -13,7 +13,11 @@ export function requireSuperAdmin() {
   return createMiddleware<Env>(async (c, next) => {
     const authHeader = c.req.header("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      throw new ApiError("AUTH_TOKEN_MISSING", "Authorization token required", 401);
+      throw new ApiError(
+        "AUTH_TOKEN_MISSING",
+        "Authorization token required",
+        401,
+      );
     }
 
     const token = authHeader.slice(7);

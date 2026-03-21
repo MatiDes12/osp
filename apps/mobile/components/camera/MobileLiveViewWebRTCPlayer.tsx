@@ -88,7 +88,9 @@ export function MobileLiveViewWebRTCPlayer({
         );
 
         if (!streamRes.success || !streamRes.data) {
-          throw new Error(streamRes.error?.message ?? "Failed to load stream info");
+          throw new Error(
+            streamRes.error?.message ?? "Failed to load stream info",
+          );
         }
 
         const info = streamRes.data;
@@ -221,7 +223,11 @@ export function MobileLiveViewWebRTCPlayer({
     const mjpegUri = `${GO2RTC_BASE_URL}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}&t=${frameKey}`;
     return (
       <View style={styles.container}>
-        <Image source={{ uri: mjpegUri }} style={styles.mjpeg} resizeMode="contain" />
+        <Image
+          source={{ uri: mjpegUri }}
+          style={styles.mjpeg}
+          resizeMode="contain"
+        />
       </View>
     );
   }
@@ -260,4 +266,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
 });
-

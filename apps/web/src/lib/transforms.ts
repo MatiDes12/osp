@@ -22,11 +22,18 @@ type RawRow = Record<string, unknown>;
 /**
  * Transform JSONB config object -- may be stored with snake_case keys in DB.
  */
-function transformConfig(raw: Record<string, unknown> | null | undefined): CameraConfig {
-  if (!raw) return { recordingMode: "off", motionSensitivity: 5, audioEnabled: false };
+function transformConfig(
+  raw: Record<string, unknown> | null | undefined,
+): CameraConfig {
+  if (!raw)
+    return { recordingMode: "off", motionSensitivity: 5, audioEnabled: false };
   return {
-    recordingMode: (raw.recordingMode ?? raw.recording_mode ?? "off") as CameraConfig["recordingMode"],
-    motionSensitivity: (raw.motionSensitivity ?? raw.motion_sensitivity ?? 5) as number,
+    recordingMode: (raw.recordingMode ??
+      raw.recording_mode ??
+      "off") as CameraConfig["recordingMode"],
+    motionSensitivity: (raw.motionSensitivity ??
+      raw.motion_sensitivity ??
+      5) as number,
     audioEnabled: (raw.audioEnabled ?? raw.audio_enabled ?? false) as boolean,
   };
 }
@@ -34,8 +41,17 @@ function transformConfig(raw: Record<string, unknown> | null | undefined): Camer
 /**
  * Transform JSONB capabilities object -- may be stored with snake_case keys in DB.
  */
-function transformCapabilities(raw: Record<string, unknown> | null | undefined): CameraCapabilities {
-  if (!raw) return { ptz: false, audio: false, twoWayAudio: false, infrared: false, resolution: "unknown" };
+function transformCapabilities(
+  raw: Record<string, unknown> | null | undefined,
+): CameraCapabilities {
+  if (!raw)
+    return {
+      ptz: false,
+      audio: false,
+      twoWayAudio: false,
+      infrared: false,
+      resolution: "unknown",
+    };
   return {
     ptz: (raw.ptz as boolean) ?? false,
     audio: (raw.audio as boolean) ?? false,
@@ -57,7 +73,9 @@ export function transformCamera(raw: RawRow): Camera {
     connectionUri: raw.connection_uri as string,
     status: raw.status as CameraStatus,
     location: (raw.location as CameraLocation) ?? {},
-    capabilities: transformCapabilities(raw.capabilities as Record<string, unknown> | null),
+    capabilities: transformCapabilities(
+      raw.capabilities as Record<string, unknown> | null,
+    ),
     config: transformConfig(raw.config as Record<string, unknown> | null),
     ptzCapable: (raw.ptz_capable as boolean) ?? false,
     audioCapable: (raw.audio_capable as boolean) ?? false,
@@ -81,7 +99,8 @@ function transformZone(raw: RawRow): CameraZone {
     cameraId: raw.camera_id as string,
     tenantId: raw.tenant_id as string,
     name: raw.name as string,
-    polygonCoordinates: (raw.polygon_coordinates as { x: number; y: number }[]) ?? [],
+    polygonCoordinates:
+      (raw.polygon_coordinates as { x: number; y: number }[]) ?? [],
     alertEnabled: (raw.alert_enabled as boolean) ?? true,
     sensitivity: (raw.sensitivity as number) ?? 5,
     colorHex: (raw.color_hex as string) ?? "#FF0000",
@@ -109,10 +128,15 @@ function transformEvent(raw: RawRow): OSPEvent {
     metadata: (raw.metadata as Record<string, unknown>) ?? {},
     snapshotUrl:
       (raw.snapshot_url as string | null) ??
-      ((raw.metadata as Record<string, unknown> | null)?.snapshotUrl as string | null) ??
+      ((raw.metadata as Record<string, unknown> | null)?.snapshotUrl as
+        | string
+        | null) ??
       null,
-    clipUrl: (raw.clip_url as string | null) ??
-      (raw.clip_path ? `${typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000") : ""}/api/v1/events/${raw.id as string}/clip` : null),
+    clipUrl:
+      (raw.clip_url as string | null) ??
+      (raw.clip_path
+        ? `${typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000") : ""}/api/v1/events/${raw.id as string}/clip`
+        : null),
     intensity: (raw.intensity as number) ?? 0,
     acknowledged: (raw.acknowledged as boolean) ?? false,
     acknowledgedBy: (raw.acknowledged_by as string | null) ?? null,
@@ -181,22 +205,31 @@ export function isSnakeCaseRow(obj: RawRow): boolean {
  * Transform an array of raw rows, auto-detecting if transformation is needed.
  */
 export function transformCameras(rows: readonly RawRow[]): Camera[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera)));
+  return rows.map((r) =>
+    isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera),
+  );
 }
 
 export function transformEvents(rows: readonly RawRow[]): OSPEvent[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformEvent(r) : (r as unknown as OSPEvent)));
+  return rows.map((r) =>
+    isSnakeCaseRow(r) ? transformEvent(r) : (r as unknown as OSPEvent),
+  );
 }
 
 export function transformRecordings(rows: readonly RawRow[]): Recording[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformRecording(r) : (r as unknown as Recording)));
+  return rows.map((r) =>
+    isSnakeCaseRow(r) ? transformRecording(r) : (r as unknown as Recording),
+  );
 }
 
 export function transformZones(rows: readonly RawRow[]): CameraZone[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformZone(r) : (r as unknown as CameraZone)));
+  return rows.map((r) =>
+    isSnakeCaseRow(r) ? transformZone(r) : (r as unknown as CameraZone),
+  );
 }
 
 export function transformUsers(rows: readonly RawRow[]): User[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformUser(r) : (r as unknown as User)));
+  return rows.map((r) =>
+    isSnakeCaseRow(r) ? transformUser(r) : (r as unknown as User),
+  );
 }
-

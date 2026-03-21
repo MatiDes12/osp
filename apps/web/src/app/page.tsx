@@ -89,7 +89,12 @@ const plans = [
     price: "$0",
     period: "/mo",
     description: "For personal projects and experimentation",
-    features: ["Up to 4 cameras", "24h recording retention", "Basic alerts", "Community support"],
+    features: [
+      "Up to 4 cameras",
+      "24h recording retention",
+      "Basic alerts",
+      "Community support",
+    ],
     cta: "Start Free",
     href: "/register",
     highlighted: false,
@@ -147,7 +152,6 @@ const plans = [
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-50">
-
       {/* ---------------------------------------------------------------- */}
       {/*  NAV                                                             */}
       {/* ---------------------------------------------------------------- */}
@@ -159,9 +163,24 @@ export default function HomePage() {
           </div>
 
           <nav className="hidden items-center gap-6 text-sm text-zinc-400 sm:flex">
-            <a href="#features" className="transition-colors hover:text-zinc-100">Features</a>
-            <a href="#download" className="transition-colors hover:text-zinc-100">Download</a>
-            <a href="#pricing" className="transition-colors hover:text-zinc-100">Pricing</a>
+            <a
+              href="#features"
+              className="transition-colors hover:text-zinc-100"
+            >
+              Features
+            </a>
+            <a
+              href="#download"
+              className="transition-colors hover:text-zinc-100"
+            >
+              Download
+            </a>
+            <a
+              href="#pricing"
+              className="transition-colors hover:text-zinc-100"
+            >
+              Pricing
+            </a>
             <a
               href="https://github.com/MatiDes12/osp"
               target="_blank"
@@ -260,8 +279,13 @@ export default function HomePage() {
           {/* Stats row */}
           <div className="mt-16 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-zinc-800 sm:grid-cols-4">
             {stats.map((s) => (
-              <div key={s.label} className="bg-zinc-900/60 px-6 py-5 text-center">
-                <p className="text-2xl font-bold tabular-nums text-zinc-50">{s.value}</p>
+              <div
+                key={s.label}
+                className="bg-zinc-900/60 px-6 py-5 text-center"
+              >
+                <p className="text-2xl font-bold tabular-nums text-zinc-50">
+                  {s.value}
+                </p>
                 <p className="mt-1 text-xs text-zinc-500">{s.label}</p>
               </div>
             ))}
@@ -279,7 +303,9 @@ export default function HomePage() {
               Features
             </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Everything you need to run<br className="hidden sm:block" /> a professional surveillance operation
+              Everything you need to run
+              <br className="hidden sm:block" /> a professional surveillance
+              operation
             </h2>
             <p className="mt-4 text-zinc-400">
               From live streams to AI-powered alerts — all in one platform.
@@ -292,11 +318,15 @@ export default function HomePage() {
                 key={f.title}
                 className={`group rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 transition-all duration-200 hover:bg-zinc-900/70 ${f.border}`}
               >
-                <div className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg ${f.glow}`}>
+                <div
+                  className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg ${f.glow}`}
+                >
                   <f.icon className={`h-5 w-5 ${f.color}`} />
                 </div>
                 <h3 className="mb-2 font-semibold">{f.title}</h3>
-                <p className="text-sm leading-relaxed text-zinc-400">{f.description}</p>
+                <p className="text-sm leading-relaxed text-zinc-400">
+                  {f.description}
+                </p>
               </div>
             ))}
           </div>
@@ -328,27 +358,91 @@ export default function HomePage() {
             <div className="relative grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(
                 [
-                  { name: "Front Entrance", res: "4K", cam: "CAM 01", ts: "14:23:07", img: "https://images.unsplash.com/photo-1524758631624-e2822132c53c?w=800&h=450&fit=crop&auto=format&q=80" },
-                  { name: "Parking Lot B", res: "1080p", cam: "CAM 02", ts: "14:23:09", img: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=800&h=450&fit=crop&auto=format&q=80" },
-                  { name: "Server Room", res: "4K", cam: "CAM 03", ts: "14:23:11", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop&auto=format&q=80" },
-                  { name: "Warehouse East", res: "1080p", cam: "CAM 04", ts: "14:23:13", img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&h=450&fit=crop&auto=format&q=80" },
+                  {
+                    name: "Front Entrance",
+                    res: "4K",
+                    cam: "CAM 01",
+                    ts: "14:23:07",
+                    img: "https://images.unsplash.com/photo-1524758631624-e2822132c53c?w=800&h=450&fit=crop&auto=format&q=80",
+                  },
+                  {
+                    name: "Parking Lot B",
+                    res: "1080p",
+                    cam: "CAM 02",
+                    ts: "14:23:09",
+                    img: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=800&h=450&fit=crop&auto=format&q=80",
+                  },
+                  {
+                    name: "Server Room",
+                    res: "4K",
+                    cam: "CAM 03",
+                    ts: "14:23:11",
+                    img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop&auto=format&q=80",
+                  },
+                  {
+                    name: "Warehouse East",
+                    res: "1080p",
+                    cam: "CAM 04",
+                    ts: "14:23:13",
+                    img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=800&h=450&fit=crop&auto=format&q=80",
+                  },
                 ] as const
               ).map((cam) => (
-                <div key={cam.name} className="relative aspect-video overflow-hidden rounded-xl border border-zinc-700/50 bg-black">
+                <div
+                  key={cam.name}
+                  className="relative aspect-video overflow-hidden rounded-xl border border-zinc-700/50 bg-black"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={cam.img} alt={cam.name} className="absolute inset-0 h-full w-full object-cover" style={{ filter: "grayscale(1) contrast(1.3) brightness(0.55)" }} />
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.18) 3px,rgba(0,0,0,0.18) 4px)", zIndex: 1 }} />
-                  <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", zIndex: 1 }} />
-                  <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-3 py-2" style={{ zIndex: 2 }}>
-                    <span className="font-mono text-[10px] font-bold tracking-widest text-white/80">{cam.cam}</span>
+                  <img
+                    src={cam.img}
+                    alt={cam.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    style={{
+                      filter: "grayscale(1) contrast(1.3) brightness(0.55)",
+                    }}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.18) 3px,rgba(0,0,0,0.18) 4px)",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                    style={{
+                      backgroundImage:
+                        "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+                      zIndex: 1,
+                    }}
+                  />
+                  <div
+                    className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-3 py-2"
+                    style={{ zIndex: 2 }}
+                  >
+                    <span className="font-mono text-[10px] font-bold tracking-widest text-white/80">
+                      {cam.cam}
+                    </span>
                     <div className="flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
-                      <span className="font-mono text-[10px] font-bold tracking-widest text-red-400">REC</span>
+                      <span className="font-mono text-[10px] font-bold tracking-widest text-red-400">
+                        REC
+                      </span>
                     </div>
                   </div>
-                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2" style={{ zIndex: 2 }}>
-                    <span className="font-mono text-[10px] tracking-wide text-white/75">{cam.name} · {cam.res}</span>
-                    <span className="font-mono text-[10px] text-white/40">2026-03-21  {cam.ts}</span>
+                  <div
+                    className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2"
+                    style={{ zIndex: 2 }}
+                  >
+                    <span className="font-mono text-[10px] tracking-wide text-white/75">
+                      {cam.name} · {cam.res}
+                    </span>
+                    <span className="font-mono text-[10px] text-white/40">
+                      2026-03-21 {cam.ts}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -370,7 +464,8 @@ export default function HomePage() {
               OSP on every platform
             </h2>
             <p className="mt-4 text-zinc-400">
-              Native apps built for where you work — desktop, web, and soon mobile.
+              Native apps built for where you work — desktop, web, and soon
+              mobile.
             </p>
           </div>
 
@@ -382,7 +477,9 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-100">Windows</p>
-                <p className="mt-1 text-xs text-zinc-500">Windows 10 / 11 · 64-bit</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Windows 10 / 11 · 64-bit
+                </p>
               </div>
               <a
                 href="https://github.com/MatiDes12/osp/releases/latest"
@@ -406,7 +503,9 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-400">iOS</p>
-                <p className="mt-1 text-xs text-zinc-600">iPhone & iPad · iOS 16+</p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  iPhone & iPad · iOS 16+
+                </p>
               </div>
               <div className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-600">
                 <Download className="h-4 w-4" />
@@ -425,7 +524,9 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-400">Android</p>
-                <p className="mt-1 text-xs text-zinc-600">Android 10+ · ARM64</p>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Android 10+ · ARM64
+                </p>
               </div>
               <div className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-zinc-700 px-5 py-2.5 text-sm font-medium text-zinc-600">
                 <Download className="h-4 w-4" />
@@ -438,7 +539,10 @@ export default function HomePage() {
           {/* Web app note */}
           <p className="mt-8 text-center text-sm text-zinc-500">
             Prefer the browser?{" "}
-            <Link href="/login" className="text-blue-400 underline-offset-2 hover:underline">
+            <Link
+              href="/login"
+              className="text-blue-400 underline-offset-2 hover:underline"
+            >
               Open the web app →
             </Link>
           </p>
@@ -487,7 +591,10 @@ export default function HomePage() {
                 <p className="mt-2 text-sm text-zinc-500">{plan.description}</p>
                 <ul className="mt-6 flex-1 space-y-2.5">
                   {plan.features.map((feat) => (
-                    <li key={feat} className="flex items-start gap-2 text-sm text-zinc-300">
+                    <li
+                      key={feat}
+                      className="flex items-start gap-2 text-sm text-zinc-300"
+                    >
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
                       {feat}
                     </li>
@@ -561,10 +668,27 @@ export default function HomePage() {
 
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-zinc-400 sm:justify-end">
-              <a href="#features" className="transition-colors hover:text-zinc-200">Product</a>
-              <a href="#download" className="transition-colors hover:text-zinc-200">Download</a>
-              <a href="#pricing" className="transition-colors hover:text-zinc-200">Pricing</a>
-              <a href="/docs" className="transition-colors hover:text-zinc-200">Docs</a>
+              <a
+                href="#features"
+                className="transition-colors hover:text-zinc-200"
+              >
+                Product
+              </a>
+              <a
+                href="#download"
+                className="transition-colors hover:text-zinc-200"
+              >
+                Download
+              </a>
+              <a
+                href="#pricing"
+                className="transition-colors hover:text-zinc-200"
+              >
+                Pricing
+              </a>
+              <a href="/docs" className="transition-colors hover:text-zinc-200">
+                Docs
+              </a>
               <a
                 href="https://github.com/MatiDes12/osp"
                 target="_blank"
@@ -578,7 +702,10 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8 border-t border-zinc-800 pt-6 flex flex-col items-center justify-between gap-2 text-xs text-zinc-600 sm:flex-row">
-            <p>&copy; {new Date().getFullYear()} Open Surveillance Platform. All rights reserved.</p>
+            <p>
+              &copy; {new Date().getFullYear()} Open Surveillance Platform. All
+              rights reserved.
+            </p>
             <p>Built with care for security teams worldwide.</p>
           </div>
         </div>

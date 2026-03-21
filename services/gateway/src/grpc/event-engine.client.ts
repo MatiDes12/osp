@@ -101,11 +101,10 @@ function createGrpcEventEngineClient(): EventEngineClient {
       const request: EvaluateRulesRequest = { tenantId, eventId };
 
       try {
-        const response = await unaryCall<EvaluateRulesRequest, EvaluateRulesResult>(
-          getStub(),
-          "evaluateRules",
-          request,
-        );
+        const response = await unaryCall<
+          EvaluateRulesRequest,
+          EvaluateRulesResult
+        >(getStub(), "evaluateRules", request);
         return response.matchedRules;
       } catch (err) {
         if (isServiceUnavailable(err)) {
@@ -118,11 +117,10 @@ function createGrpcEventEngineClient(): EventEngineClient {
 
     async getRuleStatus(tenantId, ruleId) {
       try {
-        return await unaryCall<{ tenantId: string; ruleId: string }, RuleStatus>(
-          getStub(),
-          "getRuleStatus",
-          { tenantId, ruleId },
-        );
+        return await unaryCall<
+          { tenantId: string; ruleId: string },
+          RuleStatus
+        >(getStub(), "getRuleStatus", { tenantId, ruleId });
       } catch (err) {
         if (isServiceUnavailable(err)) {
           logger.warn("Event-engine service not available, using direct mode");

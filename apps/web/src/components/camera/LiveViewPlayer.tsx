@@ -69,7 +69,9 @@ function getPoolEntry(cameraId: string): PoolEntry | null {
     entry.pc.connectionState === "connected" ||
     entry.pc.iceConnectionState === "connected" ||
     entry.pc.iceConnectionState === "completed";
-  const hasVideo = entry.stream.getVideoTracks().some((t) => t.readyState === "live");
+  const hasVideo = entry.stream
+    .getVideoTracks()
+    .some((t) => t.readyState === "live");
   if (!pcOk || !hasVideo) {
     entry.pc.close();
     connectionPool.delete(cameraId);
@@ -82,7 +84,9 @@ function getPoolEntry(cameraId: string): PoolEntry | null {
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
@@ -126,10 +130,13 @@ export function LiveViewPlayer({
   // Fetch a snapshot immediately to show while WebRTC connects
   const prefetchSnapshot = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/snapshot`, {
-        headers: getAuthHeaders(),
-        signal: AbortSignal.timeout(4000),
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
+        {
+          headers: getAuthHeaders(),
+          signal: AbortSignal.timeout(4000),
+        },
+      );
       if (!res.ok) return;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -145,7 +152,11 @@ export function LiveViewPlayer({
       micStreamRef.current = null;
     }
     if (micSenderRef.current && pcRef.current) {
-      try { pcRef.current.removeTrack(micSenderRef.current); } catch { /* closed */ }
+      try {
+        pcRef.current.removeTrack(micSenderRef.current);
+      } catch {
+        /* closed */
+      }
       micSenderRef.current = null;
     }
     setMicActive(false);
@@ -155,15 +166,24 @@ export function LiveViewPlayer({
   // Detach from DOM without closing — called on unmount when we want to pool
   const detachFromDom = useCallback(() => {
     stopMic();
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
     if (videoRef.current) videoRef.current.srcObject = null;
   }, [stopMic]);
 
   // Full teardown — closes the peer connection too
   const teardown = useCallback(() => {
     detachFromDom();
-    if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
   }, [detachFromDom]);
 
   const fallbackToHLS = useCallback(
@@ -238,7 +258,9 @@ export function LiveViewPlayer({
 
         const isDirectGo2rtc = info.whepUrl.includes("/api/webrtc");
         const whepHeaders: Record<string, string> = {
-          "Content-Type": isDirectGo2rtc ? "application/json" : "application/sdp",
+          "Content-Type": isDirectGo2rtc
+            ? "application/json"
+            : "application/sdp",
         };
         if (!isDirectGo2rtc) {
           const tok = localStorage.getItem("osp_access_token");
@@ -269,7 +291,8 @@ export function LiveViewPlayer({
         await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
       } catch (err) {
         if (abort.signal.aborted) return;
-        const message = err instanceof Error ? err.message : "WebRTC connection failed";
+        const message =
+          err instanceof Error ? err.message : "WebRTC connection failed";
         console.error("[LiveViewPlayer] WebRTC error:", message);
 
         // Auto-retry once after 2s
@@ -308,7 +331,8 @@ export function LiveViewPlayer({
           `${API_URL}/api/v1/cameras/${cameraId}/stream`,
           { headers: getAuthHeaders() },
         );
-        if (!response.ok) throw new Error(`Failed to fetch stream info (${response.status})`);
+        if (!response.ok)
+          throw new Error(`Failed to fetch stream info (${response.status})`);
         const json = await response.json();
         info = json.data ?? json;
       }
@@ -317,7 +341,8 @@ export function LiveViewPlayer({
       streamInfoRef.current = info;
       await connectWebRTC(info);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load stream";
+      const message =
+        err instanceof Error ? err.message : "Failed to load stream";
       setState("error");
       setErrorMessage(message);
       onError?.(message);
@@ -402,7 +427,10 @@ export function LiveViewPlayer({
   const handleReconnect = useCallback(() => {
     // Force close the pool entry for this camera so we do a fresh connect
     const e = connectionPool.get(cameraId);
-    if (e) { e.pc.close(); connectionPool.delete(cameraId); }
+    if (e) {
+      e.pc.close();
+      connectionPool.delete(cameraId);
+    }
     teardown();
     void fetchStreamAndConnect();
   }, [cameraId, teardown, fetchStreamAndConnect]);
@@ -410,7 +438,10 @@ export function LiveViewPlayer({
   const toggleMic = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc) return;
-    if (micActive) { stopMic(); return; }
+    if (micActive) {
+      stopMic();
+      return;
+    }
 
     setMicError(null);
     try {
@@ -421,7 +452,9 @@ export function LiveViewPlayer({
       micSenderRef.current = pc.addTrack(audioTrack, stream);
       setMicActive(true);
     } catch (err) {
-      setMicError(err instanceof Error ? err.message : "Microphone access denied");
+      setMicError(
+        err instanceof Error ? err.message : "Microphone access denied",
+      );
       if (micStreamRef.current) {
         for (const t of micStreamRef.current.getTracks()) t.stop();
         micStreamRef.current = null;
@@ -454,7 +487,10 @@ export function LiveViewPlayer({
           muted
           playsInline
           className="aspect-video w-full bg-black rounded-lg object-contain"
-          onError={() => { setErrorMessage("Stream unavailable"); setState("error"); }}
+          onError={() => {
+            setErrorMessage("Stream unavailable");
+            setState("error");
+          }}
         />
         <div className="absolute top-2 left-2 flex items-center gap-2">
           <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">
@@ -467,8 +503,18 @@ export function LiveViewPlayer({
             className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
             title="Retry WebRTC"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
           </button>
         </div>
@@ -523,8 +569,18 @@ export function LiveViewPlayer({
             className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
             title="Reconnect"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
             </svg>
           </button>
         </div>
@@ -544,7 +600,11 @@ export function LiveViewPlayer({
                 }`}
                 aria-label={micActive ? "Mute microphone" : "Unmute microphone"}
               >
-                {micActive ? <Mic className="w-4 h-4 animate-pulse" /> : <MicOff className="w-4 h-4" />}
+                {micActive ? (
+                  <Mic className="w-4 h-4 animate-pulse" />
+                ) : (
+                  <MicOff className="w-4 h-4" />
+                )}
               </button>
               {micError && (
                 <div className="absolute bottom-full left-0 mb-1 w-48 p-2 rounded-md bg-red-500/20 border border-red-500/30 text-[10px] text-red-300 backdrop-blur-sm">
@@ -558,7 +618,11 @@ export function LiveViewPlayer({
             className="p-1.5 rounded-md backdrop-blur-sm bg-black/50 text-zinc-300 hover:text-white transition-colors duration-150 cursor-pointer"
             aria-label={speakerMuted ? "Unmute speaker" : "Mute speaker"}
           >
-            {speakerMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {speakerMuted ? (
+              <VolumeX className="w-4 h-4" />
+            ) : (
+              <Volume2 className="w-4 h-4" />
+            )}
           </button>
           <input
             type="range"
@@ -581,7 +645,9 @@ export function LiveViewPlayer({
             <span className="text-xs text-[var(--color-muted)]">
               {state === "loading" ? "Loading stream info..." : "Connecting..."}
             </span>
-            <span className="text-[10px] text-[var(--color-muted)] opacity-60">{cameraName}</span>
+            <span className="text-[10px] text-[var(--color-muted)] opacity-60">
+              {cameraName}
+            </span>
           </div>
         </div>
       )}
@@ -590,11 +656,25 @@ export function LiveViewPlayer({
       {state === "error" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80">
           <div className="text-center px-4">
-            <svg className="w-10 h-10 mx-auto mb-2 text-[var(--color-error)] opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <svg
+              className="w-10 h-10 mx-auto mb-2 text-[var(--color-error)] opacity-50"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+              />
             </svg>
-            <p className="text-sm text-[var(--color-error)] mb-1">Stream unavailable</p>
-            <p className="text-xs text-[var(--color-muted)] mb-3">{errorMessage ?? "Connection failed"}</p>
+            <p className="text-sm text-[var(--color-error)] mb-1">
+              Stream unavailable
+            </p>
+            <p className="text-xs text-[var(--color-muted)] mb-3">
+              {errorMessage ?? "Connection failed"}
+            </p>
             <button
               onClick={handleReconnect}
               className="px-3 py-1.5 text-xs rounded-md bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 transition-colors"

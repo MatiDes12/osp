@@ -36,9 +36,7 @@ test.describe("Auth — Login", () => {
     ).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("#email")).toBeVisible();
     await expect(page.locator("#password")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Sign In" }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign In" })).toBeVisible();
   });
 
   test("/login — successful submit stores tokens and redirects to /cameras", async ({
@@ -69,7 +67,10 @@ test.describe("Auth — Login", () => {
         contentType: "application/json",
         body: JSON.stringify({
           success: false,
-          error: { code: "AUTH_INVALID_CREDENTIALS", message: "Invalid email or password" },
+          error: {
+            code: "AUTH_INVALID_CREDENTIALS",
+            message: "Invalid email or password",
+          },
         }),
       }),
     );
@@ -92,9 +93,9 @@ test.describe("Auth — Login", () => {
     await page.locator("#password").fill("SecurePassword123!");
     await page.getByRole("button", { name: "Sign In" }).click();
 
-    await expect(
-      page.getByText(/network error/i),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/network error/i)).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test("/login — password visibility toggle shows/hides password", async ({
@@ -128,7 +129,9 @@ test.describe("Auth — Login", () => {
   test("/login — SSO buttons are visible", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByRole("button", { name: /Google/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Microsoft/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Microsoft/i }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: /GitHub/i })).toBeVisible();
   });
 });
@@ -189,9 +192,9 @@ test.describe("Auth — Register", () => {
 
     await page.getByRole("button", { name: "Create Account" }).click();
 
-    await expect(
-      page.getByText(/Terms of Service/i),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/Terms of Service/i)).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test("/register — password strength indicator appears when typing", async ({

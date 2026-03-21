@@ -25,8 +25,7 @@ interface CameraZone {
   alertEnabled: boolean;
 }
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 const STATUS_COLORS: Record<string, string> = {
   online: colors.success,
@@ -59,13 +58,20 @@ export default function CameraDetailScreen() {
             cameraId: id,
             limit: 10,
           }),
-          api.get<{ id: string; name: string; sensitivity: number; alert_enabled: boolean }[]>(
-            `/api/v1/cameras/${id}/zones`,
-          ),
+          api.get<
+            {
+              id: string;
+              name: string;
+              sensitivity: number;
+              alert_enabled: boolean;
+            }[]
+          >(`/api/v1/cameras/${id}/zones`),
         ]);
 
         if (cameraResult.success && cameraResult.data) {
-          setCamera(transformCamera(cameraResult.data as Record<string, unknown>));
+          setCamera(
+            transformCamera(cameraResult.data as Record<string, unknown>),
+          );
           setError(null);
         } else {
           setError(cameraResult.error?.message ?? "Camera not found.");
@@ -103,7 +109,9 @@ export default function CameraDetailScreen() {
     async (zoneId: string, enabled: boolean) => {
       if (!id) return;
       setZones((prev) =>
-        prev.map((z) => (z.id === zoneId ? { ...z, alertEnabled: enabled } : z)),
+        prev.map((z) =>
+          z.id === zoneId ? { ...z, alertEnabled: enabled } : z,
+        ),
       );
       try {
         await api.patch(`/api/v1/cameras/${id}/zones/${zoneId}`, {
@@ -112,7 +120,9 @@ export default function CameraDetailScreen() {
       } catch {
         // Revert on failure
         setZones((prev) =>
-          prev.map((z) => (z.id === zoneId ? { ...z, alertEnabled: !enabled } : z)),
+          prev.map((z) =>
+            z.id === zoneId ? { ...z, alertEnabled: !enabled } : z,
+          ),
         );
         Alert.alert("Error", "Failed to update zone. Please try again.");
       }
@@ -144,7 +154,10 @@ export default function CameraDetailScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error ?? "Camera not found."}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => fetchData()}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -168,12 +181,17 @@ export default function CameraDetailScreen() {
       {/* Live View */}
       <View style={styles.liveView}>
         {camera.status === "online" ? (
-          <MobileLiveViewWebRTCPlayer cameraId={camera.id} status={camera.status} />
+          <MobileLiveViewWebRTCPlayer
+            cameraId={camera.id}
+            status={camera.status}
+          />
         ) : (
           <View style={styles.liveViewOffline}>
             <Text style={styles.liveViewLabel}>{camera.name}</Text>
             <View style={styles.liveViewStatus}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <View
+                style={[styles.statusDot, { backgroundColor: statusColor }]}
+              />
               <Text style={[styles.statusText, { color: statusColor }]}>
                 {camera.status.toUpperCase()}
               </Text>
@@ -204,10 +222,7 @@ export default function CameraDetailScreen() {
           {camera.firmwareVersion && (
             <InfoRow label="Firmware" value={camera.firmwareVersion} />
           )}
-          <InfoRow
-            label="Resolution"
-            value={camera.capabilities.resolution}
-          />
+          <InfoRow label="Resolution" value={camera.capabilities.resolution} />
           <InfoRow
             label="Recording"
             value={camera.config.recordingMode.toUpperCase()}
@@ -326,7 +341,11 @@ function PtzButton({
   readonly onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.ptzButton} activeOpacity={0.6} onPress={onPress}>
+    <TouchableOpacity
+      style={styles.ptzButton}
+      activeOpacity={0.6}
+      onPress={onPress}
+    >
       <Text style={styles.ptzButtonText}>{label}</Text>
     </TouchableOpacity>
   );

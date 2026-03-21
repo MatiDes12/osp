@@ -34,10 +34,10 @@ describe("RegisterSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("accepts password of exactly 8 chars", () => {
+  it("accepts password of exactly 8 chars meeting strength requirements", () => {
     const result = RegisterSchema.safeParse({
       ...validInput,
-      password: "12345678",
+      password: "Abcde1!2",
     });
     expect(result.success).toBe(true);
   });

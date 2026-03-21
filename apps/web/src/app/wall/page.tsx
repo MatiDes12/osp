@@ -22,7 +22,14 @@
  *   ?       → show / hide keyboard legend
  */
 
-import { Suspense, useState, useCallback, useMemo, useEffect, useRef } from "react";
+import {
+  Suspense,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { LiveViewPlayer } from "@/components/camera/LiveViewPlayer";
@@ -54,14 +61,14 @@ const LAYOUTS: {
   readonly maxCells: number;
   readonly shortcut: string;
 }[] = [
-  { id: "1x1", label: "1×1",  maxCells: 1,  shortcut: "1" },
-  { id: "2x2", label: "2×2",  maxCells: 4,  shortcut: "2" },
-  { id: "3x3", label: "3×3",  maxCells: 9,  shortcut: "3" },
-  { id: "4x4", label: "4×4",  maxCells: 16, shortcut: "4" },
-  { id: "2x3", label: "2×3",  maxCells: 6,  shortcut: "5" },
-  { id: "3x4", label: "3×4",  maxCells: 12, shortcut: "6" },
-  { id: "1+5", label: "1+5",  maxCells: 6,  shortcut: "7" },
-  { id: "1+7", label: "1+7",  maxCells: 8,  shortcut: "8" },
+  { id: "1x1", label: "1×1", maxCells: 1, shortcut: "1" },
+  { id: "2x2", label: "2×2", maxCells: 4, shortcut: "2" },
+  { id: "3x3", label: "3×3", maxCells: 9, shortcut: "3" },
+  { id: "4x4", label: "4×4", maxCells: 16, shortcut: "4" },
+  { id: "2x3", label: "2×3", maxCells: 6, shortcut: "5" },
+  { id: "3x4", label: "3×4", maxCells: 12, shortcut: "6" },
+  { id: "1+5", label: "1+5", maxCells: 6, shortcut: "7" },
+  { id: "1+7", label: "1+7", maxCells: 8, shortcut: "8" },
 ];
 
 const ROTATE_OPTIONS = [5, 10, 15, 30, 60] as const;
@@ -85,7 +92,9 @@ function LiveClock() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-  return <span className="tabular-nums font-mono text-sm text-zinc-200">{time}</span>;
+  return (
+    <span className="tabular-nums font-mono text-sm text-zinc-200">{time}</span>
+  );
 }
 
 // ─── Camera cell ────────────────────────────────────────────────────────────
@@ -104,7 +113,11 @@ function CameraCell({
       className="relative h-full w-full bg-black overflow-hidden cursor-pointer"
       onDoubleClick={onDoubleClick}
     >
-      <LiveViewPlayer cameraId={camera.id} cameraName={camera.name} className="w-full h-full" />
+      <LiveViewPlayer
+        cameraId={camera.id}
+        cameraName={camera.name}
+        className="w-full h-full"
+      />
       {showLabel && (
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 pointer-events-none">
           <div className="flex items-center gap-1.5">
@@ -113,7 +126,9 @@ function CameraCell({
                 camera.status === "online" ? "bg-green-400" : "bg-red-400"
               }`}
             />
-            <span className="text-[11px] font-medium text-zinc-100 truncate">{camera.name}</span>
+            <span className="text-[11px] font-medium text-zinc-100 truncate">
+              {camera.name}
+            </span>
             {camera.location?.label && (
               <span className="text-[9px] text-zinc-500 ml-auto truncate max-w-[80px]">
                 {camera.location.label}
@@ -143,8 +158,13 @@ function KeyboardLegend({ onClose }: { readonly onClose: () => void }) {
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-72 shadow-2xl">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-zinc-200">Keyboard Shortcuts</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
+          <h3 className="text-sm font-semibold text-zinc-200">
+            Keyboard Shortcuts
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -185,15 +205,25 @@ function CameraGrid({
     const strip = cameras.slice(1, stripCount + 1);
     return (
       <div className="h-full w-full flex gap-0.5">
-        <div className={`min-w-0 ${layout === "1+5" ? "flex-[2]" : "flex-[3]"}`}>
+        <div
+          className={`min-w-0 ${layout === "1+5" ? "flex-[2]" : "flex-[3]"}`}
+        >
           {main && (
-            <CameraCell camera={main} showLabel={showLabels} onDoubleClick={() => onDoubleClick(0)} />
+            <CameraCell
+              camera={main}
+              showLabel={showLabels}
+              onDoubleClick={() => onDoubleClick(0)}
+            />
           )}
         </div>
         <div className="flex-1 flex flex-col gap-0.5 min-w-0">
           {strip.map((cam, i) => (
             <div key={cam.id} className="flex-1 min-h-0">
-              <CameraCell camera={cam} showLabel={showLabels} onDoubleClick={() => onDoubleClick(i + 1)} />
+              <CameraCell
+                camera={cam}
+                showLabel={showLabels}
+                onDoubleClick={() => onDoubleClick(i + 1)}
+              />
             </div>
           ))}
         </div>
@@ -242,13 +272,17 @@ function WallContent() {
   const [layout, setLayout] = useState<GridLayout>(
     (params.get("layout") as GridLayout | null) ?? "2x2",
   );
-  const [filterOnline, setFilterOnline] = useState(params.get("filter") === "online");
+  const [filterOnline, setFilterOnline] = useState(
+    params.get("filter") === "online",
+  );
   const [globalMuted, setGlobalMuted] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [pageOffset, setPageOffset] = useState(0);
   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
   const [autoRotate, setAutoRotate] = useState(!!params.get("rotate"));
-  const [rotateSec, setRotateSec] = useState(Number(params.get("rotate") || 15));
+  const [rotateSec, setRotateSec] = useState(
+    Number(params.get("rotate") || 15),
+  );
   const [rotateProgress, setRotateProgress] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
@@ -256,7 +290,10 @@ function WallContent() {
 
   // ── Derived ─────────────────────────────────────────────────────────────
   const filteredCameras = useMemo(
-    () => (filterOnline ? cameras.filter((c) => c.status === "online") : [...cameras]),
+    () =>
+      filterOnline
+        ? cameras.filter((c) => c.status === "online")
+        : [...cameras],
     [cameras, filterOnline],
   );
 
@@ -265,16 +302,23 @@ function WallContent() {
     [cameras],
   );
 
-  const layoutConfig = useMemo(() => LAYOUTS.find((l) => l.id === layout)!, [layout]);
+  const layoutConfig = useMemo(
+    () => LAYOUTS.find((l) => l.id === layout)!,
+    [layout],
+  );
   const maxVisible = layoutConfig.maxCells;
-  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / maxVisible));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCameras.length / maxVisible),
+  );
 
   const visibleCameras = useMemo(() => {
     const start = pageOffset * maxVisible;
     return filteredCameras.slice(start, start + maxVisible);
   }, [filteredCameras, pageOffset, maxVisible]);
 
-  const focusedCamera = focusedIdx !== null ? (visibleCameras[focusedIdx] ?? null) : null;
+  const focusedCamera =
+    focusedIdx !== null ? (visibleCameras[focusedIdx] ?? null) : null;
 
   // Clamp page when cameras change
   useEffect(() => {
@@ -298,7 +342,10 @@ function WallContent() {
   const bumpHud = useCallback(() => {
     setHudVisible(true);
     if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
-    hudTimerRef.current = setTimeout(() => setHudVisible(false), HUD_HIDE_DELAY_MS);
+    hudTimerRef.current = setTimeout(
+      () => setHudVisible(false),
+      HUD_HIDE_DELAY_MS,
+    );
   }, []);
 
   useEffect(() => {
@@ -343,7 +390,11 @@ function WallContent() {
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
       bumpHud();
 
       switch (e.key) {
@@ -414,7 +465,9 @@ function WallContent() {
             <div className="text-center">
               <MonitorPlay className="h-12 w-12 text-zinc-700 mx-auto mb-3" />
               <p className="text-sm text-zinc-500">No cameras available</p>
-              <p className="text-xs text-zinc-600 mt-1">Add cameras from the dashboard first</p>
+              <p className="text-xs text-zinc-600 mt-1">
+                Add cameras from the dashboard first
+              </p>
             </div>
           </div>
         ) : focusedCamera ? (
@@ -508,7 +561,9 @@ function WallContent() {
                 className="bg-zinc-800/70 text-[10px] text-zinc-300 border border-zinc-700 rounded px-1 py-0.5 outline-none cursor-pointer"
               >
                 {ROTATE_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}s</option>
+                  <option key={s} value={s}>
+                    {s}s
+                  </option>
                 ))}
               </select>
             )}
@@ -546,7 +601,11 @@ function WallContent() {
             className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
             title={globalMuted ? "Unmute (M)" : "Mute (M)"}
           >
-            {globalMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            {globalMuted ? (
+              <VolumeX className="h-4 w-4" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
           </button>
 
           {/* Fullscreen */}
@@ -555,7 +614,11 @@ function WallContent() {
             className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
             title="Fullscreen (F)"
           >
-            {isFullscreen ? <Shrink className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            {isFullscreen ? (
+              <Shrink className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
           </button>
 
           {/* Help */}
@@ -578,7 +641,9 @@ function WallContent() {
       {/* ── Bottom HUD ──────────────────────────────────── */}
       <div
         className={`absolute inset-x-0 bottom-0 z-20 transition-opacity duration-500 ${
-          hudVisible || (autoRotate && totalPages > 1) ? "opacity-100" : "opacity-0 pointer-events-none"
+          hudVisible || (autoRotate && totalPages > 1)
+            ? "opacity-100"
+            : "opacity-0 pointer-events-none"
         }`}
       >
         {/* Focused dismiss */}
@@ -622,7 +687,9 @@ function WallContent() {
               ))}
             </div>
             <button
-              onClick={() => setPageOffset((p) => Math.min(totalPages - 1, p + 1))}
+              onClick={() =>
+                setPageOffset((p) => Math.min(totalPages - 1, p + 1))
+              }
               disabled={pageOffset >= totalPages - 1}
               className="p-1 text-zinc-500 hover:text-zinc-300 disabled:opacity-20 cursor-pointer transition-colors"
             >

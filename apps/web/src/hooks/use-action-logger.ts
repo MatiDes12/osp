@@ -14,7 +14,11 @@ export function useRouteLogger(): void {
 
   useEffect(() => {
     if (prevPath.current !== pathname) {
-      useActionLogStore.getState().push("navigate", `${prevPath.current} -> ${pathname}`, { detail: pathname });
+      useActionLogStore
+        .getState()
+        .push("navigate", `${prevPath.current} -> ${pathname}`, {
+          detail: pathname,
+        });
       prevPath.current = pathname;
     }
   }, [pathname]);

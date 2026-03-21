@@ -125,4 +125,3 @@ describe("ExtensionRunner", () => {
     expect(result.error).toContain("Inline extension source is disabled");
   });
 });
-

@@ -39,7 +39,12 @@ import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
 import { HLSPlayer } from "@/components/camera/HLSPlayer";
 import { useRecordings } from "@/hooks/use-recordings";
 import { useEvents } from "@/hooks/use-events";
-import type { Camera as CameraType, CameraZone, OSPEvent, Recording } from "@osp/shared";
+import type {
+  Camera as CameraType,
+  CameraZone,
+  OSPEvent,
+  Recording,
+} from "@osp/shared";
 import {
   transformCamera,
   transformZones,
@@ -52,14 +57,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
 
 function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return "Never";
-  const diffSec = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+  const diffSec = Math.floor(
+    (Date.now() - new Date(dateString).getTime()) / 1000,
+  );
   if (diffSec < 60) return "Just now";
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
@@ -77,7 +86,8 @@ function formatDuration(sec: number): string {
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
@@ -95,9 +105,16 @@ function maskConnectionUri(uri: string): string {
 
 function SeverityDot({ severity }: { readonly severity: string }) {
   const colors: Record<string, string> = {
-    low: "bg-blue-400", medium: "bg-amber-400", high: "bg-orange-400", critical: "bg-red-400",
+    low: "bg-blue-400",
+    medium: "bg-amber-400",
+    high: "bg-orange-400",
+    critical: "bg-red-400",
   };
-  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors[severity] ?? "bg-zinc-500"}`} />;
+  return (
+    <span
+      className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors[severity] ?? "bg-zinc-500"}`}
+    />
+  );
 }
 
 function EventTypeBadge({ type }: { readonly type: string }) {
@@ -112,7 +129,9 @@ function EventTypeBadge({ type }: { readonly type: string }) {
     sound: "bg-cyan-500/15 text-cyan-400",
   };
   return (
-    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${colorMap[type] ?? "bg-zinc-500/15 text-zinc-400"}`}>
+    <span
+      className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${colorMap[type] ?? "bg-zinc-500/15 text-zinc-400"}`}
+    >
       {type.replace(/_/g, " ")}
     </span>
   );
@@ -127,7 +146,9 @@ function TriggerBadge({ trigger }: { readonly trigger: string }) {
     continuous: "bg-zinc-500/15 text-zinc-400",
   };
   return (
-    <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${map[trigger] ?? "bg-zinc-500/15 text-zinc-400"}`}>
+    <span
+      className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium capitalize ${map[trigger] ?? "bg-zinc-500/15 text-zinc-400"}`}
+    >
       {trigger.replace(/_/g, " ")}
     </span>
   );
@@ -154,23 +175,29 @@ function RecordingTab({
   readonly cameraId: string;
   readonly onPlay: (url: string, offset?: number) => void;
 }) {
-  const { recordings, loading, error, refetch } = useRecordings({ cameraId, limit: 30 });
+  const { recordings, loading, error, refetch } = useRecordings({
+    cameraId,
+    limit: 30,
+  });
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleDelete = useCallback(async (id: string) => {
-    setDeletingId(id);
-    try {
-      await fetch(`${API_URL}/api/v1/recordings/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-      await refetch();
-    } catch {
-      // ignore
-    } finally {
-      setDeletingId(null);
-    }
-  }, [refetch]);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      setDeletingId(id);
+      try {
+        await fetch(`${API_URL}/api/v1/recordings/${id}`, {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        });
+        await refetch();
+      } catch {
+        // ignore
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [refetch],
+  );
 
   if (loading) {
     return (
@@ -187,7 +214,10 @@ function RecordingTab({
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <AlertTriangle className="w-6 h-6 text-red-400 mb-2" />
         <p className="text-xs text-zinc-500">{error}</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-blue-400 hover:text-blue-300 cursor-pointer">
+        <button
+          onClick={() => refetch()}
+          className="mt-3 text-xs text-blue-400 hover:text-blue-300 cursor-pointer"
+        >
           Retry
         </button>
       </div>
@@ -199,7 +229,10 @@ function RecordingTab({
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Video className="w-8 h-8 text-zinc-600 mb-3" />
         <p className="text-sm font-medium text-zinc-400">No recordings yet</p>
-        <p className="text-xs text-zinc-500 mt-1">Recordings will appear here when triggered by motion, AI, or manual start.</p>
+        <p className="text-xs text-zinc-500 mt-1">
+          Recordings will appear here when triggered by motion, AI, or manual
+          start.
+        </p>
       </div>
     );
   }
@@ -207,11 +240,18 @@ function RecordingTab({
   return (
     <div className="divide-y divide-zinc-800">
       {recordings.map((rec: Recording) => (
-        <div key={rec.id} className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/40 transition-colors">
+        <div
+          key={rec.id}
+          className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/40 transition-colors"
+        >
           {/* Thumbnail */}
           <div className="w-16 h-10 rounded bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center">
             {rec.thumbnailUrl ? (
-              <img src={rec.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+              <img
+                src={rec.thumbnailUrl}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             ) : (
               <Video className="w-4 h-4 text-zinc-600" />
             )}
@@ -226,8 +266,10 @@ function RecordingTab({
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
               >
                 {new Date(rec.startTime).toLocaleString(undefined, {
-                  month: "short", day: "numeric",
-                  hour: "2-digit", minute: "2-digit",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}
               </span>
             </div>
@@ -306,10 +348,12 @@ function MotionAITab({
   readonly camera: CameraType;
   readonly onSaved: () => void;
 }) {
-  const [recordingMode, setRecordingMode] = useState<"motion" | "continuous" | "off">(
-    camera.config.recordingMode,
+  const [recordingMode, setRecordingMode] = useState<
+    "motion" | "continuous" | "off"
+  >(camera.config.recordingMode);
+  const [motionSensitivity, setMotionSensitivity] = useState(
+    camera.config.motionSensitivity,
   );
-  const [motionSensitivity, setMotionSensitivity] = useState(camera.config.motionSensitivity);
   const [enabledDetections, setEnabledDetections] = useState<Set<string>>(
     new Set(["person", "vehicle"]),
   );
@@ -379,9 +423,11 @@ function MotionAITab({
           ))}
         </div>
         <p className="text-[10px] text-zinc-500 mt-2">
-          {recordingMode === "motion" && "Records only when motion is detected."}
+          {recordingMode === "motion" &&
+            "Records only when motion is detected."}
           {recordingMode === "continuous" && "Records 24/7 continuously."}
-          {recordingMode === "off" && "No automatic recording. Manual start only."}
+          {recordingMode === "off" &&
+            "No automatic recording. Manual start only."}
         </p>
       </div>
 
@@ -391,7 +437,9 @@ function MotionAITab({
           <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
             Motion Sensitivity
           </h4>
-          <span className="text-xs font-mono text-zinc-300">{motionSensitivity}%</span>
+          <span className="text-xs font-mono text-zinc-300">
+            {motionSensitivity}%
+          </span>
         </div>
         <input
           type="range"
@@ -439,9 +487,7 @@ function MotionAITab({
 
       {/* Save button */}
       <div>
-        {saveError && (
-          <p className="text-xs text-red-400 mb-2">{saveError}</p>
-        )}
+        {saveError && <p className="text-xs text-red-400 mb-2">{saveError}</p>}
         <button
           onClick={handleSave}
           disabled={saving}
@@ -464,10 +510,11 @@ function EventsTab({
   readonly cameraId: string;
   readonly onPlayClip: (url: string) => void;
 }) {
-  const { events, loading, error, acknowledge, bulkAcknowledge, refetch } = useEvents({
-    cameraId,
-    limit: 50,
-  });
+  const { events, loading, error, acknowledge, bulkAcknowledge, refetch } =
+    useEvents({
+      cameraId,
+      limit: 50,
+    });
   const [ackingId, setAckingId] = useState<string | null>(null);
   const [bulkAcking, setBulkAcking] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -476,9 +523,8 @@ function EventsTab({
     .filter((e) => !e.acknowledged)
     .map((e) => e.id);
 
-  const filteredEvents = typeFilter === "all"
-    ? events
-    : events.filter((e) => e.type === typeFilter);
+  const filteredEvents =
+    typeFilter === "all" ? events : events.filter((e) => e.type === typeFilter);
 
   const eventTypes = ["all", ...Array.from(new Set(events.map((e) => e.type)))];
 
@@ -519,7 +565,10 @@ function EventsTab({
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <AlertTriangle className="w-6 h-6 text-red-400 mb-2" />
         <p className="text-xs text-zinc-500">{error}</p>
-        <button onClick={() => refetch()} className="mt-3 text-xs text-blue-400 hover:text-blue-300 cursor-pointer">
+        <button
+          onClick={() => refetch()}
+          className="mt-3 text-xs text-blue-400 hover:text-blue-300 cursor-pointer"
+        >
           Retry
         </button>
       </div>
@@ -567,7 +616,9 @@ function EventsTab({
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Bell className="w-8 h-8 text-zinc-600 mb-3" />
           <p className="text-sm font-medium text-zinc-400">No events</p>
-          <p className="text-xs text-zinc-500 mt-1">Events from motion detection and AI will appear here.</p>
+          <p className="text-xs text-zinc-500 mt-1">
+            Events from motion detection and AI will appear here.
+          </p>
         </div>
       ) : (
         <div className="divide-y divide-zinc-800">
@@ -581,7 +632,11 @@ function EventsTab({
               {/* Thumbnail */}
               <div className="w-12 h-8 rounded bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center">
                 {event.snapshotUrl ? (
-                  <img src={event.snapshotUrl} alt="" className="w-full h-full object-cover" />
+                  <img
+                    src={event.snapshotUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <SeverityDot severity={event.severity} />
                 )}
@@ -592,7 +647,9 @@ function EventsTab({
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                   <EventTypeBadge type={event.type} />
                   {event.zoneName && (
-                    <span className="text-[10px] text-zinc-500 truncate">{event.zoneName}</span>
+                    <span className="text-[10px] text-zinc-500 truncate">
+                      {event.zoneName}
+                    </span>
                   )}
                 </div>
                 <span
@@ -650,12 +707,18 @@ function InfoTab({
   readonly onDrawZone: () => void;
   readonly onToggleZoneAlert: (zoneId: string, enabled: boolean) => void;
 }) {
-  const statusColor = camera.status === "online"
-    ? "text-green-400"
-    : camera.status === "connecting" ? "text-amber-400" : "text-red-400";
-  const statusDot = camera.status === "online"
-    ? "bg-green-400"
-    : camera.status === "connecting" ? "bg-amber-400" : "bg-red-400";
+  const statusColor =
+    camera.status === "online"
+      ? "text-green-400"
+      : camera.status === "connecting"
+        ? "text-amber-400"
+        : "text-red-400";
+  const statusDot =
+    camera.status === "online"
+      ? "bg-green-400"
+      : camera.status === "connecting"
+        ? "bg-amber-400"
+        : "bg-red-400";
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
@@ -667,11 +730,16 @@ function InfoTab({
         <dl className="space-y-2 text-sm">
           {[
             { label: "Name", value: camera.name },
-            { label: "Protocol", value: <span className="uppercase">{camera.protocol}</span> },
+            {
+              label: "Protocol",
+              value: <span className="uppercase">{camera.protocol}</span>,
+            },
             {
               label: "Status",
               value: (
-                <span className={`inline-flex items-center gap-1.5 capitalize ${statusColor}`}>
+                <span
+                  className={`inline-flex items-center gap-1.5 capitalize ${statusColor}`}
+                >
                   <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
                   {camera.status}
                 </span>
@@ -689,9 +757,15 @@ function InfoTab({
                 </span>
               ),
             },
-            camera.manufacturer && { label: "Manufacturer", value: camera.manufacturer },
+            camera.manufacturer && {
+              label: "Manufacturer",
+              value: camera.manufacturer,
+            },
             camera.model && { label: "Model", value: camera.model },
-            { label: "Resolution", value: camera.capabilities.resolution || "—" },
+            {
+              label: "Resolution",
+              value: camera.capabilities.resolution || "—",
+            },
             {
               label: "Last Seen",
               value: (
@@ -705,9 +779,14 @@ function InfoTab({
             .map((row) => {
               const r = row as { label: string; value: React.ReactNode };
               return (
-                <div key={r.label} className="flex justify-between items-center gap-4">
+                <div
+                  key={r.label}
+                  className="flex justify-between items-center gap-4"
+                >
                   <dt className="text-zinc-500 shrink-0">{r.label}</dt>
-                  <dd className="text-zinc-200 font-medium text-right">{r.value}</dd>
+                  <dd className="text-zinc-200 font-medium text-right">
+                    {r.value}
+                  </dd>
                 </div>
               );
             })}
@@ -754,7 +833,8 @@ function InfoTab({
         </div>
         {zones.length === 0 ? (
           <p className="text-xs text-zinc-500 py-6 text-center">
-            No zones configured. Draw zones on the video to define detection areas.
+            No zones configured. Draw zones on the video to define detection
+            areas.
           </p>
         ) : (
           <div className="space-y-2">
@@ -769,8 +849,12 @@ function InfoTab({
                     style={{ backgroundColor: zone.colorHex }}
                   />
                   <div>
-                    <p className="text-xs font-medium text-zinc-200">{zone.name}</p>
-                    <p className="text-[10px] text-zinc-500">Sensitivity: {zone.sensitivity}%</p>
+                    <p className="text-xs font-medium text-zinc-200">
+                      {zone.name}
+                    </p>
+                    <p className="text-[10px] text-zinc-500">
+                      Sensitivity: {zone.sensitivity}%
+                    </p>
                   </div>
                 </div>
                 <button
@@ -822,23 +906,29 @@ function SettingsTab({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Capabilities
-  const [twoWayAudio, setTwoWayAudio] = useState(camera.capabilities.twoWayAudio);
+  const [twoWayAudio, setTwoWayAudio] = useState(
+    camera.capabilities.twoWayAudio,
+  );
   const [capSaving, setCapSaving] = useState(false);
   const [capError, setCapError] = useState<string | null>(null);
   const [capSaved, setCapSaved] = useState(false);
 
-  const isOnvif = camera.connectionUri?.startsWith("onvif://") ||
+  const isOnvif =
+    camera.connectionUri?.startsWith("onvif://") ||
     (camera.protocol as string) === "onvif";
 
   const handleSaveCapabilities = async () => {
     setCapSaving(true);
     setCapError(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}/capabilities`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ twoWayAudio }),
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/cameras/${camera.id}/capabilities`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ twoWayAudio }),
+        },
+      );
       const json = await res.json();
       if (!json.success) {
         setCapError(json.error?.message ?? "Failed to save");
@@ -860,8 +950,13 @@ function SettingsTab({
     try {
       const body: Record<string, unknown> = {};
       if (name.trim() !== camera.name) body.name = name.trim();
-      if (connectionUri.trim() !== camera.connectionUri) body.connectionUri = connectionUri.trim();
-      if (Object.keys(body).length === 0) { setSaved(true); setTimeout(() => setSaved(false), 2000); return; }
+      if (connectionUri.trim() !== camera.connectionUri)
+        body.connectionUri = connectionUri.trim();
+      if (Object.keys(body).length === 0) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+        return;
+      }
       const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
@@ -887,12 +982,21 @@ function SettingsTab({
     setReconnectError(null);
     setReconnectOk(false);
     try {
-      const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}/reconnect`, {
-        method: "POST", headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/cameras/${camera.id}/reconnect`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+        },
+      );
       const json = await res.json();
-      if (!json.success) setReconnectError(json.error?.message ?? "Failed to reconnect");
-      else { setReconnectOk(true); setTimeout(() => setReconnectOk(false), 3000); onSaved(); }
+      if (!json.success)
+        setReconnectError(json.error?.message ?? "Failed to reconnect");
+      else {
+        setReconnectOk(true);
+        setTimeout(() => setReconnectOk(false), 3000);
+        onSaved();
+      }
     } catch (err) {
       setReconnectError(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -905,7 +1009,8 @@ function SettingsTab({
     setDeleteError(null);
     try {
       const res = await fetch(`${API_URL}/api/v1/cameras/${camera.id}`, {
-        method: "DELETE", headers: getAuthHeaders(),
+        method: "DELETE",
+        headers: getAuthHeaders(),
       });
       const json = await res.json();
       if (!json.success) {
@@ -924,7 +1029,9 @@ function SettingsTab({
     <div className="p-4 space-y-6">
       {/* Basic info */}
       <div className="space-y-4">
-        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Camera Settings</h4>
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Camera Settings
+        </h4>
 
         <div className="space-y-1.5">
           <label className="text-xs text-zinc-400">Camera Name</label>
@@ -953,10 +1060,16 @@ function SettingsTab({
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 cursor-pointer"
               aria-label={showUri ? "Hide URI" : "Show URI"}
             >
-              {showUri ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showUri ? (
+                <EyeOff className="w-3.5 h-3.5" />
+              ) : (
+                <Eye className="w-3.5 h-3.5" />
+              )}
             </button>
           </div>
-          <p className="text-[10px] text-zinc-600">RTSP, ONVIF, or camera-specific protocol URL</p>
+          <p className="text-[10px] text-zinc-600">
+            RTSP, ONVIF, or camera-specific protocol URL
+          </p>
         </div>
 
         {saveError && <p className="text-xs text-red-400">{saveError}</p>}
@@ -965,14 +1078,20 @@ function SettingsTab({
           disabled={saving}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
         >
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
           {saved ? "Saved!" : saving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
       {/* Capabilities */}
       <div className="border-t border-zinc-800 pt-5 space-y-4">
-        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Capabilities</h4>
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Capabilities
+        </h4>
 
         {/* Two-Way Audio toggle */}
         <div className="flex items-start justify-between gap-4">
@@ -982,12 +1101,14 @@ function SettingsTab({
               Send microphone audio from the browser to the camera speaker.
               {!isOnvif && (
                 <span className="block mt-1 text-amber-400">
-                  Only supported on ONVIF cameras. Your camera uses {(camera.protocol as string).toUpperCase()}.
+                  Only supported on ONVIF cameras. Your camera uses{" "}
+                  {(camera.protocol as string).toUpperCase()}.
                 </span>
               )}
               {isOnvif && (
                 <span className="block mt-1 text-zinc-600">
-                  Requires the camera to have a speaker and support ONVIF backchannel.
+                  Requires the camera to have a speaker and support ONVIF
+                  backchannel.
                 </span>
               )}
             </p>
@@ -1002,7 +1123,9 @@ function SettingsTab({
             role="switch"
             aria-checked={twoWayAudio}
           >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform duration-150 ${twoWayAudio ? "translate-x-6" : "translate-x-1"}`} />
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white transition-transform duration-150 ${twoWayAudio ? "translate-x-6" : "translate-x-1"}`}
+            />
           </button>
         </div>
 
@@ -1012,32 +1135,51 @@ function SettingsTab({
           disabled={capSaving || !isOnvif}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
         >
-          {capSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          {capSaving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5" />
+          )}
           {capSaved ? "Saved!" : capSaving ? "Saving..." : "Save Capabilities"}
         </button>
       </div>
 
       {/* Connection */}
       <div className="border-t border-zinc-800 pt-5 space-y-3">
-        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Connection</h4>
-        <p className="text-xs text-zinc-500">Force reconnect the camera stream if it's stuck or offline.</p>
-        {reconnectError && <p className="text-xs text-red-400">{reconnectError}</p>}
-        {reconnectOk && <p className="text-xs text-green-400">Reconnected successfully.</p>}
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Connection
+        </h4>
+        <p className="text-xs text-zinc-500">
+          Force reconnect the camera stream if it's stuck or offline.
+        </p>
+        {reconnectError && (
+          <p className="text-xs text-red-400">{reconnectError}</p>
+        )}
+        {reconnectOk && (
+          <p className="text-xs text-green-400">Reconnected successfully.</p>
+        )}
         <button
           onClick={handleReconnect}
           disabled={reconnecting}
           className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-zinc-700 text-zinc-300 hover:text-zinc-50 hover:border-zinc-500 transition-colors cursor-pointer disabled:opacity-50"
         >
-          {reconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          {reconnecting ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="w-3.5 h-3.5" />
+          )}
           {reconnecting ? "Reconnecting..." : "Reconnect Camera"}
         </button>
       </div>
 
       {/* Alert Rules shortcut */}
       <div className="border-t border-zinc-800 pt-5 space-y-3">
-        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Alert Rules</h4>
+        <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+          Alert Rules
+        </h4>
         <p className="text-xs text-zinc-500">
-          Create rules to record or send alerts when this camera detects motion, a person, or other events.
+          Create rules to record or send alerts when this camera detects motion,
+          a person, or other events.
         </p>
         <a
           href="/rules"
@@ -1051,9 +1193,12 @@ function SettingsTab({
 
       {/* Danger zone */}
       <div className="border-t border-red-900/30 pt-5 space-y-3">
-        <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider">Danger Zone</h4>
+        <h4 className="text-xs font-semibold text-red-400 uppercase tracking-wider">
+          Danger Zone
+        </h4>
         <p className="text-xs text-zinc-500">
-          Deleting this camera removes all its zones, events, and recordings permanently.
+          Deleting this camera removes all its zones, events, and recordings
+          permanently.
         </p>
         {deleteError && <p className="text-xs text-red-400">{deleteError}</p>}
 
@@ -1116,12 +1261,16 @@ export default function CameraDetailPage() {
 
   // Zone drawing
   const [isDrawingZone, setIsDrawingZone] = useState(false);
-  const [pendingPolygon, setPendingPolygon] = useState<readonly { x: number; y: number }[] | null>(null);
+  const [pendingPolygon, setPendingPolygon] = useState<
+    readonly { x: number; y: number }[] | null
+  >(null);
   const [videoSize, setVideoSize] = useState({ width: 960, height: 540 });
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(
+    null,
+  );
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -1142,8 +1291,12 @@ export default function CameraDetailPage() {
     setError(null);
     try {
       const [cameraRes, zonesRes] = await Promise.all([
-        fetch(`${API_URL}/api/v1/cameras/${cameraId}`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/v1/cameras/${cameraId}`, {
+          headers: getAuthHeaders(),
+        }),
+        fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones`, {
+          headers: getAuthHeaders(),
+        }),
       ]);
       const cameraJson = await cameraRes.json();
       if (!cameraJson.success || !cameraJson.data) {
@@ -1151,7 +1304,11 @@ export default function CameraDetailPage() {
         return;
       }
       const rawCamera = cameraJson.data as Record<string, unknown>;
-      setCamera(isSnakeCaseRow(rawCamera) ? transformCamera(rawCamera) : (rawCamera as unknown as CameraType));
+      setCamera(
+        isSnakeCaseRow(rawCamera)
+          ? transformCamera(rawCamera)
+          : (rawCamera as unknown as CameraType),
+      );
 
       const zonesJson = await zonesRes.json();
       if (zonesJson.success && zonesJson.data) {
@@ -1164,23 +1321,30 @@ export default function CameraDetailPage() {
     }
   }, [cameraId]);
 
-  useEffect(() => { fetchCamera(); }, [fetchCamera]);
+  useEffect(() => {
+    fetchCamera();
+  }, [fetchCamera]);
 
   useEffect(() => {
     const handleFSChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handleFSChange);
-    return () => document.removeEventListener("fullscreenchange", handleFSChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFSChange);
   }, []);
 
   // Check active recording on mount
   useEffect(() => {
     if (!cameraId) return;
-    fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/status`, { headers: getAuthHeaders() })
+    fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/status`, {
+      headers: getAuthHeaders(),
+    })
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data?.isRecording && json.data.recording) {
           setIsRecording(true);
-          setRecordingStartTime(new Date(json.data.recording.start_time).getTime());
+          setRecordingStartTime(
+            new Date(json.data.recording.start_time).getTime(),
+          );
         }
       })
       .catch(() => {});
@@ -1189,19 +1353,27 @@ export default function CameraDetailPage() {
   // Recording timer
   useEffect(() => {
     if (isRecording && recordingStartTime) {
-      const tick = () => setRecordingDuration(Math.floor((Date.now() - recordingStartTime) / 1000));
+      const tick = () =>
+        setRecordingDuration(
+          Math.floor((Date.now() - recordingStartTime) / 1000),
+        );
       tick();
       recordingTimerRef.current = setInterval(tick, 1000);
-      return () => { if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); };
+      return () => {
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      };
     }
     setRecordingDuration(0);
-    return () => { if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); };
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
   }, [isRecording, recordingStartTime]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!videoContainerRef.current) return;
     try {
-      if (!document.fullscreenElement) await videoContainerRef.current.requestFullscreen();
+      if (!document.fullscreenElement)
+        await videoContainerRef.current.requestFullscreen();
       else await document.exitFullscreen();
     } catch {}
   }, []);
@@ -1225,9 +1397,13 @@ export default function CameraDetailPage() {
     if (!cameraId) return;
     if (isRecording) {
       try {
-        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
-          method: "POST", headers: getAuthHeaders(),
-        });
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/record/stop`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+          },
+        );
         const json = await res.json();
         if (json.success) {
           setIsRecording(false);
@@ -1236,11 +1412,14 @@ export default function CameraDetailPage() {
       } catch {}
     } else {
       try {
-        const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/start`, {
-          method: "POST",
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ trigger: "manual" }),
-        });
+        const res = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ trigger: "manual" }),
+          },
+        );
         const json = await res.json();
         if (json.success && json.data?.recordingId) {
           setIsRecording(true);
@@ -1250,50 +1429,71 @@ export default function CameraDetailPage() {
     }
   }, [cameraId, isRecording]);
 
-  const handleTimelineSeek = useCallback(async (timestamp: string) => {
-    const requestId = ++seekRequestIdRef.current;
-    const apply = (url: string, offsetSec: number) => {
-      if (requestId !== seekRequestIdRef.current) return;
-      setPlaybackUrl(url);
-      setPlaybackOffset(Math.max(0, offsetSec));
-    };
-    try {
-      const seekDate = timestamp.split("T")[0] ?? "";
-      const seekMs = new Date(timestamp).getTime();
-      if (Number.isNaN(seekMs)) return;
-      const res = await fetch(
-        `${API_URL}/api/v1/recordings/timeline?cameraId=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(seekDate)}`,
-        { headers: getAuthHeaders() },
-      );
-      const json = await res.json();
-      if (!json.success || !json.data?.segments) return;
-      const segments = json.data.segments as { startTime: string; endTime: string | null; recordingId: string }[];
-      const match = segments.find((seg) => {
-        const start = new Date(seg.startTime).getTime();
-        const end = seg.endTime ? new Date(seg.endTime).getTime() : Infinity;
-        return seekMs >= start && seekMs <= end;
-      }) ?? segments
-        .filter((seg) => new Date(seg.startTime).getTime() > seekMs)
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
-      if (!match) return;
-      const recRes = await fetch(`${API_URL}/api/v1/recordings/${match.recordingId}`, { headers: getAuthHeaders() });
-      const recJson = await recRes.json();
-      if (recJson.success && recJson.data) {
-        const rows = Array.isArray(recJson.data) ? recJson.data : [recJson.data];
-        const recs = transformRecordings(rows as Record<string, unknown>[]);
-        if (recs.length > 0 && recs[0]!.playbackUrl) {
-          const offsetSec = (seekMs - new Date(match.startTime).getTime()) / 1000;
-          // Append auth token so the video element can make range requests
-          const base = recs[0]!.playbackUrl;
-          const token = localStorage.getItem("osp_access_token");
-          const authedUrl = token
-            ? `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
-            : base;
-          apply(authedUrl, offsetSec);
+  const handleTimelineSeek = useCallback(
+    async (timestamp: string) => {
+      const requestId = ++seekRequestIdRef.current;
+      const apply = (url: string, offsetSec: number) => {
+        if (requestId !== seekRequestIdRef.current) return;
+        setPlaybackUrl(url);
+        setPlaybackOffset(Math.max(0, offsetSec));
+      };
+      try {
+        const seekDate = timestamp.split("T")[0] ?? "";
+        const seekMs = new Date(timestamp).getTime();
+        if (Number.isNaN(seekMs)) return;
+        const res = await fetch(
+          `${API_URL}/api/v1/recordings/timeline?cameraId=${encodeURIComponent(cameraId)}&date=${encodeURIComponent(seekDate)}`,
+          { headers: getAuthHeaders() },
+        );
+        const json = await res.json();
+        if (!json.success || !json.data?.segments) return;
+        const segments = json.data.segments as {
+          startTime: string;
+          endTime: string | null;
+          recordingId: string;
+        }[];
+        const match =
+          segments.find((seg) => {
+            const start = new Date(seg.startTime).getTime();
+            const end = seg.endTime
+              ? new Date(seg.endTime).getTime()
+              : Infinity;
+            return seekMs >= start && seekMs <= end;
+          }) ??
+          segments
+            .filter((seg) => new Date(seg.startTime).getTime() > seekMs)
+            .sort(
+              (a, b) =>
+                new Date(a.startTime).getTime() -
+                new Date(b.startTime).getTime(),
+            )[0];
+        if (!match) return;
+        const recRes = await fetch(
+          `${API_URL}/api/v1/recordings/${match.recordingId}`,
+          { headers: getAuthHeaders() },
+        );
+        const recJson = await recRes.json();
+        if (recJson.success && recJson.data) {
+          const rows = Array.isArray(recJson.data)
+            ? recJson.data
+            : [recJson.data];
+          const recs = transformRecordings(rows as Record<string, unknown>[]);
+          if (recs.length > 0 && recs[0]!.playbackUrl) {
+            const offsetSec =
+              (seekMs - new Date(match.startTime).getTime()) / 1000;
+            // Append auth token so the video element can make range requests
+            const base = recs[0]!.playbackUrl;
+            const token = localStorage.getItem("osp_access_token");
+            const authedUrl = token
+              ? `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+              : base;
+            apply(authedUrl, offsetSec);
+          }
         }
-      }
-    } catch {}
-  }, [cameraId]);
+      } catch {}
+    },
+    [cameraId],
+  );
 
   useEffect(() => {
     if (!playbackUrl || !playbackVideoRef.current) return;
@@ -1302,61 +1502,86 @@ export default function CameraDetailPage() {
       if (playbackOffset > 0) video.currentTime = playbackOffset;
       video.play().catch(() => {});
     };
-    if (video.readyState >= 1) { seekAndPlay(); return () => {}; }
+    if (video.readyState >= 1) {
+      seekAndPlay();
+      return () => {};
+    }
     video.addEventListener("loadedmetadata", seekAndPlay, { once: true });
     return () => video.removeEventListener("loadedmetadata", seekAndPlay);
   }, [playbackUrl, playbackOffset]);
 
-  const handleZonePolygonCreated = useCallback((polygon: readonly { x: number; y: number }[]) => {
-    setPendingPolygon(polygon);
-    setIsDrawingZone(false);
-  }, []);
+  const handleZonePolygonCreated = useCallback(
+    (polygon: readonly { x: number; y: number }[]) => {
+      setPendingPolygon(polygon);
+      setIsDrawingZone(false);
+    },
+    [],
+  );
 
-  const handleZoneSave = useCallback(async (zone: {
-    name: string; colorHex: string; alertEnabled: boolean;
-    sensitivity: number; polygonCoordinates: readonly { x: number; y: number }[];
-  }) => {
-    const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones`, {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify(zone),
-    });
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error?.message ?? "Failed to create zone");
-    setPendingPolygon(null);
-    await fetchCamera();
-  }, [cameraId, fetchCamera]);
-
-  const handleZoneDeleted = useCallback(async (zoneId: string) => {
-    try {
-      await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones/${zoneId}`, {
-        method: "DELETE", headers: getAuthHeaders(),
-      });
-      await fetchCamera();
-    } catch {}
-  }, [cameraId, fetchCamera]);
-
-  const handleToggleZoneAlert = useCallback(async (zoneId: string, enabled: boolean) => {
-    try {
-      await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones/${zoneId}`, {
-        method: "PATCH",
+  const handleZoneSave = useCallback(
+    async (zone: {
+      name: string;
+      colorHex: string;
+      alertEnabled: boolean;
+      sensitivity: number;
+      polygonCoordinates: readonly { x: number; y: number }[];
+    }) => {
+      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones`, {
+        method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ alertEnabled: enabled }),
+        body: JSON.stringify(zone),
       });
+      const json = await res.json();
+      if (!json.success)
+        throw new Error(json.error?.message ?? "Failed to create zone");
+      setPendingPolygon(null);
       await fetchCamera();
-    } catch {}
-  }, [cameraId, fetchCamera]);
+    },
+    [cameraId, fetchCamera],
+  );
+
+  const handleZoneDeleted = useCallback(
+    async (zoneId: string) => {
+      try {
+        await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones/${zoneId}`, {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        });
+        await fetchCamera();
+      } catch {}
+    },
+    [cameraId, fetchCamera],
+  );
+
+  const handleToggleZoneAlert = useCallback(
+    async (zoneId: string, enabled: boolean) => {
+      try {
+        await fetch(`${API_URL}/api/v1/cameras/${cameraId}/zones/${zoneId}`, {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ alertEnabled: enabled }),
+        });
+        await fetchCamera();
+      } catch {}
+    },
+    [cameraId, fetchCamera],
+  );
 
   const handleReconnect = useCallback(async () => {
     if (!cameraId || reconnecting) return;
     setReconnecting(true);
     setActionError(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/reconnect`, {
-        method: "POST", headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `${API_URL}/api/v1/cameras/${cameraId}/reconnect`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+        },
+      );
       const json = await res.json();
-      if (!json.success) setActionError(json.error?.message ?? "Failed to reconnect");
+      if (!json.success)
+        setActionError(json.error?.message ?? "Failed to reconnect");
       else await fetchCamera();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Network error");
@@ -1370,7 +1595,8 @@ export default function CameraDetailPage() {
     setDeleting(true);
     try {
       const res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}`, {
-        method: "DELETE", headers: getAuthHeaders(),
+        method: "DELETE",
+        headers: getAuthHeaders(),
       });
       const json = await res.json();
       if (!json.success) {
@@ -1390,7 +1616,10 @@ export default function CameraDetailPage() {
     if (!container) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setVideoSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+        setVideoSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
       }
     });
     observer.observe(container);
@@ -1408,7 +1637,9 @@ export default function CameraDetailPage() {
       <div className="space-y-4">
         <div className="aspect-video bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse -mx-4 lg:mx-0" />
         <div className="grid grid-cols-1 gap-4">
-          <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
@@ -1419,8 +1650,12 @@ export default function CameraDetailPage() {
       <div className="flex flex-col items-center justify-center py-20">
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-6 text-center max-w-md">
           <AlertTriangle className="w-8 h-8 text-red-400 mx-auto mb-2" />
-          <p className="text-sm font-medium text-red-400 mb-1">Error loading camera</p>
-          <p className="text-xs text-zinc-500 mb-4">{error ?? "Camera not found"}</p>
+          <p className="text-sm font-medium text-red-400 mb-1">
+            Error loading camera
+          </p>
+          <p className="text-xs text-zinc-500 mb-4">
+            {error ?? "Camera not found"}
+          </p>
           <button
             onClick={() => router.push("/cameras")}
             className="inline-flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border border-zinc-700 text-zinc-300 hover:text-zinc-50 hover:border-zinc-600 transition-colors cursor-pointer"
@@ -1433,181 +1668,262 @@ export default function CameraDetailPage() {
     );
   }
 
-  const statusBg = camera.status === "online" ? "bg-green-500/10"
-    : camera.status === "connecting" ? "bg-amber-500/10" : "bg-red-500/10";
-  const statusColor = camera.status === "online" ? "text-green-400"
-    : camera.status === "connecting" ? "text-amber-400" : "text-red-400";
-  const statusDot = camera.status === "online" ? "bg-green-400"
-    : camera.status === "connecting" ? "bg-amber-400" : "bg-red-400";
+  const statusBg =
+    camera.status === "online"
+      ? "bg-green-500/10"
+      : camera.status === "connecting"
+        ? "bg-amber-500/10"
+        : "bg-red-500/10";
+  const statusColor =
+    camera.status === "online"
+      ? "text-green-400"
+      : camera.status === "connecting"
+        ? "text-amber-400"
+        : "text-red-400";
+  const statusDot =
+    camera.status === "online"
+      ? "bg-green-400"
+      : camera.status === "connecting"
+        ? "bg-amber-400"
+        : "bg-red-400";
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "events", label: "Events", icon: <Bell className="w-3.5 h-3.5" /> },
-    { id: "recording", label: "Recording", icon: <Video className="w-3.5 h-3.5" /> },
-    { id: "motion", label: "Motion & AI", icon: <Brain className="w-3.5 h-3.5" /> },
-    { id: "info", label: "Info & Zones", icon: <Info className="w-3.5 h-3.5" /> },
-    { id: "settings", label: "Settings", icon: <Settings className="w-3.5 h-3.5" /> },
+    {
+      id: "recording",
+      label: "Recording",
+      icon: <Video className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "motion",
+      label: "Motion & AI",
+      icon: <Brain className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "info",
+      label: "Info & Zones",
+      icon: <Info className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      icon: <Settings className="w-3.5 h-3.5" />,
+    },
   ];
 
   return (
     <div className="-m-4 p-4 lg:-m-6 lg:p-6 flex flex-col gap-4 lg:grid lg:grid-cols-[3fr_2fr] lg:items-start">
       {/* ── Left column: video + timeline + playback ── */}
       <div className="flex flex-col gap-3 min-w-0">
-      {/* ── Video player ── */}
-      <div ref={videoContainerRef} className="relative rounded-lg overflow-hidden bg-black -mx-4 lg:mx-0">
-        {/* Top overlay bar */}
-        <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-2 py-2 lg:px-4 lg:py-2.5 bg-gradient-to-b from-black/70 to-transparent">
-          <div className="flex items-center gap-2 lg:gap-3 min-w-0">
-            <button
-              onClick={() => router.push("/cameras")}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              aria-label="Back"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h1 className="text-base font-semibold text-white drop-shadow-sm truncate lg:text-lg">{camera.name}</h1>
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusBg} ${statusColor} backdrop-blur-sm`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
-              {camera.status}
-            </span>
+        {/* ── Video player ── */}
+        <div
+          ref={videoContainerRef}
+          className="relative rounded-lg overflow-hidden bg-black -mx-4 lg:mx-0"
+        >
+          {/* Top overlay bar */}
+          <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-2 py-2 lg:px-4 lg:py-2.5 bg-gradient-to-b from-black/70 to-transparent">
+            <div className="flex items-center gap-2 lg:gap-3 min-w-0">
+              <button
+                onClick={() => router.push("/cameras")}
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                aria-label="Back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <h1 className="text-base font-semibold text-white drop-shadow-sm truncate lg:text-lg">
+                {camera.name}
+              </h1>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${statusBg} ${statusColor} backdrop-blur-sm`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
+                {camera.status}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-0.5 lg:gap-1">
+              {/* Zone draw */}
+              <button
+                onClick={() => setIsDrawingZone((p) => !p)}
+                className={`hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors cursor-pointer ${
+                  isDrawingZone
+                    ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
+                    : "text-zinc-300 hover:text-white hover:bg-white/10"
+                }`}
+                title={isDrawingZone ? "Cancel zone drawing" : "Draw zone"}
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-xs font-medium hidden sm:inline">
+                  {isDrawingZone ? "Cancel" : "Zone"}
+                </span>
+              </button>
+
+              {/* Recording button */}
+              <button
+                onClick={handleToggleRecording}
+                className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors cursor-pointer ${
+                  isRecording
+                    ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                    : "text-zinc-300 hover:text-white hover:bg-white/10"
+                }`}
+                title={isRecording ? "Stop recording" : "Start recording"}
+              >
+                {isRecording ? (
+                  <>
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+                    </span>
+                    <span className="text-xs font-mono font-medium">
+                      REC {formatRecDuration(recordingDuration)}
+                    </span>
+                    <Square className="w-3 h-3 fill-current" />
+                  </>
+                ) : (
+                  <Circle className="w-4 h-4 text-red-400 fill-red-400" />
+                )}
+              </button>
+
+              <button
+                onClick={handleScreenshot}
+                className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Screenshot"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-4 h-4" />
+                ) : (
+                  <Maximize className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                onClick={handleReconnect}
+                disabled={reconnecting}
+                className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50"
+                title="Reconnect"
+              >
+                {reconnecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                onClick={() => router.push(`/cameras/${cameraId}/settings`)}
+                className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                title="Delete camera"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-0.5 lg:gap-1">
-            {/* Zone draw */}
-            <button
-              onClick={() => setIsDrawingZone((p) => !p)}
-              className={`hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-md transition-colors cursor-pointer ${
-                isDrawingZone
-                  ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30"
-                  : "text-zinc-300 hover:text-white hover:bg-white/10"
-              }`}
-              title={isDrawingZone ? "Cancel zone drawing" : "Draw zone"}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="text-xs font-medium hidden sm:inline">{isDrawingZone ? "Cancel" : "Zone"}</span>
-            </button>
+          <LiveViewPlayer
+            cameraId={camera.id}
+            cameraName={camera.name}
+            className="w-full aspect-video"
+            twoWayAudioSupported={camera.capabilities.twoWayAudio}
+          />
 
-            {/* Recording button */}
-            <button
-              onClick={handleToggleRecording}
-              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors cursor-pointer ${
-                isRecording
-                  ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                  : "text-zinc-300 hover:text-white hover:bg-white/10"
-              }`}
-              title={isRecording ? "Stop recording" : "Start recording"}
-            >
-              {isRecording ? (
-                <>
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
-                  </span>
-                  <span className="text-xs font-mono font-medium">REC {formatRecDuration(recordingDuration)}</span>
-                  <Square className="w-3 h-3 fill-current" />
-                </>
-              ) : (
-                <Circle className="w-4 h-4 text-red-400 fill-red-400" />
-              )}
-            </button>
+          <ZoneDrawer
+            zones={zones}
+            cameraId={camera.id}
+            videoWidth={videoSize.width}
+            videoHeight={videoSize.height}
+            isDrawing={isDrawingZone}
+            onZoneCreated={handleZonePolygonCreated}
+            onZoneDeleted={handleZoneDeleted}
+            onDrawingCancelled={() => setIsDrawingZone(false)}
+          />
 
-            <button onClick={handleScreenshot} className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer" title="Screenshot">
-              <Camera className="w-4 h-4" />
-            </button>
-            <button onClick={toggleFullscreen} className="p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer" title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-            </button>
+          {camera.ptzCapable && (
+            <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 lg:left-auto lg:right-4 lg:translate-x-0">
+              <PTZControls cameraId={camera.id} />
+            </div>
+          )}
+
+          <div className="absolute bottom-4 left-4 z-10">
             <button
               onClick={handleReconnect}
               disabled={reconnecting}
-              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50"
-              title="Reconnect"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black/50 backdrop-blur-sm text-zinc-300 hover:text-white text-xs transition-colors cursor-pointer disabled:opacity-50"
             >
-              {reconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            </button>
-            <button
-              onClick={() => router.push(`/cameras/${cameraId}/settings`)}
-              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              title="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="hidden lg:inline-flex p-2 rounded-md text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-              title="Delete camera"
-            >
-              <Trash2 className="w-4 h-4" />
+              {reconnecting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              {reconnecting ? "Reconnecting..." : "Reconnect"}
             </button>
           </div>
         </div>
 
-        <LiveViewPlayer
-          cameraId={camera.id}
-          cameraName={camera.name}
-          className="w-full aspect-video"
-          twoWayAudioSupported={camera.capabilities.twoWayAudio}
-        />
-
-        <ZoneDrawer
-          zones={zones}
-          cameraId={camera.id}
-          videoWidth={videoSize.width}
-          videoHeight={videoSize.height}
-          isDrawing={isDrawingZone}
-          onZoneCreated={handleZonePolygonCreated}
-          onZoneDeleted={handleZoneDeleted}
-          onDrawingCancelled={() => setIsDrawingZone(false)}
-        />
-
-        {camera.ptzCapable && (
-          <div className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 lg:left-auto lg:right-4 lg:translate-x-0">
-            <PTZControls cameraId={camera.id} />
+        {/* ── Error banner ── */}
+        {actionError && (
+          <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400 flex items-center justify-between">
+            <span>{actionError}</span>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-red-400 hover:text-red-300 text-xs underline cursor-pointer"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
-        <div className="absolute bottom-4 left-4 z-10">
-          <button
-            onClick={handleReconnect}
-            disabled={reconnecting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black/50 backdrop-blur-sm text-zinc-300 hover:text-white text-xs transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {reconnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            {reconnecting ? "Reconnecting..." : "Reconnect"}
-          </button>
-        </div>
-      </div>
+        {/* ── Timeline ── */}
+        <TimelineScrubber cameraId={camera.id} onSeek={handleTimelineSeek} />
 
-      {/* ── Error banner ── */}
-      {actionError && (
-        <div className="rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400 flex items-center justify-between">
-          <span>{actionError}</span>
-          <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-300 text-xs underline cursor-pointer">Dismiss</button>
-        </div>
-      )}
-
-      {/* ── Timeline ── */}
-      <TimelineScrubber cameraId={camera.id} onSeek={handleTimelineSeek} />
-
-      {/* ── Playback player ── */}
-      {playbackUrl && (
-        <div className="relative rounded-lg overflow-hidden bg-black border border-zinc-700">
-          <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/20 text-blue-400">Playback</span>
-            <button
-              onClick={() => { setPlaybackUrl(null); setPlaybackOffset(0); }}
-              className="px-2 py-1 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
-            >
-              Close
-            </button>
+        {/* ── Playback player ── */}
+        {playbackUrl && (
+          <div className="relative rounded-lg overflow-hidden bg-black border border-zinc-700">
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/20 text-blue-400">
+                Playback
+              </span>
+              <button
+                onClick={() => {
+                  setPlaybackUrl(null);
+                  setPlaybackOffset(0);
+                }}
+                className="px-2 py-1 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            {playbackUrl.endsWith(".m3u8") ? (
+              <HLSPlayer
+                url={playbackUrl}
+                controls
+                muted={false}
+                videoRef={playbackVideoRef}
+                className="w-full aspect-video"
+              />
+            ) : (
+              <video
+                ref={playbackVideoRef}
+                src={playbackUrl}
+                controls
+                className="w-full aspect-video"
+              />
+            )}
           </div>
-          {playbackUrl.endsWith(".m3u8") ? (
-            <HLSPlayer url={playbackUrl} controls muted={false} videoRef={playbackVideoRef} className="w-full aspect-video" />
-          ) : (
-            <video ref={playbackVideoRef} src={playbackUrl} controls className="w-full aspect-video" />
-          )}
-        </div>
-      )}
-      </div>{/* end left column */}
+        )}
+      </div>
+      {/* end left column */}
 
       {/* ── Right column: Tabs ── */}
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden lg:sticky lg:top-4">
@@ -1684,18 +2000,24 @@ export default function CameraDetailPage() {
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowDeleteConfirm(false)}
-            onKeyDown={(e) => { if (e.key === "Escape") setShowDeleteConfirm(false); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowDeleteConfirm(false);
+            }}
             role="button"
             tabIndex={-1}
             aria-label="Close dialog"
           />
           <div className="relative z-50 mx-4 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-6 shadow-lg shadow-black/40 sm:mx-auto">
-            <h3 className="text-base font-semibold text-zinc-50 mb-2">Delete Camera</h3>
+            <h3 className="text-base font-semibold text-zinc-50 mb-2">
+              Delete Camera
+            </h3>
             <p className="text-sm text-zinc-400 mb-1">
-              Are you sure you want to delete <span className="font-medium text-zinc-200">{camera.name}</span>?
+              Are you sure you want to delete{" "}
+              <span className="font-medium text-zinc-200">{camera.name}</span>?
             </p>
             <p className="text-xs text-zinc-500 mb-5">
-              This will remove the camera, its zones, events, and recordings. This action cannot be undone.
+              This will remove the camera, its zones, events, and recordings.
+              This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -1724,7 +2046,9 @@ export default function CameraDetailPage() {
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setClipModalUrl(null)}
-            onKeyDown={(e) => { if (e.key === "Escape") setClipModalUrl(null); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setClipModalUrl(null);
+            }}
             role="button"
             tabIndex={-1}
             aria-label="Close"
@@ -1743,7 +2067,12 @@ export default function CameraDetailPage() {
               </button>
             </div>
             <div className="bg-black">
-              <video src={clipModalUrl} controls autoPlay className="w-full max-h-[60vh]">
+              <video
+                src={clipModalUrl}
+                controls
+                autoPlay
+                className="w-full max-h-[60vh]"
+              >
                 <track kind="captions" />
               </video>
             </div>

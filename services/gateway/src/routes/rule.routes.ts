@@ -134,7 +134,10 @@ ruleRoutes.post("/", requireAuth("admin"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to create rule", 500);
   }
 
-  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)), 201);
+  return c.json(
+    createSuccessResponse(mapRule(rule as Record<string, unknown>)),
+    201,
+  );
 });
 
 // Get rule by ID
@@ -154,7 +157,9 @@ ruleRoutes.get("/:id", requireAuth("viewer"), async (c) => {
     throw new ApiError("RULE_NOT_FOUND", "Rule not found", 404);
   }
 
-  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)));
+  return c.json(
+    createSuccessResponse(mapRule(rule as Record<string, unknown>)),
+  );
 });
 
 // Update rule
@@ -167,14 +172,17 @@ ruleRoutes.patch("/:id", requireAuth("admin"), async (c) => {
 
   const updates: Record<string, unknown> = {};
   if (input.name !== undefined) updates["name"] = input.name;
-  if (input.description !== undefined) updates["description"] = input.description;
-  if (input.triggerEvent !== undefined) updates["trigger_event"] = input.triggerEvent;
+  if (input.description !== undefined)
+    updates["description"] = input.description;
+  if (input.triggerEvent !== undefined)
+    updates["trigger_event"] = input.triggerEvent;
   if (input.conditions !== undefined) updates["conditions"] = input.conditions;
   if (input.actions !== undefined) updates["actions"] = input.actions;
   if (input.cameraIds !== undefined) updates["camera_ids"] = input.cameraIds;
   if (input.zoneIds !== undefined) updates["zone_ids"] = input.zoneIds;
   if (input.schedule !== undefined) updates["schedule"] = input.schedule;
-  if (input.cooldownSec !== undefined) updates["cooldown_sec"] = input.cooldownSec;
+  if (input.cooldownSec !== undefined)
+    updates["cooldown_sec"] = input.cooldownSec;
   if (input.enabled !== undefined) updates["enabled"] = input.enabled;
   updates["updated_at"] = new Date().toISOString();
 
@@ -190,7 +198,9 @@ ruleRoutes.patch("/:id", requireAuth("admin"), async (c) => {
     throw new ApiError("RULE_NOT_FOUND", "Rule not found", 404);
   }
 
-  return c.json(createSuccessResponse(mapRule(rule as Record<string, unknown>)));
+  return c.json(
+    createSuccessResponse(mapRule(rule as Record<string, unknown>)),
+  );
 });
 
 // Delete rule

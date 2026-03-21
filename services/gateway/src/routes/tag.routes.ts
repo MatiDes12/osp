@@ -55,7 +55,11 @@ tagRoutes.post("/", requireAuth("admin"), async (c) => {
 
   if (error) {
     if (error.code === "23505") {
-      throw new ApiError("DUPLICATE_TAG", "A tag with this name already exists", 409);
+      throw new ApiError(
+        "DUPLICATE_TAG",
+        "A tag with this name already exists",
+        409,
+      );
     }
     logger.error("Failed to create tag", { error: String(error) });
     throw new ApiError("INTERNAL_ERROR", "Failed to create tag", 500);
@@ -124,7 +128,11 @@ cameraTagRoutes.get("/:id/tags", requireAuth("viewer"), async (c) => {
 
   if (error) {
     logger.error("Failed to fetch tag assignments", { error: String(error) });
-    throw new ApiError("INTERNAL_ERROR", "Failed to fetch tag assignments", 500);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "Failed to fetch tag assignments",
+      500,
+    );
   }
 
   return c.json(createSuccessResponse(assignments ?? []));
@@ -162,7 +170,9 @@ cameraTagRoutes.post("/:id/tags", requireAuth("operator"), async (c) => {
     .eq("tenant_id", tenantId)
     .in("id", tagIds);
 
-  const validTagIds = new Set((validTags ?? []).map((t: { id: string }) => t.id));
+  const validTagIds = new Set(
+    (validTags ?? []).map((t: { id: string }) => t.id),
+  );
   const rows = tagIds
     .filter((tid) => validTagIds.has(tid))
     .map((tid) => ({ camera_id: cameraId, tag_id: tid }));
@@ -184,34 +194,38 @@ cameraTagRoutes.post("/:id/tags", requireAuth("operator"), async (c) => {
 });
 
 // Remove tag from a camera
-cameraTagRoutes.delete("/:id/tags/:tagId", requireAuth("operator"), async (c) => {
-  const tenantId = c.get("tenantId");
-  const cameraId = c.req.param("id");
-  const tagId = c.req.param("tagId");
-  const supabase = getSupabase();
+cameraTagRoutes.delete(
+  "/:id/tags/:tagId",
+  requireAuth("operator"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const cameraId = c.req.param("id");
+    const tagId = c.req.param("tagId");
+    const supabase = getSupabase();
 
-  // Verify camera belongs to tenant
-  const { data: camera } = await supabase
-    .from("cameras")
-    .select("id")
-    .eq("id", cameraId)
-    .eq("tenant_id", tenantId)
-    .single();
+    // Verify camera belongs to tenant
+    const { data: camera } = await supabase
+      .from("cameras")
+      .select("id")
+      .eq("id", cameraId)
+      .eq("tenant_id", tenantId)
+      .single();
 
-  if (!camera) {
-    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
-  }
+    if (!camera) {
+      throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+    }
 
-  const { error } = await supabase
-    .from("camera_tag_assignments")
-    .delete()
-    .eq("camera_id", cameraId)
-    .eq("tag_id", tagId);
+    const { error } = await supabase
+      .from("camera_tag_assignments")
+      .delete()
+      .eq("camera_id", cameraId)
+      .eq("tag_id", tagId);
 
-  if (error) {
-    logger.error("Failed to remove tag", { error: String(error) });
-    throw new ApiError("INTERNAL_ERROR", "Failed to remove tag", 500);
-  }
+    if (error) {
+      logger.error("Failed to remove tag", { error: String(error) });
+      throw new ApiError("INTERNAL_ERROR", "Failed to remove tag", 500);
+    }
 
-  return c.json(createSuccessResponse({ deleted: true }));
-});
+    return c.json(createSuccessResponse({ deleted: true }));
+  },
+);

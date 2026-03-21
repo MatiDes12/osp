@@ -31,7 +31,11 @@ cameraRoutes.get("/internal/online", async (c) => {
   const token = c.req.header("X-Internal-Token");
   const expectedToken = get("API_TOKEN");
   if (!expectedToken || !token || token !== expectedToken) {
-    throw new ApiError("AUTH_TOKEN_INVALID", "Invalid internal service token", 401);
+    throw new ApiError(
+      "AUTH_TOKEN_INVALID",
+      "Invalid internal service token",
+      401,
+    );
   }
 
   const supabase = getSupabase();
@@ -53,7 +57,10 @@ cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
   const supabase = getSupabase();
 
   const page = Number.parseInt(c.req.query("page") ?? "1", 10);
-  const limit = Math.min(Number.parseInt(c.req.query("limit") ?? "20", 10), 100);
+  const limit = Math.min(
+    Number.parseInt(c.req.query("limit") ?? "20", 10),
+    100,
+  );
   const status = c.req.query("status");
   const search = c.req.query("search");
   const locationId = c.req.query("locationId");
@@ -166,8 +173,18 @@ cameraRoutes.post("/", requireAuth("admin"), async (c) => {
       connection_uri: input.connectionUri,
       status: "connecting",
       location: input.location ?? {},
-      capabilities: { ptz: false, audio: false, two_way_audio: false, infrared: false, resolution: "unknown" },
-      config: input.config ?? { recording_mode: "motion", motion_sensitivity: 5, audio_enabled: false },
+      capabilities: {
+        ptz: false,
+        audio: false,
+        two_way_audio: false,
+        infrared: false,
+        resolution: "unknown",
+      },
+      config: input.config ?? {
+        recording_mode: "motion",
+        motion_sensitivity: 5,
+        audio_enabled: false,
+      },
       ptz_capable: false,
       audio_capable: false,
     })
@@ -263,14 +280,25 @@ cameraRoutes.patch("/:id/capabilities", requireAuth("admin"), async (c) => {
   const merged = { ...current };
 
   // Apply allowed capability overrides from the request body
-  const allowed = ["ptz", "audio", "twoWayAudio", "two_way_audio", "infrared", "resolution"] as const;
+  const allowed = [
+    "ptz",
+    "audio",
+    "twoWayAudio",
+    "two_way_audio",
+    "infrared",
+    "resolution",
+  ] as const;
   for (const key of allowed) {
     if (key in body) merged[key] = body[key];
   }
 
   // Normalise: store as two_way_audio (snake_case) in DB, honour both spellings from client
   const twoWayAudio = Boolean(
-    body["twoWayAudio"] ?? body["two_way_audio"] ?? current["twoWayAudio"] ?? current["two_way_audio"] ?? false,
+    body["twoWayAudio"] ??
+    body["two_way_audio"] ??
+    current["twoWayAudio"] ??
+    current["two_way_audio"] ??
+    false,
   );
   merged["two_way_audio"] = twoWayAudio;
   delete merged["twoWayAudio"]; // keep DB column consistent (snake_case)
@@ -293,7 +321,9 @@ cameraRoutes.patch("/:id/capabilities", requireAuth("admin"), async (c) => {
 
   // Re-register the go2rtc stream when twoWayAudio changes so the backchannel
   // parameter is correctly applied (or removed) for the active stream.
-  const prevTwoWayAudio = Boolean(current["twoWayAudio"] ?? current["two_way_audio"] ?? false);
+  const prevTwoWayAudio = Boolean(
+    current["twoWayAudio"] ?? current["two_way_audio"] ?? false,
+  );
   const connectionUri = camera.connection_uri as string | null;
 
   if (prevTwoWayAudio !== twoWayAudio && connectionUri) {
@@ -373,7 +403,10 @@ cameraRoutes.delete("/:id", requireAuth("admin"), async (c) => {
 cameraRoutes.post("/bulk/assign-location", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
   const body = await c.req.json();
-  const { cameraIds, locationId } = body as { cameraIds?: string[]; locationId?: string | null };
+  const { cameraIds, locationId } = body as {
+    cameraIds?: string[];
+    locationId?: string | null;
+  };
 
   if (!Array.isArray(cameraIds) || cameraIds.length === 0) {
     throw new ApiError("VALIDATION_ERROR", "cameraIds array is required", 422);
@@ -388,7 +421,9 @@ cameraRoutes.post("/bulk/assign-location", requireAuth("admin"), async (c) => {
     .eq("tenant_id", tenantId)
     .in("id", cameraIds);
 
-  const ownedIds = new Set((ownedCameras ?? []).map((cam: { id: string }) => cam.id));
+  const ownedIds = new Set(
+    (ownedCameras ?? []).map((cam: { id: string }) => cam.id),
+  );
   const validIds = cameraIds.filter((id) => ownedIds.has(id));
 
   if (validIds.length === 0) {
@@ -411,7 +446,10 @@ cameraRoutes.post("/bulk/assign-location", requireAuth("admin"), async (c) => {
 
   const { error } = await supabase
     .from("cameras")
-    .update({ location_id: locationId ?? null, updated_at: new Date().toISOString() })
+    .update({
+      location_id: locationId ?? null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("tenant_id", tenantId)
     .in("id", validIds);
 
@@ -454,7 +492,10 @@ cameraRoutes.post("/bulk/delete", requireAuth("admin"), async (c) => {
     try {
       await streamService.removeStream(id);
     } catch (err) {
-      logger.warn("Failed to remove stream on bulk delete", { cameraId: id, error: String(err) });
+      logger.warn("Failed to remove stream on bulk delete", {
+        cameraId: id,
+        error: String(err),
+      });
     }
   }
 
@@ -494,18 +535,28 @@ cameraRoutes.post("/bulk/record-start", requireAuth("operator"), async (c) => {
   const validIds = (ownedCameras ?? []).map((cam: { id: string }) => cam.id);
 
   const recordingService = getRecordingService();
-  const results: { cameraId: string; recordingId?: string; error?: string }[] = [];
+  const results: { cameraId: string; recordingId?: string; error?: string }[] =
+    [];
 
   for (const id of validIds) {
     try {
-      const recordingId = await recordingService.startRecording(id, tenantId, "manual");
+      const recordingId = await recordingService.startRecording(
+        id,
+        tenantId,
+        "manual",
+      );
       results.push({ cameraId: id, recordingId });
     } catch (err) {
       results.push({ cameraId: id, error: String(err) });
     }
   }
 
-  return c.json(createSuccessResponse({ started: results.filter((r) => !r.error).length, results }));
+  return c.json(
+    createSuccessResponse({
+      started: results.filter((r) => !r.error).length,
+      results,
+    }),
+  );
 });
 
 // Bulk record stop
@@ -546,7 +597,12 @@ cameraRoutes.post("/bulk/record-stop", requireAuth("operator"), async (c) => {
     }
   }
 
-  return c.json(createSuccessResponse({ stopped: results.filter((r) => r.stopped).length, results }));
+  return c.json(
+    createSuccessResponse({
+      stopped: results.filter((r) => r.stopped).length,
+      results,
+    }),
+  );
 });
 
 // ── Recording controls ──
@@ -557,12 +613,20 @@ cameraRoutes.post("/:id/record/start", requireAuth("operator"), async (c) => {
   const cameraId = c.req.param("id");
 
   const body = await c.req.json().catch(() => ({}));
-  const trigger = ((body as Record<string, unknown>).trigger as RecordingTrigger) ?? "manual";
+  const trigger =
+    ((body as Record<string, unknown>).trigger as RecordingTrigger) ?? "manual";
 
   const recordingService = getRecordingService();
-  const recordingId = await recordingService.startRecording(cameraId, tenantId, trigger);
+  const recordingId = await recordingService.startRecording(
+    cameraId,
+    tenantId,
+    trigger,
+  );
 
-  return c.json(createSuccessResponse({ recordingId, cameraId, status: "recording" }), 201);
+  return c.json(
+    createSuccessResponse({ recordingId, cameraId, status: "recording" }),
+    201,
+  );
 });
 
 // Stop active recording for a camera
@@ -574,7 +638,11 @@ cameraRoutes.post("/:id/record/stop", requireAuth("operator"), async (c) => {
   const active = await recordingService.getActiveRecording(cameraId, tenantId);
 
   if (!active) {
-    throw new ApiError("NO_ACTIVE_RECORDING", "No active recording for this camera", 404);
+    throw new ApiError(
+      "NO_ACTIVE_RECORDING",
+      "No active recording for this camera",
+      404,
+    );
   }
 
   const stopped = await recordingService.stopRecording(active.id as string);
@@ -590,10 +658,12 @@ cameraRoutes.get("/:id/record/status", requireAuth("viewer"), async (c) => {
   const recordingService = getRecordingService();
   const active = await recordingService.getActiveRecording(cameraId, tenantId);
 
-  return c.json(createSuccessResponse({
-    isRecording: !!active,
-    recording: active,
-  }));
+  return c.json(
+    createSuccessResponse({
+      isRecording: !!active,
+      recording: active,
+    }),
+  );
 });
 
 // ── PTZ ──
@@ -603,9 +673,14 @@ const PTZ_ACTION_MOVE = 1;
 const PTZ_ACTION_STOP = 2;
 const PTZ_ACTION_GOTO_PRESET = 3;
 
-function mapPTZCommandToGrpc(
-  command: PTZCommandInput,
-): { action: number; pan: number; tilt: number; zoom: number; speed: number; presetId: string } {
+function mapPTZCommandToGrpc(command: PTZCommandInput): {
+  action: number;
+  pan: number;
+  tilt: number;
+  zoom: number;
+  speed: number;
+  presetId: string;
+} {
   const speed = command.speed ?? 0.5;
 
   switch (command.action) {
@@ -669,7 +744,11 @@ cameraRoutes.post("/:id/ptz", requireAuth("operator"), async (c) => {
   }
 
   if (!(camera.ptz_capable as boolean)) {
-    throw new ApiError("CAMERA_PTZ_UNSUPPORTED", "Camera does not support PTZ", 400);
+    throw new ApiError(
+      "CAMERA_PTZ_UNSUPPORTED",
+      "Camera does not support PTZ",
+      400,
+    );
   }
 
   // Forward to camera-ingest gRPC for real ONVIF PTZ SOAP commands
@@ -714,7 +793,11 @@ cameraRoutes.post("/:id/ptz", requireAuth("operator"), async (c) => {
     ) {
       throw new ApiError("CAMERA_PTZ_UNSUPPORTED", msg, 400);
     }
-    logger.error("PTZ command failed", { cameraId, action: command.action, error: msg });
+    logger.error("PTZ command failed", {
+      cameraId,
+      action: command.action,
+      error: msg,
+    });
     throw new ApiError("CAMERA_PTZ_FAILED", msg, 500);
   }
 });
@@ -785,8 +868,10 @@ cameraRoutes.patch("/:id/zones/:zoneId", requireAuth("admin"), async (c) => {
   if (input.name !== undefined) updates["name"] = input.name;
   if (input.polygonCoordinates !== undefined)
     updates["polygon_coordinates"] = input.polygonCoordinates;
-  if (input.alertEnabled !== undefined) updates["alert_enabled"] = input.alertEnabled;
-  if (input.sensitivity !== undefined) updates["sensitivity"] = input.sensitivity;
+  if (input.alertEnabled !== undefined)
+    updates["alert_enabled"] = input.alertEnabled;
+  if (input.sensitivity !== undefined)
+    updates["sensitivity"] = input.sensitivity;
   if (input.colorHex !== undefined) updates["color_hex"] = input.colorHex;
   if (input.visibleToRoles !== undefined)
     updates["visible_to_roles"] = input.visibleToRoles;

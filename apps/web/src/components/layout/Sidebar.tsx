@@ -57,7 +57,10 @@ interface SidebarCamera {
   readonly status: "online" | "offline" | "connecting" | "error";
 }
 
-function useSidebarCameras(): { cameras: readonly SidebarCamera[]; loading: boolean } {
+function useSidebarCameras(): {
+  cameras: readonly SidebarCamera[];
+  loading: boolean;
+} {
   const [cameras, setCameras] = useState<readonly SidebarCamera[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,7 +68,9 @@ function useSidebarCameras(): { cameras: readonly SidebarCamera[]; loading: bool
     setLoading(true);
     try {
       const token = localStorage.getItem("osp_access_token");
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
@@ -111,10 +116,14 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
   const jwtUser = useMemo(() => getUserFromToken(), []);
   const userEmail = jwtUser?.email ?? "unknown";
   const userInitial = userEmail.charAt(0).toUpperCase();
-  const tenantName = (jwtUser?.user_metadata?.tenant_name as string | undefined) ?? jwtUser?.tenant_id ?? "My Org";
+  const tenantName =
+    (jwtUser?.user_metadata?.tenant_name as string | undefined) ??
+    jwtUser?.tenant_id ??
+    "My Org";
   const userRole = jwtUser?.role ?? "free";
 
-  const { cameras: sidebarCameras, loading: sidebarCamerasLoading } = useSidebarCameras();
+  const { cameras: sidebarCameras, loading: sidebarCamerasLoading } =
+    useSidebarCameras();
 
   const isActive = (href: string): boolean => {
     if (href === "/") return pathname === "/";
@@ -136,10 +145,7 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
     >
       {/* ── Logo ──────────────────────────────────────────────── */}
       <div className="flex h-14 shrink-0 items-center border-b border-zinc-800 px-4">
-        <Link
-          href="/"
-          className="flex items-center gap-2 cursor-pointer"
-        >
+        <Link href="/" className="flex items-center gap-2 cursor-pointer">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
             <Camera className="h-5 w-5 text-blue-500" />
           </div>
@@ -204,7 +210,9 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
                     >
                       <Circle
                         className={`h-2 w-2 shrink-0 fill-current ${
-                          cam.status === "online" ? "text-green-500" : "text-zinc-600"
+                          cam.status === "online"
+                            ? "text-green-500"
+                            : "text-zinc-600"
                         }`}
                       />
                       <span className="truncate">{cam.name}</span>
@@ -239,9 +247,7 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-300">
               {userInitial}
             </div>
-            <span className="truncate text-sm text-zinc-400">
-              {userEmail}
-            </span>
+            <span className="truncate text-sm text-zinc-400">{userEmail}</span>
           </div>
         )}
 
@@ -251,7 +257,9 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
             type="button"
             onClick={toggle}
             className="flex w-full items-center justify-start gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
-            aria-label={effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={
+              effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
           >
             {effectiveCollapsed ? (
               <ChevronRight className="h-4 w-4" />

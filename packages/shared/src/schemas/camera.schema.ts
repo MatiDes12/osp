@@ -37,7 +37,18 @@ export const CreateCameraSchema = z
   .object({
     name: z.string().min(1).max(100),
     protocol: CameraProtocolSchema,
-    connectionUri: z.string().max(1000).default(""),
+    connectionUri: z
+      .string()
+      .max(500, "Connection URI must be at most 500 characters")
+      .refine(
+        (uri) =>
+          !uri ||
+          /^(rtsp|rtsps|rtmp|http|https|onvif|ffmpeg|exec|mjpeg|hls|usb)(:\/\/|:)/i.test(
+            uri,
+          ),
+        "Connection URI must use a supported protocol (rtsp, http, onvif, rtmp, hls, mjpeg, ffmpeg)",
+      )
+      .default(""),
     usbDeviceIndex: z.number().int().min(0).max(9).optional(),
     location: CameraLocationSchema.optional(),
     config: CameraConfigSchema.optional(),
@@ -46,14 +57,17 @@ export const CreateCameraSchema = z
     // For USB protocol, auto-build the URI if empty
     if (data.protocol === "usb" && !data.connectionUri) {
       const idx = data.usbDeviceIndex ?? 0;
-      return { ...data, connectionUri: `ffmpeg:device?video=${idx}#video=h264` };
+      return {
+        ...data,
+        connectionUri: `ffmpeg:device?video=${idx}#video=h264`,
+      };
     }
     return data;
   })
-  .refine(
-    (data) => data.connectionUri.trim().length > 0,
-    { message: "Connection URI is required", path: ["connectionUri"] },
-  );
+  .refine((data) => data.connectionUri.trim().length > 0, {
+    message: "Connection URI is required",
+    path: ["connectionUri"],
+  });
 
 export const UpdateCameraSchema = z.object({
   name: z.string().min(1).max(100).optional(),

@@ -111,10 +111,7 @@ export function ActivityTicker({ className }: ActivityTickerProps) {
   const router = useRouter();
   const { events, connected } = useEventStream();
 
-  const visibleEvents = useMemo(
-    () => events.slice(0, MAX_VISIBLE),
-    [events],
-  );
+  const visibleEvents = useMemo(() => events.slice(0, MAX_VISIBLE), [events]);
 
   if (!connected && visibleEvents.length === 0) {
     return null;
@@ -122,7 +119,9 @@ export function ActivityTicker({ className }: ActivityTickerProps) {
 
   if (visibleEvents.length === 0) {
     return (
-      <div className={`flex items-center gap-2 text-xs text-zinc-500 ${className ?? ""}`}>
+      <div
+        className={`flex items-center gap-2 text-xs text-zinc-500 ${className ?? ""}`}
+      >
         <Activity className="w-3.5 h-3.5" />
         <span>No recent activity</span>
       </div>
@@ -130,7 +129,9 @@ export function ActivityTicker({ className }: ActivityTickerProps) {
   }
 
   return (
-    <div className={`flex items-center gap-2 overflow-x-auto scrollbar-none ${className ?? ""}`}>
+    <div
+      className={`flex items-center gap-2 overflow-x-auto scrollbar-none ${className ?? ""}`}
+    >
       <Activity className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
       {visibleEvents.map((event: OSPEvent) => {
         const Icon = getEventIcon(event.type);
@@ -145,8 +146,12 @@ export function ActivityTicker({ className }: ActivityTickerProps) {
             <Icon className="w-3 h-3" />
             <span>{formatEventLabel(event.type)}</span>
             <span className="opacity-70">on</span>
-            <span className="max-w-[120px] truncate">{event.cameraName || "Camera"}</span>
-            <span className="opacity-50">{formatRelativeTime(event.detectedAt)}</span>
+            <span className="max-w-[120px] truncate">
+              {event.cameraName || "Camera"}
+            </span>
+            <span className="opacity-50">
+              {formatRelativeTime(event.detectedAt)}
+            </span>
           </button>
         );
       })}

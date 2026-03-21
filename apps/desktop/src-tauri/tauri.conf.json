@@ -44,8 +44,6 @@
     "category": "Utility",
     "shortDescription": "Open Surveillance Platform desktop client",
     "longDescription": "Monitor and manage your security cameras from the desktop with system tray integration, OS notifications, and auto-start support.",
-    "externalBin": [
-      "binaries/go2rtc"
-    ]
+    "externalBin": ["binaries/go2rtc"]
   }
 }

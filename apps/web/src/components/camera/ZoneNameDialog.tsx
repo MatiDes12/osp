@@ -37,7 +37,9 @@ export function ZoneNameDialog({
   onCancel,
 }: ZoneNameDialogProps) {
   const [name, setName] = useState("");
-  const [colorHex, setColorHex] = useState<string>(PRESET_COLORS[0]?.hex ?? "#EF4444");
+  const [colorHex, setColorHex] = useState<string>(
+    PRESET_COLORS[0]?.hex ?? "#EF4444",
+  );
   const [alertEnabled, setAlertEnabled] = useState(true);
   const [sensitivity, setSensitivity] = useState(5);
   const [saving, setSaving] = useState(false);
@@ -98,9 +100,7 @@ export function ZoneNameDialog({
         className="relative z-50 w-full max-w-sm rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-lg shadow-black/40"
         onKeyDown={handleKeyDown}
       >
-        <h3 className="text-base font-semibold text-zinc-50 mb-4">
-          New Zone
-        </h3>
+        <h3 className="text-base font-semibold text-zinc-50 mb-4">New Zone</h3>
 
         {error && (
           <div className="mb-3 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/30 text-xs text-red-400">

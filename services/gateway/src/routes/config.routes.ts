@@ -75,7 +75,8 @@ configRoutes.put("/keys/:key", requireAuth("admin"), async (c) => {
       .from("config_secrets")
       .update({ value: input.value, updated_at: now })
       .eq("id", existing.id);
-    if (error) throw new ApiError("INTERNAL_ERROR", "Failed to update config", 500);
+    if (error)
+      throw new ApiError("INTERNAL_ERROR", "Failed to update config", 500);
   } else {
     const { error } = await supabase.from("config_secrets").insert({
       key,
@@ -83,7 +84,8 @@ configRoutes.put("/keys/:key", requireAuth("admin"), async (c) => {
       scope: input.scope,
       tenant_id: tenantId,
     });
-    if (error) throw new ApiError("INTERNAL_ERROR", "Failed to insert config", 500);
+    if (error)
+      throw new ApiError("INTERNAL_ERROR", "Failed to insert config", 500);
   }
 
   invalidateCache();

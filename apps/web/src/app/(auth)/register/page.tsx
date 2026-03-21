@@ -2,13 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import {
-  Shield,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Loader2,
-} from "lucide-react";
+import { Shield, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 
 function getPasswordStrength(pw: string): {
   score: number;
@@ -42,7 +36,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   const strength = useMemo(
-    () => (form.password.length > 0 ? getPasswordStrength(form.password) : null),
+    () =>
+      form.password.length > 0 ? getPasswordStrength(form.password) : null,
     [form.password],
   );
 
@@ -113,27 +108,87 @@ export default function RegisterPage() {
         <div className="relative z-10 grid w-full max-w-lg grid-cols-2 gap-3 p-12">
           {(
             [
-              { name: "Front Gate",   cam: "CAM 01", ts: "11:05:33", img: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=640&h=360&fit=crop&auto=format&q=80" },
-              { name: "Office Floor", cam: "CAM 02", ts: "11:05:35", img: "https://images.unsplash.com/photo-1524758631624-e2822132c53c?w=640&h=360&fit=crop&auto=format&q=80" },
-              { name: "Loading Bay",  cam: "CAM 03", ts: "11:05:37", img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=640&h=360&fit=crop&auto=format&q=80" },
-              { name: "Rooftop",      cam: "CAM 04", ts: "11:05:39", img: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=640&h=360&fit=crop&auto=format&q=80" },
+              {
+                name: "Front Gate",
+                cam: "CAM 01",
+                ts: "11:05:33",
+                img: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=640&h=360&fit=crop&auto=format&q=80",
+              },
+              {
+                name: "Office Floor",
+                cam: "CAM 02",
+                ts: "11:05:35",
+                img: "https://images.unsplash.com/photo-1524758631624-e2822132c53c?w=640&h=360&fit=crop&auto=format&q=80",
+              },
+              {
+                name: "Loading Bay",
+                cam: "CAM 03",
+                ts: "11:05:37",
+                img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=640&h=360&fit=crop&auto=format&q=80",
+              },
+              {
+                name: "Rooftop",
+                cam: "CAM 04",
+                ts: "11:05:39",
+                img: "https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=640&h=360&fit=crop&auto=format&q=80",
+              },
             ] as const
           ).map((cam) => (
-            <div key={cam.name} className="relative aspect-video overflow-hidden rounded-lg border border-zinc-700/40 bg-black">
+            <div
+              key={cam.name}
+              className="relative aspect-video overflow-hidden rounded-lg border border-zinc-700/40 bg-black"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cam.img} alt={cam.name} className="absolute inset-0 h-full w-full object-cover" style={{ filter: "grayscale(1) contrast(1.3) brightness(0.55)" }} />
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.18) 3px,rgba(0,0,0,0.18) 4px)", zIndex: 1 }} />
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", zIndex: 1 }} />
-              <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-2 py-1.5" style={{ zIndex: 2 }}>
-                <span className="font-mono text-[8px] font-bold tracking-widest text-white/80">{cam.cam}</span>
+              <img
+                src={cam.img}
+                alt={cam.name}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{
+                  filter: "grayscale(1) contrast(1.3) brightness(0.55)",
+                }}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.18) 3px,rgba(0,0,0,0.18) 4px)",
+                  zIndex: 1,
+                }}
+              />
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-[0.07]"
+                style={{
+                  backgroundImage:
+                    "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+                  zIndex: 1,
+                }}
+              />
+              <div
+                className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent px-2 py-1.5"
+                style={{ zIndex: 2 }}
+              >
+                <span className="font-mono text-[8px] font-bold tracking-widest text-white/80">
+                  {cam.cam}
+                </span>
                 <div className="flex items-center gap-1">
                   <span className="h-1 w-1 animate-pulse rounded-full bg-red-500" />
-                  <span className="font-mono text-[8px] font-bold text-red-400">REC</span>
+                  <span className="font-mono text-[8px] font-bold text-red-400">
+                    REC
+                  </span>
                 </div>
               </div>
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5" style={{ zIndex: 2 }}>
-                <span className="font-mono text-[8px] text-white/70">{cam.name}</span>
-                <span className="font-mono text-[8px] text-white/40">{cam.ts}</span>
+              <div
+                className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5"
+                style={{ zIndex: 2 }}
+              >
+                <span className="font-mono text-[8px] text-white/70">
+                  {cam.name}
+                </span>
+                <span className="font-mono text-[8px] text-white/40">
+                  {cam.ts}
+                </span>
               </div>
             </div>
           ))}
@@ -273,16 +328,12 @@ export default function RegisterPage() {
                       <div
                         key={i}
                         className={`h-full flex-1 rounded-full transition-colors duration-200 ${
-                          i < strength.score
-                            ? strength.color
-                            : "bg-zinc-800"
+                          i < strength.score ? strength.color : "bg-zinc-800"
                         }`}
                       />
                     ))}
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {strength.label}
-                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">{strength.label}</p>
                 </div>
               )}
             </div>

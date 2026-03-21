@@ -35,7 +35,9 @@ export default function ForgotPasswordPage() {
       const json = await res.json();
 
       if (!json.success) {
-        setError(json.error?.message ?? "Something went wrong. Please try again.");
+        setError(
+          json.error?.message ?? "Something went wrong. Please try again.",
+        );
         return;
       }
 
@@ -103,9 +105,14 @@ export default function ForgotPasswordPage() {
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
                 <CheckCircle2 className="h-6 w-6 text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-zinc-50">Check your email</h2>
+              <h2 className="text-2xl font-bold text-zinc-50">
+                Check your email
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                If an account with <span className="font-medium text-zinc-200">{email}</span> exists, we have sent a password reset link. Please check your inbox and spam folder.
+                If an account with{" "}
+                <span className="font-medium text-zinc-200">{email}</span>{" "}
+                exists, we have sent a password reset link. Please check your
+                inbox and spam folder.
               </p>
 
               <Link
@@ -119,7 +126,9 @@ export default function ForgotPasswordPage() {
           ) : (
             /* Form state */
             <div>
-              <h2 className="text-2xl font-bold text-zinc-50">Forgot password?</h2>
+              <h2 className="text-2xl font-bold text-zinc-50">
+                Forgot password?
+              </h2>
               <p className="mt-1 text-sm text-zinc-400">
                 Enter your email and we will send you a reset link
               </p>

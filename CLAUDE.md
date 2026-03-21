@@ -9,6 +9,7 @@ Core differentiator: extension layer for custom rules, AI models, and white-labe
 ## Tech Stack
 
 ### Frontend
+
 - **Web**: Next.js 15 (App Router) + Tailwind CSS + shadcn/ui
 - **Mobile**: React Native + Expo (iOS + Android)
 - **Desktop**: Tauri v2 (Phase 2)
@@ -16,17 +17,20 @@ Core differentiator: extension layer for custom rules, AI models, and white-labe
 - **Real-time**: WebSocket (alerts) + WebRTC (live camera feeds)
 
 ### Backend
+
 - **API Gateway**: Hono on Bun (TypeScript)
 - **Core Services**: Go (camera ingest, video pipeline, event engine, extension runtime)
 - **Video**: go2rtc + FFmpeg (RTSP/ONVIF/WebRTC proxy, transcoding, HLS)
 
 ### Database & Storage
+
 - **Primary DB**: Supabase (PostgreSQL + Auth + Realtime + RLS)
 - **Cache**: Redis (Upstash)
 - **Object Storage**: Cloudflare R2 (video clips, snapshots)
 - **Analytics**: ClickHouse (Phase 2)
 
 ### Infrastructure
+
 - **Monorepo**: pnpm workspaces + Turborepo
 - **Container**: Docker Compose (dev), Kubernetes (prod)
 - **CI/CD**: GitHub Actions
@@ -60,18 +64,21 @@ osp/
 ## Naming Conventions
 
 ### Database
+
 - Tables: `snake_case`, plural (`users`, `camera_zones`, `alert_rules`)
 - Columns: `snake_case` (`created_at`, `tenant_id`)
 - Indexes: `idx_{table}_{columns}`
 - Foreign keys: `fk_{table}_{ref_table}`
 
 ### API
+
 - Routes: kebab-case, plural (`/api/v1/alert-rules/:id`)
 - Query params: camelCase (`?startDate=&cameraId=`)
 - Request/Response: camelCase JSON
 - Headers: `X-Tenant-Id`, `X-Request-Id`
 
 ### TypeScript Code
+
 - Files: kebab-case (`camera-service.ts`, `use-live-feed.ts`)
 - Components: PascalCase (`CameraGrid.tsx`)
 - Functions/variables: camelCase
@@ -79,6 +86,7 @@ osp/
 - Types/Interfaces: PascalCase, no I-prefix
 
 ### Go Code
+
 - Files: snake_case (`camera_ingestion.go`)
 - Packages: lowercase, single word (`ingest`, `transcode`, `events`)
 - Exported: PascalCase / Unexported: camelCase
@@ -86,6 +94,7 @@ osp/
 ## Error Format
 
 All API errors use this envelope:
+
 ```json
 {
   "error": {

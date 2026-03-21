@@ -27,7 +27,10 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function getAuthHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("osp_access_token") : null;
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("osp_access_token")
+      : null;
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -58,8 +61,19 @@ interface TenantRow {
 
 interface TenantDetail {
   tenant: Record<string, unknown>;
-  cameras: Array<{ id: string; name: string; status: string; protocol: string; last_seen_at: string | null }>;
-  recentEvents: Array<{ id: string; type: string; severity: string; created_at: string }>;
+  cameras: Array<{
+    id: string;
+    name: string;
+    status: string;
+    protocol: string;
+    last_seen_at: string | null;
+  }>;
+  recentEvents: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    created_at: string;
+  }>;
   recordingCount: number;
 }
 
@@ -84,7 +98,9 @@ function PlanBadge({ plan }: { plan: string }) {
     enterprise: "bg-amber-500/10 text-amber-400",
   };
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${colors[plan] ?? colors.free}`}>
+    <span
+      className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${colors[plan] ?? colors.free}`}
+    >
       {plan}
     </span>
   );
@@ -122,7 +138,9 @@ function StatCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-zinc-500 mb-1">{label}</p>
-          <p className="text-2xl font-bold text-zinc-50 tabular-nums">{value}</p>
+          <p className="text-2xl font-bold text-zinc-50 tabular-nums">
+            {value}
+          </p>
           {sub && <p className="text-xs text-zinc-500 mt-1">{sub}</p>}
         </div>
         <div className={`p-2.5 rounded-lg shrink-0 ${iconColor}`}>
@@ -171,10 +189,7 @@ function TenantDrawer({
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Scrim */}
-      <div
-        className="flex-1 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
       <div className="w-full max-w-lg bg-zinc-950 border-l border-zinc-800 flex flex-col h-full overflow-hidden">
@@ -185,9 +200,13 @@ function TenantDrawer({
               <Building2 className="h-5 w-5 text-blue-500" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-zinc-50 truncate">{tenantName}</p>
+              <p className="text-sm font-semibold text-zinc-50 truncate">
+                {tenantName}
+              </p>
               {tenant && (
-                <p className="text-xs text-zinc-500 truncate font-mono">{tenantId}</p>
+                <p className="text-xs text-zinc-500 truncate font-mono">
+                  {tenantId}
+                </p>
               )}
             </div>
           </div>
@@ -212,15 +231,64 @@ function TenantDrawer({
             {/* Tenant meta */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Plan", value: <PlanBadge plan={tenant?.["plan"] as string ?? "free"} /> },
-                { label: "Status", value: <span className={`text-xs font-medium ${isSuspended ? "text-red-400" : "text-green-400"}`}>{isSuspended ? "Suspended" : "Active"}</span> },
-                { label: "Cameras", value: <span className="text-sm text-zinc-200">{detail.cameras.length}</span> },
-                { label: "Recordings", value: <span className="text-sm text-zinc-200 tabular-nums">{detail.recordingCount}</span> },
-                { label: "Created", value: <span className="text-xs text-zinc-400">{new Date(tenant?.["created_at"] as string).toLocaleDateString()}</span> },
-                { label: "Events (7d)", value: <span className="text-sm text-zinc-200 tabular-nums">{detail.recentEvents.length}+</span> },
+                {
+                  label: "Plan",
+                  value: (
+                    <PlanBadge plan={(tenant?.["plan"] as string) ?? "free"} />
+                  ),
+                },
+                {
+                  label: "Status",
+                  value: (
+                    <span
+                      className={`text-xs font-medium ${isSuspended ? "text-red-400" : "text-green-400"}`}
+                    >
+                      {isSuspended ? "Suspended" : "Active"}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Cameras",
+                  value: (
+                    <span className="text-sm text-zinc-200">
+                      {detail.cameras.length}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Recordings",
+                  value: (
+                    <span className="text-sm text-zinc-200 tabular-nums">
+                      {detail.recordingCount}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Created",
+                  value: (
+                    <span className="text-xs text-zinc-400">
+                      {new Date(
+                        tenant?.["created_at"] as string,
+                      ).toLocaleDateString()}
+                    </span>
+                  ),
+                },
+                {
+                  label: "Events (7d)",
+                  value: (
+                    <span className="text-sm text-zinc-200 tabular-nums">
+                      {detail.recentEvents.length}+
+                    </span>
+                  ),
+                },
               ].map(({ label, value }) => (
-                <div key={label} className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2.5">
-                  <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
+                <div
+                  key={label}
+                  className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2.5"
+                >
+                  <p className="text-[10px] font-medium text-zinc-500 uppercase tracking-wide mb-1">
+                    {label}
+                  </p>
                   {value}
                 </div>
               ))}
@@ -243,8 +311,12 @@ function TenantDrawer({
                       <Circle
                         className={`h-2 w-2 shrink-0 fill-current ${cam.status === "online" ? "text-green-500" : "text-zinc-600"}`}
                       />
-                      <span className="text-sm text-zinc-200 truncate flex-1">{cam.name}</span>
-                      <span className="text-[10px] text-zinc-500 uppercase shrink-0">{cam.protocol}</span>
+                      <span className="text-sm text-zinc-200 truncate flex-1">
+                        {cam.name}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 uppercase shrink-0">
+                        {cam.protocol}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -267,12 +339,19 @@ function TenantDrawer({
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                          evt.severity === "high" ? "bg-red-500" :
-                          evt.severity === "medium" ? "bg-amber-500" : "bg-zinc-500"
+                          evt.severity === "high"
+                            ? "bg-red-500"
+                            : evt.severity === "medium"
+                              ? "bg-amber-500"
+                              : "bg-zinc-500"
                         }`}
                       />
-                      <span className="text-xs text-zinc-300 flex-1 truncate">{evt.type}</span>
-                      <span className="text-[10px] text-zinc-500 shrink-0">{timeAgo(evt.created_at)}</span>
+                      <span className="text-xs text-zinc-300 flex-1 truncate">
+                        {evt.type}
+                      </span>
+                      <span className="text-[10px] text-zinc-500 shrink-0">
+                        {timeAgo(evt.created_at)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -308,9 +387,13 @@ function TenantDrawer({
             }`}
           >
             {isSuspended ? (
-              <><CheckCircle className="h-3.5 w-3.5" /> Unsuspend</>
+              <>
+                <CheckCircle className="h-3.5 w-3.5" /> Unsuspend
+              </>
             ) : (
-              <><Ban className="h-3.5 w-3.5" /> Suspend</>
+              <>
+                <Ban className="h-3.5 w-3.5" /> Suspend
+              </>
             )}
           </button>
 
@@ -348,15 +431,21 @@ function DeleteModal({
           <div className="p-2 rounded-lg bg-red-500/10">
             <AlertTriangle className="h-5 w-5 text-red-500" />
           </div>
-          <h2 className="text-base font-semibold text-zinc-50">Delete Tenant</h2>
+          <h2 className="text-base font-semibold text-zinc-50">
+            Delete Tenant
+          </h2>
         </div>
 
         <p className="text-sm text-zinc-400 mb-2">
-          This will permanently delete <span className="text-zinc-200 font-medium">{tenantName}</span> and all their data — cameras, events, recordings, and rules. This cannot be undone.
+          This will permanently delete{" "}
+          <span className="text-zinc-200 font-medium">{tenantName}</span> and
+          all their data — cameras, events, recordings, and rules. This cannot
+          be undone.
         </p>
 
         <p className="text-xs text-zinc-500 mb-3">
-          Type <span className="font-mono text-zinc-300">{tenantName}</span> to confirm:
+          Type <span className="font-mono text-zinc-300">{tenantName}</span> to
+          confirm:
         </p>
 
         <input
@@ -399,10 +488,18 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "tenants">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tenants">(
+    "overview",
+  );
 
-  const [selectedTenant, setSelectedTenant] = useState<{ id: string; name: string } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // ── Auth check ─────────────────────────────────────────────────────────
@@ -463,7 +560,9 @@ export default function AdminPage() {
       await fetch(`${API_URL}/api/v1/admin/tenants/${id}`, {
         method: "PATCH",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ status: action === "suspend" ? "suspended" : "active" }),
+        body: JSON.stringify({
+          status: action === "suspend" ? "suspended" : "active",
+        }),
       });
       fetchTenants();
       setSelectedTenant(null);
@@ -497,9 +596,12 @@ export default function AdminPage() {
           <div className="mx-auto mb-4 h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center">
             <Shield className="h-7 w-7 text-red-500" />
           </div>
-          <h1 className="text-lg font-semibold text-zinc-50 mb-2">Access Denied</h1>
+          <h1 className="text-lg font-semibold text-zinc-50 mb-2">
+            Access Denied
+          </h1>
           <p className="text-sm text-zinc-500 mb-6">
-            This area is restricted to OSP superadmins. Your account does not have the required privileges.
+            This area is restricted to OSP superadmins. Your account does not
+            have the required privileges.
           </p>
           <button
             onClick={() => router.push("/cameras")}
@@ -572,9 +674,20 @@ export default function AdminPage() {
               }`}
             >
               {tab === "overview" ? (
-                <span className="flex items-center gap-1.5"><BarChart2 className="h-3.5 w-3.5" />Overview</span>
+                <span className="flex items-center gap-1.5">
+                  <BarChart2 className="h-3.5 w-3.5" />
+                  Overview
+                </span>
               ) : (
-                <span className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" />Tenants {totalTenants > 0 && <span className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded-full">{totalTenants}</span>}</span>
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Tenants{" "}
+                  {totalTenants > 0 && (
+                    <span className="text-[10px] bg-zinc-800 px-1.5 py-0.5 rounded-full">
+                      {totalTenants}
+                    </span>
+                  )}
+                </span>
               )}
             </button>
           ))}
@@ -586,7 +699,9 @@ export default function AdminPage() {
         {activeTab === "overview" && stats && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-base font-semibold text-zinc-50 mb-4">System Overview</h2>
+              <h2 className="text-base font-semibold text-zinc-50 mb-4">
+                System Overview
+              </h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                   icon={Building2}
@@ -619,7 +734,9 @@ export default function AdminPage() {
 
             {/* Quick actions */}
             <div>
-              <h2 className="text-base font-semibold text-zinc-50 mb-4">Quick Actions</h2>
+              <h2 className="text-base font-semibold text-zinc-50 mb-4">
+                Quick Actions
+              </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   {
@@ -643,14 +760,18 @@ export default function AdminPage() {
                 ].map(({ icon: Icon, label, desc, onClick, href }) => (
                   <button
                     key={label}
-                    onClick={onClick ?? (() => href && window.open(href, "_blank"))}
+                    onClick={
+                      onClick ?? (() => href && window.open(href, "_blank"))
+                    }
                     className="flex items-start gap-3 p-4 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800/50 transition-colors cursor-pointer text-left group"
                   >
                     <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
                       <Icon className="h-4 w-4 text-blue-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-50 transition-colors">{label}</p>
+                      <p className="text-sm font-medium text-zinc-200 group-hover:text-zinc-50 transition-colors">
+                        {label}
+                      </p>
                       <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-zinc-600 ml-auto shrink-0 mt-0.5 group-hover:text-zinc-400 transition-colors" />
@@ -666,10 +787,11 @@ export default function AdminPage() {
                 Granting Superadmin Access
               </h3>
               <p className="text-xs text-zinc-500 mb-3">
-                Run this SQL in the Supabase SQL editor to grant a user superadmin privileges:
+                Run this SQL in the Supabase SQL editor to grant a user
+                superadmin privileges:
               </p>
               <pre className="text-xs font-mono bg-zinc-950 border border-zinc-700 rounded-lg p-3 text-zinc-300 overflow-x-auto">
-{`-- Grant superadmin
+                {`-- Grant superadmin
 SELECT grant_superadmin('<user-uuid>');
 
 -- Revoke superadmin
@@ -693,7 +815,10 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                   type="text"
                   placeholder="Search tenants…"
                   value={search}
-                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
                   className="w-full pl-9 pr-3 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -702,7 +827,10 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                 {(["all", "active", "suspended"] as const).map((s) => (
                   <button
                     key={s}
-                    onClick={() => { setStatusFilter(s); setPage(1); }}
+                    onClick={() => {
+                      setStatusFilter(s);
+                      setPage(1);
+                    }}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer capitalize ${
                       statusFilter === s
                         ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
@@ -719,7 +847,9 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                   className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
                   title="Refresh"
                 >
-                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                  />
                 </button>
               </div>
             </div>
@@ -729,12 +859,24 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-800 bg-zinc-900">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Tenant</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden sm:table-cell">Plan</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden md:table-cell">Cameras</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden lg:table-cell">Events (7d)</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden lg:table-cell">Last Active</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                      Tenant
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden sm:table-cell">
+                      Plan
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden md:table-cell">
+                      Cameras
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden lg:table-cell">
+                      Events (7d)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide hidden lg:table-cell">
+                      Last Active
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wide">
+                      Status
+                    </th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -749,7 +891,10 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                     ))
                   ) : tenants.length === 0 ? (
                     <tr className="bg-zinc-950">
-                      <td colSpan={7} className="px-4 py-10 text-center text-zinc-600 text-sm">
+                      <td
+                        colSpan={7}
+                        className="px-4 py-10 text-center text-zinc-600 text-sm"
+                      >
                         No tenants found
                       </td>
                     </tr>
@@ -758,7 +903,12 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                       <tr
                         key={t.tenant_id}
                         className="bg-zinc-950 hover:bg-zinc-900 transition-colors cursor-pointer"
-                        onClick={() => setSelectedTenant({ id: t.tenant_id, name: t.tenant_name })}
+                        onClick={() =>
+                          setSelectedTenant({
+                            id: t.tenant_id,
+                            name: t.tenant_name,
+                          })
+                        }
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
@@ -766,8 +916,12 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                               {t.tenant_name.charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-sm font-medium text-zinc-200 truncate">{t.tenant_name}</p>
-                              <p className="text-[10px] text-zinc-600 font-mono truncate">{t.tenant_id.split("-")[0]}&hellip;</p>
+                              <p className="text-sm font-medium text-zinc-200 truncate">
+                                {t.tenant_name}
+                              </p>
+                              <p className="text-[10px] text-zinc-600 font-mono truncate">
+                                {t.tenant_id.split("-")[0]}&hellip;
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -775,21 +929,31 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                           <PlanBadge plan={t.plan} />
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
-                          <span className="text-sm text-zinc-300 tabular-nums">{t.camera_count}</span>
+                          <span className="text-sm text-zinc-300 tabular-nums">
+                            {t.camera_count}
+                          </span>
                           {t.cameras_online > 0 && (
-                            <span className="text-xs text-green-500 ml-1">({t.cameras_online} online)</span>
+                            <span className="text-xs text-green-500 ml-1">
+                              ({t.cameras_online} online)
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="text-sm text-zinc-300 tabular-nums">{t.event_count_7d}</span>
+                          <span className="text-sm text-zinc-300 tabular-nums">
+                            {t.event_count_7d}
+                          </span>
                         </td>
                         <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="text-xs text-zinc-500">{timeAgo(t.last_active_at)}</span>
+                          <span className="text-xs text-zinc-500">
+                            {timeAgo(t.last_active_at)}
+                          </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <StatusDot status={t.status} />
-                            <span className={`text-xs capitalize ${t.status === "active" ? "text-green-400" : "text-red-400"}`}>
+                            <span
+                              className={`text-xs capitalize ${t.status === "active" ? "text-green-400" : "text-red-400"}`}
+                            >
                               {t.status}
                             </span>
                           </div>
@@ -799,10 +963,19 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleSuspend(t.tenant_id, t.status === "suspended" ? "unsuspend" : "suspend");
+                                handleSuspend(
+                                  t.tenant_id,
+                                  t.status === "suspended"
+                                    ? "unsuspend"
+                                    : "suspend",
+                                );
                               }}
                               disabled={actionLoading === t.tenant_id}
-                              title={t.status === "suspended" ? "Unsuspend" : "Suspend"}
+                              title={
+                                t.status === "suspended"
+                                  ? "Unsuspend"
+                                  : "Suspend"
+                              }
                               className="p-1.5 rounded-md text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer disabled:opacity-40"
                             >
                               <Ban className="h-3.5 w-3.5" />
@@ -810,7 +983,10 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDeleteTarget({ id: t.tenant_id, name: t.tenant_name });
+                                setDeleteTarget({
+                                  id: t.tenant_id,
+                                  name: t.tenant_name,
+                                });
                               }}
                               title="Delete"
                               className="p-1.5 rounded-md text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
@@ -838,7 +1014,9 @@ SELECT id, email FROM auth.users WHERE email = 'admin@yourcompany.com';`}
                   >
                     Prev
                   </button>
-                  <span className="px-2">Page {page} of {totalPages}</span>
+                  <span className="px-2">
+                    Page {page} of {totalPages}
+                  </span>
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}

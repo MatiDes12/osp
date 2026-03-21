@@ -101,7 +101,8 @@ app.get("/", (c) => {
       supportedVersions: ["1"],
       deprecatedVersions: [],
       versioningHeader: "Accept-Version",
-      sunsetPolicy: "6 months notice via Deprecation + Sunset response headers (RFC 8594)",
+      sunsetPolicy:
+        "6 months notice via Deprecation + Sunset response headers (RFC 8594)",
     },
     endpoints: {
       health: "/health",

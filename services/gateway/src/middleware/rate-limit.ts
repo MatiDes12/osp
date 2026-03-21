@@ -27,8 +27,8 @@ export function rateLimit(config?: Partial<RateLimitConfig>) {
   const windowMs = config?.windowMs ?? DEFAULT_WINDOW_MS;
   const windowSec = Math.ceil(windowMs / 1000);
   const failOpen =
-    config?.failOpen
-    ?? (get("RATE_LIMIT_FAIL_OPEN") ?? "true").toLowerCase() !== "false";
+    config?.failOpen ??
+    (get("RATE_LIMIT_FAIL_OPEN") ?? "true").toLowerCase() !== "false";
 
   return createMiddleware<TenantEnv>(async (c, next) => {
     const tenantId = c.get("tenantId");
@@ -40,7 +40,8 @@ export function rateLimit(config?: Partial<RateLimitConfig>) {
 
     const tenantPlan = c.get("tenantPlan") as TenantPlan | undefined;
     const planLimits = tenantPlan ? PLAN_LIMITS[tenantPlan] : undefined;
-    const maxRequests = config?.maxRequests ?? planLimits?.apiRequestsPerMin ?? 60;
+    const maxRequests =
+      config?.maxRequests ?? planLimits?.apiRequestsPerMin ?? 60;
 
     const endpoint = normalizeEndpoint(c.req.path);
     const windowStart = Math.floor(Date.now() / windowMs);

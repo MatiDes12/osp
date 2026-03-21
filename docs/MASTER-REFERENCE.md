@@ -93,56 +93,60 @@ Browser / Mobile / Desktop
 
 ### Data flows
 
-| Flow | Path |
-|------|------|
-| Browser live video | Browser → Gateway `/whep` proxy → go2rtc WHEP → camera RTSP |
-| Motion event | Gateway health-checker or Go edge agent → Redis `events:{tenantId}` → WS server → browser |
-| Rule trigger | Event inserted → rule-evaluator → action-executor → webhook / email / push / recording |
-| Recording | Gateway `record/start` → recording.service → go2rtc MP4 → local disk → R2 upload |
-| AI detection | Event created → fire-and-forget → go2rtc frame → OpenAI Vision → event metadata updated |
-| LPR | Motion event → go2rtc frame → PlateRecognizer API → watchlist check → `lpr.alert` event |
+| Flow               | Path                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Browser live video | Browser → Gateway `/whep` proxy → go2rtc WHEP → camera RTSP                               |
+| Motion event       | Gateway health-checker or Go edge agent → Redis `events:{tenantId}` → WS server → browser |
+| Rule trigger       | Event inserted → rule-evaluator → action-executor → webhook / email / push / recording    |
+| Recording          | Gateway `record/start` → recording.service → go2rtc MP4 → local disk → R2 upload          |
+| AI detection       | Event created → fire-and-forget → go2rtc frame → OpenAI Vision → event metadata updated   |
+| LPR                | Motion event → go2rtc frame → PlateRecognizer API → watchlist check → `lpr.alert` event   |
 
 ---
 
 ## 3. Tech Stack
 
 ### Frontend
-| Layer | Technology |
-|-------|------------|
-| Web app | Next.js 15 (App Router), Tailwind CSS, shadcn/ui |
-| Mobile | React Native + Expo (iOS & Android) |
-| Desktop | Tauri v2 (webview wrapper around Next.js) |
-| State | Zustand (client state) + TanStack Query (server state) |
-| Real-time | WebSocket (alerts) + WebRTC WHEP (live camera feeds) |
-| Icons | Lucide React |
+
+| Layer     | Technology                                             |
+| --------- | ------------------------------------------------------ |
+| Web app   | Next.js 15 (App Router), Tailwind CSS, shadcn/ui       |
+| Mobile    | React Native + Expo (iOS & Android)                    |
+| Desktop   | Tauri v2 (webview wrapper around Next.js)              |
+| State     | Zustand (client state) + TanStack Query (server state) |
+| Real-time | WebSocket (alerts) + WebRTC WHEP (live camera feeds)   |
+| Icons     | Lucide React                                           |
 
 ### Backend
-| Layer | Technology |
-|-------|------------|
-| API Gateway | Hono framework on Bun runtime (TypeScript) |
-| Go services | Go 1.22, gRPC, `log/slog`, `net/http` |
+
+| Layer       | Technology                                             |
+| ----------- | ------------------------------------------------------ |
+| API Gateway | Hono framework on Bun runtime (TypeScript)             |
+| Go services | Go 1.22, gRPC, `log/slog`, `net/http`                  |
 | Video proxy | go2rtc (universal protocol translator + WebRTC server) |
-| Transcoding | FFmpeg (recording, HLS segmentation, snapshots) |
+| Transcoding | FFmpeg (recording, HLS segmentation, snapshots)        |
 
 ### Data
-| Store | Use |
-|-------|-----|
-| Supabase (PostgreSQL) | Primary database, row-level security, JWT auth |
-| Redis (Upstash) | Rate limiting, event pub/sub, response cache |
-| Cloudflare R2 | Video clip and snapshot object storage (zero egress fees) |
-| ClickHouse | Event analytics (timeseries, heatmaps, breakdowns) |
-| BoltDB | Edge agent offline event queue (embedded, no server needed) |
+
+| Store                 | Use                                                         |
+| --------------------- | ----------------------------------------------------------- |
+| Supabase (PostgreSQL) | Primary database, row-level security, JWT auth              |
+| Redis (Upstash)       | Rate limiting, event pub/sub, response cache                |
+| Cloudflare R2         | Video clip and snapshot object storage (zero egress fees)   |
+| ClickHouse            | Event analytics (timeseries, heatmaps, breakdowns)          |
+| BoltDB                | Edge agent offline event queue (embedded, no server needed) |
 
 ### Infrastructure
-| Layer | Technology |
-|-------|------------|
-| Monorepo | pnpm workspaces + Turborepo |
-| Dev containers | Docker Compose |
-| Production web | Vercel |
-| Production services | Fly.io (gateway + Go services) |
-| Production k8s | Kubernetes manifests (base + staging/production overlays) |
-| CDN | Cloudflare |
-| CI/CD | GitHub Actions |
+
+| Layer               | Technology                                                |
+| ------------------- | --------------------------------------------------------- |
+| Monorepo            | pnpm workspaces + Turborepo                               |
+| Dev containers      | Docker Compose                                            |
+| Production web      | Vercel                                                    |
+| Production services | Fly.io (gateway + Go services)                            |
+| Production k8s      | Kubernetes manifests (base + staging/production overlays) |
+| CDN                 | Cloudflare                                                |
+| CI/CD               | GitHub Actions                                            |
 
 ---
 
@@ -205,7 +209,9 @@ extension_status:  draft | review | published | suspended | deprecated
 ### Tables (23 migrations, all RLS-enabled)
 
 #### `tenants`
+
 The root isolation unit. Every other table references this.
+
 ```
 id            uuid PK
 name          text NOT NULL
@@ -221,10 +227,13 @@ retention_days int DEFAULT 30
 created_at    timestamptz
 updated_at    timestamptz
 ```
+
 RLS: No public access — all reads/writes via service role.
 
 #### `users`
+
 One row per Supabase auth user. Created on register or first SSO login.
+
 ```
 id            uuid PK (= Supabase auth.users.id)
 tenant_id     uuid FK → tenants
@@ -238,10 +247,13 @@ push_token    text                  -- Expo push notification token
 created_at    timestamptz
 updated_at    timestamptz
 ```
+
 RLS: Users read their own row; service role reads all.
 
 #### `user_roles`
+
 Maps users to roles within a tenant. A user can be restricted to specific cameras.
+
 ```
 id          uuid PK
 user_id     uuid FK → users
@@ -251,11 +263,14 @@ camera_ids  uuid[]    -- empty array = access all cameras
 created_at  timestamptz
 UNIQUE(user_id, tenant_id)
 ```
+
 RLS: Users read their own role; admins read all for their tenant.
 
 #### `cameras`
+
 Every camera known to the system. Connecting a camera also registers it in
 go2rtc automatically.
+
 ```
 id              uuid PK
 tenant_id       uuid FK → tenants
@@ -276,10 +291,13 @@ last_seen_at    timestamptz
 created_at      timestamptz
 updated_at      timestamptz
 ```
+
 Indexes: tenant+status (list with filter), location (floor plan query).
 
 #### `camera_zones`
+
 Polygon regions on a camera frame used to scope motion detection alerts.
+
 ```
 id                   uuid PK
 camera_id            uuid FK → cameras
@@ -295,7 +313,9 @@ created_at / updated_at timestamptz
 ```
 
 #### `recordings`
+
 Every started recording segment. Continuous recording auto-segments every 30 min.
+
 ```
 id             uuid PK
 camera_id      uuid FK → cameras
@@ -311,10 +331,13 @@ status         recording_status DEFAULT 'recording'
 retention_until timestamptz
 created_at     timestamptz
 ```
+
 Indexes: camera+time (timeline query), tenant+time (library), retention (cleanup job).
 
 #### `snapshots`
+
 Still images captured at event time or on demand.
+
 ```
 id           uuid PK
 camera_id    uuid FK → cameras
@@ -330,8 +353,10 @@ created_at   timestamptz
 ```
 
 #### `events`
+
 Every detection or system event. Motion, person, vehicle, LPR, camera
 offline/online, audio, custom rule-triggered.
+
 ```
 id               uuid PK
 camera_id        uuid FK → cameras
@@ -349,11 +374,14 @@ acknowledged_by  uuid FK → users (nullable)
 acknowledged_at  timestamptz
 created_at       timestamptz
 ```
+
 Indexes: tenant+time, camera+time, tenant+type+time, unacknowledged (dashboard badge).
 
 #### `alert_rules`
+
 Visual pipeline: trigger → conditions → actions. Evaluated by the rule engine
 for every incoming event.
+
 ```
 id               uuid PK
 tenant_id        uuid FK → tenants
@@ -371,20 +399,25 @@ priority         int DEFAULT 0
 last_triggered_at timestamptz
 created_at / updated_at timestamptz
 ```
+
 Condition tree example:
+
 ```json
 {
   "operator": "AND",
   "conditions": [
-    {"field": "severity", "op": "gte", "value": "medium"},
-    {"field": "type", "op": "eq", "value": "person"}
+    { "field": "severity", "op": "gte", "value": "medium" },
+    { "field": "type", "op": "eq", "value": "person" }
   ]
 }
 ```
+
 Action types: `webhook`, `email`, `push_notification`, `record`, `in_app`.
 
 #### `notifications`
+
 Every notification sent to a user (push, email, in-app).
+
 ```
 id            uuid PK
 user_id       uuid FK → users
@@ -402,7 +435,9 @@ created_at    timestamptz
 ```
 
 #### `extensions`
+
 Marketplace catalog — shared across all tenants.
+
 ```
 id               uuid PK
 name             text UNIQUE
@@ -422,7 +457,9 @@ created_at / updated_at timestamptz
 ```
 
 #### `tenant_extensions`
+
 Installed extensions per tenant with per-tenant config.
+
 ```
 id                uuid PK
 tenant_id         uuid FK → tenants
@@ -438,7 +475,9 @@ UNIQUE(tenant_id, extension_id)
 ```
 
 #### `extension_hooks`
+
 Hooks registered by extensions (event types they respond to).
+
 ```
 id                   uuid PK
 extension_id         uuid FK → extensions
@@ -450,7 +489,9 @@ created_at           timestamptz
 ```
 
 #### `audit_logs`
+
 Immutable log of all write actions performed via the API.
+
 ```
 id            uuid PK
 tenant_id     uuid FK → tenants
@@ -466,7 +507,9 @@ created_at    timestamptz
 ```
 
 #### `locations`
+
 Physical sites (buildings, campuses, stores). Cameras are assigned to locations.
+
 ```
 id          uuid PK
 tenant_id   uuid FK → tenants
@@ -479,7 +522,9 @@ created_at / updated_at timestamptz
 ```
 
 #### `camera_tags` + `camera_tag_assignments`
+
 Flexible tagging for grouping cameras.
+
 ```
 camera_tags:
   id, tenant_id, name, color, created_at
@@ -489,7 +534,9 @@ camera_tag_assignments:
 ```
 
 #### `webhook_delivery_attempts`
+
 Every webhook delivery attempt (success or failure) for audit and retry visibility.
+
 ```
 id               uuid PK
 tenant_id        uuid FK → tenants
@@ -505,10 +552,13 @@ response_body    text
 error_message    text
 created_at       timestamptz
 ```
+
 Retention: auto-purged after 90 days (documented comment in migration).
 
 #### `config_secrets`
+
 Runtime configuration override — key/value pairs that supplement `.env`.
+
 ```
 id         uuid PK
 key        text
@@ -519,7 +569,9 @@ created_at / updated_at timestamptz
 ```
 
 #### `api_keys`
+
 Long-lived API keys for programmatic access (machine-to-machine, CI/CD).
+
 ```
 id           uuid PK
 tenant_id    uuid FK → tenants
@@ -534,7 +586,9 @@ created_at   timestamptz
 ```
 
 #### `sso_configs`
+
 Per-tenant OAuth/SSO configuration on top of Supabase's built-in OAuth.
+
 ```
 id              uuid PK
 tenant_id       uuid FK → tenants
@@ -548,7 +602,9 @@ UNIQUE(tenant_id, provider)
 ```
 
 #### `lpr_watchlist`
+
 Plates that trigger `lpr.alert` events when detected by a camera.
+
 ```
 id              uuid PK
 tenant_id       uuid FK → tenants
@@ -561,7 +617,9 @@ UNIQUE(tenant_id, plate)
 ```
 
 #### `edge_agents`
+
 On-premise edge agent binaries reporting their status to the cloud.
+
 ```
 id             uuid PK
 tenant_id      uuid FK → tenants
@@ -588,16 +646,16 @@ UNIQUE(tenant_id, agent_id)
 
 ### Middleware stack (applied in order)
 
-| Middleware | What it does |
-|------------|-------------|
-| `requestId()` | Generates `X-Request-Id` UUID, stored in context |
-| `requestLogger()` | Logs method, path, status, duration on every request |
-| `metricsMiddleware()` | Increments Prometheus counters (requests, errors, latency) |
-| `errorHandler()` | Catches `ApiError` and `ZodError`, formats standard JSON envelope |
-| CORS | Allowed origins from `GATEWAY_CORS_ORIGINS` env var |
-| `apiVersion()` | Adds `API-Version: 1` response header; supports `Accept-Version` |
-| `tenantContext()` | Extracts tenant from JWT, loads plan + limits into context |
-| `rateLimit()` | Redis sliding-window per tenant+route; 429 with `Retry-After` |
+| Middleware            | What it does                                                      |
+| --------------------- | ----------------------------------------------------------------- |
+| `requestId()`         | Generates `X-Request-Id` UUID, stored in context                  |
+| `requestLogger()`     | Logs method, path, status, duration on every request              |
+| `metricsMiddleware()` | Increments Prometheus counters (requests, errors, latency)        |
+| `errorHandler()`      | Catches `ApiError` and `ZodError`, formats standard JSON envelope |
+| CORS                  | Allowed origins from `GATEWAY_CORS_ORIGINS` env var               |
+| `apiVersion()`        | Adds `API-Version: 1` response header; supports `Accept-Version`  |
+| `tenantContext()`     | Extracts tenant from JWT, loads plan + limits into context        |
+| `rateLimit()`         | Redis sliding-window per tenant+route; 429 with `Retry-After`     |
 
 ### `requireAuth(minRole?)` middleware
 
@@ -608,6 +666,7 @@ context variables. Role hierarchy: `owner > admin > operator > viewer`.
 ### Error envelope
 
 Every error response:
+
 ```json
 {
   "success": false,
@@ -637,204 +696,204 @@ Every error response:
 
 #### Auth — `POST /api/v1/auth/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/register` | none | Create account + tenant + owner role. Hashes password via Supabase, stores user record, creates tenant, assigns `owner` role. Returns `{user, tenant, accessToken, refreshToken}`. |
-| POST | `/login` | none | Email + password. Returns same token envelope. |
-| POST | `/refresh` | none | Body `{refreshToken}`. Returns new access + refresh token pair. |
-| POST | `/forgot-password` | none | Sends reset link email via Supabase magic link (fire-and-forget). |
-| POST | `/reset-password` | none | Body `{token, password}`. Calls Supabase `verifyOtp` + `updateUser`. |
-| POST | `/logout` | Bearer | Calls Supabase `signOut`. |
+| Method | Path               | Auth   | Description                                                                                                                                                                        |
+| ------ | ------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/register`        | none   | Create account + tenant + owner role. Hashes password via Supabase, stores user record, creates tenant, assigns `owner` role. Returns `{user, tenant, accessToken, refreshToken}`. |
+| POST   | `/login`           | none   | Email + password. Returns same token envelope.                                                                                                                                     |
+| POST   | `/refresh`         | none   | Body `{refreshToken}`. Returns new access + refresh token pair.                                                                                                                    |
+| POST   | `/forgot-password` | none   | Sends reset link email via Supabase magic link (fire-and-forget).                                                                                                                  |
+| POST   | `/reset-password`  | none   | Body `{token, password}`. Calls Supabase `verifyOtp` + `updateUser`.                                                                                                               |
+| POST   | `/logout`          | Bearer | Calls Supabase `signOut`.                                                                                                                                                          |
 
 #### SSO — `/api/v1/auth/sso/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/providers?domain=` | none | Returns available SSO providers for an email domain. If domain given, checks `sso_configs` table. Without domain, returns all three globally. |
-| GET | `/initiate?provider=&redirectTo=` | none | Returns Supabase OAuth URL: `{SUPABASE_URL}/auth/v1/authorize?provider=...&redirect_to=...`. Client redirects browser here. |
-| POST | `/session` | none | Body `{accessToken, refreshToken}` from OAuth callback hash. Calls Supabase `setSession`, auto-provisions user+tenant on first login, returns OSP tokens. |
-| GET | `/config` | admin+ | Lists tenant's SSO provider configs. |
-| PUT | `/config/:provider` | admin+ | Upsert config: enabled, allowed_domains, auto_provision, default_role. |
-| DELETE | `/config/:provider` | admin+ | Remove provider config. |
+| Method | Path                              | Auth   | Description                                                                                                                                               |
+| ------ | --------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/providers?domain=`              | none   | Returns available SSO providers for an email domain. If domain given, checks `sso_configs` table. Without domain, returns all three globally.             |
+| GET    | `/initiate?provider=&redirectTo=` | none   | Returns Supabase OAuth URL: `{SUPABASE_URL}/auth/v1/authorize?provider=...&redirect_to=...`. Client redirects browser here.                               |
+| POST   | `/session`                        | none   | Body `{accessToken, refreshToken}` from OAuth callback hash. Calls Supabase `setSession`, auto-provisions user+tenant on first login, returns OSP tokens. |
+| GET    | `/config`                         | admin+ | Lists tenant's SSO provider configs.                                                                                                                      |
+| PUT    | `/config/:provider`               | admin+ | Upsert config: enabled, allowed_domains, auto_provision, default_role.                                                                                    |
+| DELETE | `/config/:provider`               | admin+ | Remove provider config.                                                                                                                                   |
 
 #### Cameras — `/api/v1/cameras/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | viewer+ | List cameras. Query: `status`, `search`, `locationId`, `tagIds`, `page`, `limit`. Returns array with live status. |
-| GET | `/:id` | viewer+ | Single camera with zones, tags, location. |
-| POST | `/` | admin+ | Create camera. Validates connection URI format, registers stream in go2rtc (auto-connects). |
-| PATCH | `/:id` | admin+ | Update name, location, config. |
-| PATCH | `/:id/capabilities` | admin+ | Enable/disable PTZ, audio, twoWayAudio. If twoWayAudio changes on ONVIF cameras, re-registers stream with `?backchannel=1`. |
-| DELETE | `/:id` | admin+ | Delete camera record, removes from go2rtc, stops any active recording. |
-| POST | `/bulk/assign-location` | admin+ | Body `{cameraIds, locationId}`. |
-| POST | `/bulk/delete` | admin+ | Body `{cameraIds}`. |
-| POST | `/bulk/record-start` | operator+ | Starts manual recording on multiple cameras. |
-| POST | `/bulk/record-stop` | operator+ | Stops recording on multiple cameras. |
-| POST | `/:id/record/start` | operator+ | Body `{trigger}`. Creates recording row, calls `recording.service`. |
-| POST | `/:id/record/stop` | operator+ | Stops recording, finalises MP4, optionally uploads to R2. |
-| GET | `/:id/record/status` | viewer+ | Is this camera currently recording? Returns `{recording: bool, recordingId?}`. |
-| POST | `/:id/ptz` | operator+ | Body: `{action: move|stop|zoom|preset, direction?, speed?, presetId?}`. Forwards to camera-ingest gRPC `PtzCommand`. Falls back gracefully if gRPC unavailable. |
-| GET | `/:id/zones` | viewer+ | List zones for camera. |
-| POST | `/:id/zones` | admin+ | Create zone with polygon coordinates and sensitivity. |
-| PATCH | `/:id/zones/:zoneId` | admin+ | Update zone. |
-| DELETE | `/:id/zones/:zoneId` | admin+ | Delete zone. |
-| GET | `/internal/online` | service token | Returns all `status=online` cameras. Used by Go ingest workers. |
+| Method | Path                    | Auth          | Description                                                                                                                 |
+| ------ | ----------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                     | viewer+       | List cameras. Query: `status`, `search`, `locationId`, `tagIds`, `page`, `limit`. Returns array with live status.           |
+| GET    | `/:id`                  | viewer+       | Single camera with zones, tags, location.                                                                                   |
+| POST   | `/`                     | admin+        | Create camera. Validates connection URI format, registers stream in go2rtc (auto-connects).                                 |
+| PATCH  | `/:id`                  | admin+        | Update name, location, config.                                                                                              |
+| PATCH  | `/:id/capabilities`     | admin+        | Enable/disable PTZ, audio, twoWayAudio. If twoWayAudio changes on ONVIF cameras, re-registers stream with `?backchannel=1`. |
+| DELETE | `/:id`                  | admin+        | Delete camera record, removes from go2rtc, stops any active recording.                                                      |
+| POST   | `/bulk/assign-location` | admin+        | Body `{cameraIds, locationId}`.                                                                                             |
+| POST   | `/bulk/delete`          | admin+        | Body `{cameraIds}`.                                                                                                         |
+| POST   | `/bulk/record-start`    | operator+     | Starts manual recording on multiple cameras.                                                                                |
+| POST   | `/bulk/record-stop`     | operator+     | Stops recording on multiple cameras.                                                                                        |
+| POST   | `/:id/record/start`     | operator+     | Body `{trigger}`. Creates recording row, calls `recording.service`.                                                         |
+| POST   | `/:id/record/stop`      | operator+     | Stops recording, finalises MP4, optionally uploads to R2.                                                                   |
+| GET    | `/:id/record/status`    | viewer+       | Is this camera currently recording? Returns `{recording: bool, recordingId?}`.                                              |
+| POST   | `/:id/ptz`              | operator+     | Body: `{action: move                                                                                                        | stop | zoom | preset, direction?, speed?, presetId?}`. Forwards to camera-ingest gRPC `PtzCommand`. Falls back gracefully if gRPC unavailable. |
+| GET    | `/:id/zones`            | viewer+       | List zones for camera.                                                                                                      |
+| POST   | `/:id/zones`            | admin+        | Create zone with polygon coordinates and sensitivity.                                                                       |
+| PATCH  | `/:id/zones/:zoneId`    | admin+        | Update zone.                                                                                                                |
+| DELETE | `/:id/zones/:zoneId`    | admin+        | Delete zone.                                                                                                                |
+| GET    | `/internal/online`      | service token | Returns all `status=online` cameras. Used by Go ingest workers.                                                             |
 
 #### Streams — `/api/v1/cameras/:id/*` and `/api/v1/streams/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/:id/stream` | viewer+ | Returns `{whepUrl, token, iceServers}`. ICE servers include STUN always; TURN when env vars present. |
-| POST | `/:id/whep` | viewer+ | SDP offer proxy. Registers camera in go2rtc if missing, forwards WHEP POST. |
-| GET | `/:id/snapshot` | viewer+ | Returns JPEG from `go2rtc /api/frame.jpeg?src=:id`. |
-| POST | `/:id/reconnect` | admin+ | Removes + re-adds stream in go2rtc (hard reconnect). |
-| GET | `/:id/recording.mp4` | viewer+ | Proxies MP4 stream from go2rtc (last 30 s clip). |
-| POST | `/discover` | admin+ | Runs USB detection + ONVIF network scan on given subnet. Returns list of discovered cameras with connection URIs. |
-| POST | `/test` | admin+ | Test a connection URI before saving. Tries to grab one JPEG frame from go2rtc. Returns `{success, snapshotUrl?, error?}`. |
+| Method | Path                 | Auth    | Description                                                                                                               |
+| ------ | -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/:id/stream`        | viewer+ | Returns `{whepUrl, token, iceServers}`. ICE servers include STUN always; TURN when env vars present.                      |
+| POST   | `/:id/whep`          | viewer+ | SDP offer proxy. Registers camera in go2rtc if missing, forwards WHEP POST.                                               |
+| GET    | `/:id/snapshot`      | viewer+ | Returns JPEG from `go2rtc /api/frame.jpeg?src=:id`.                                                                       |
+| POST   | `/:id/reconnect`     | admin+  | Removes + re-adds stream in go2rtc (hard reconnect).                                                                      |
+| GET    | `/:id/recording.mp4` | viewer+ | Proxies MP4 stream from go2rtc (last 30 s clip).                                                                          |
+| POST   | `/discover`          | admin+  | Runs USB detection + ONVIF network scan on given subnet. Returns list of discovered cameras with connection URIs.         |
+| POST   | `/test`              | admin+  | Test a connection URI before saving. Tries to grab one JPEG frame from go2rtc. Returns `{success, snapshotUrl?, error?}`. |
 
 #### Events — `/api/v1/events/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/` | operator+ | Create event. Fires rule evaluation + AI detection + LPR in background. Publishes to Redis → WebSocket. |
-| GET | `/` | viewer+ | List events. Query: `cameraId`, `zoneId`, `type`, `severity`, `acknowledged`, `startDate`, `endDate`, `page`, `limit`. |
-| GET | `/summary` | viewer+ | Aggregated counts by type/severity/camera for a time range. |
-| GET | `/:id` | viewer+ | Single event with camera name, zone name, snapshot, clip URL. |
-| PATCH | `/:id/acknowledge` | operator+ | Mark acknowledged, stores `acknowledged_by` + timestamp. |
-| GET | `/:id/clip` | viewer+ | Stream event MP4 clip with range request support. |
-| GET | `/:id/thumbnail` | viewer+ | JPEG first frame extracted from clip with FFmpeg. |
-| POST | `/bulk-acknowledge` | operator+ | Body `{eventIds}`. Batch acknowledge. |
+| Method | Path                | Auth      | Description                                                                                                            |
+| ------ | ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/`                 | operator+ | Create event. Fires rule evaluation + AI detection + LPR in background. Publishes to Redis → WebSocket.                |
+| GET    | `/`                 | viewer+   | List events. Query: `cameraId`, `zoneId`, `type`, `severity`, `acknowledged`, `startDate`, `endDate`, `page`, `limit`. |
+| GET    | `/summary`          | viewer+   | Aggregated counts by type/severity/camera for a time range.                                                            |
+| GET    | `/:id`              | viewer+   | Single event with camera name, zone name, snapshot, clip URL.                                                          |
+| PATCH  | `/:id/acknowledge`  | operator+ | Mark acknowledged, stores `acknowledged_by` + timestamp.                                                               |
+| GET    | `/:id/clip`         | viewer+   | Stream event MP4 clip with range request support.                                                                      |
+| GET    | `/:id/thumbnail`    | viewer+   | JPEG first frame extracted from clip with FFmpeg.                                                                      |
+| POST   | `/bulk-acknowledge` | operator+ | Body `{eventIds}`. Batch acknowledge.                                                                                  |
 
 #### Recordings — `/api/v1/recordings/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | viewer+ | List recordings. Query: `cameraId`, `trigger`, `status`, `startDate`, `endDate`. |
-| GET | `/timeline?cameraId=&date=` | viewer+ | Recording segments + events for timeline scrubber. Returns segments as `{start, end, id}` array. |
-| GET | `/:id` | viewer+ | Recording details including signed playback URL (R2 presigned or local path). |
-| GET | `/:id/play` | viewer+ | Stream MP4 with HTTP range requests. Redirects to R2 presigned URL if stored there; otherwise proxies local file. |
-| DELETE | `/:id` | admin+ | Deletes recording file and row. |
+| Method | Path                        | Auth    | Description                                                                                                       |
+| ------ | --------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                         | viewer+ | List recordings. Query: `cameraId`, `trigger`, `status`, `startDate`, `endDate`.                                  |
+| GET    | `/timeline?cameraId=&date=` | viewer+ | Recording segments + events for timeline scrubber. Returns segments as `{start, end, id}` array.                  |
+| GET    | `/:id`                      | viewer+ | Recording details including signed playback URL (R2 presigned or local path).                                     |
+| GET    | `/:id/play`                 | viewer+ | Stream MP4 with HTTP range requests. Redirects to R2 presigned URL if stored there; otherwise proxies local file. |
+| DELETE | `/:id`                      | admin+  | Deletes recording file and row.                                                                                   |
 
 #### Rules — `/api/v1/rules/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | viewer+ | List alert rules. |
-| POST | `/` | admin+ | Create rule. Validates condition tree + actions array. |
-| GET | `/:id` | viewer+ | Get rule with last trigger time + delivery stats. |
-| PATCH | `/:id` | admin+ | Update rule. |
-| DELETE | `/:id` | admin+ | Delete rule. |
-| POST | `/:id/test` | admin+ | Simulate rule against the last 10 events of the trigger type. Returns `{matched: bool, matchedEvents: [...]}`. |
-| GET | `/webhook-attempts` | admin+ | Paginated delivery log. Query: `ruleId`, `eventId`, `status` (delivered/failed). |
+| Method | Path                | Auth    | Description                                                                                                    |
+| ------ | ------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| GET    | `/`                 | viewer+ | List alert rules.                                                                                              |
+| POST   | `/`                 | admin+  | Create rule. Validates condition tree + actions array.                                                         |
+| GET    | `/:id`              | viewer+ | Get rule with last trigger time + delivery stats.                                                              |
+| PATCH  | `/:id`              | admin+  | Update rule.                                                                                                   |
+| DELETE | `/:id`              | admin+  | Delete rule.                                                                                                   |
+| POST   | `/:id/test`         | admin+  | Simulate rule against the last 10 events of the trigger type. Returns `{matched: bool, matchedEvents: [...]}`. |
+| GET    | `/webhook-attempts` | admin+  | Paginated delivery log. Query: `ruleId`, `eventId`, `status` (delivered/failed).                               |
 
 #### Tenants — `/api/v1/tenants/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/current` | viewer+ | Current tenant with plan limits. |
-| PATCH | `/current` | owner | Update name, slug, settings. |
-| PATCH | `/current/branding` | owner | Update logo URL, custom colors. |
-| GET | `/current/users` | admin+ | List users with roles, last login. |
-| POST | `/current/users/invite` | admin+ | Send invite email. Creates pending user record. |
-| PATCH | `/current/users/:userId/role` | owner | Change role. Cannot demote last owner. |
-| DELETE | `/current/users/:userId` | admin+ | Remove user from tenant. Cannot remove only owner. |
-| GET | `/current/usage` | admin+ | Camera count, user count, storage used, extensions installed. |
+| Method | Path                          | Auth    | Description                                                   |
+| ------ | ----------------------------- | ------- | ------------------------------------------------------------- |
+| GET    | `/current`                    | viewer+ | Current tenant with plan limits.                              |
+| PATCH  | `/current`                    | owner   | Update name, slug, settings.                                  |
+| PATCH  | `/current/branding`           | owner   | Update logo URL, custom colors.                               |
+| GET    | `/current/users`              | admin+  | List users with roles, last login.                            |
+| POST   | `/current/users/invite`       | admin+  | Send invite email. Creates pending user record.               |
+| PATCH  | `/current/users/:userId/role` | owner   | Change role. Cannot demote last owner.                        |
+| DELETE | `/current/users/:userId`      | admin+  | Remove user from tenant. Cannot remove only owner.            |
+| GET    | `/current/usage`              | admin+  | Camera count, user count, storage used, extensions installed. |
 
 #### Locations — `/api/v1/locations/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | viewer+ | List locations with camera counts. |
-| POST | `/` | admin+ | Create location with optional floor plan. |
-| GET | `/:id` | viewer+ | Get location with camera count. |
-| PATCH | `/:id` | admin+ | Update including floor plan JSON (canvas polygon objects). |
-| DELETE | `/:id` | admin+ | Delete location (cameras' location_id set to null). |
-| GET | `/:id/cameras` | viewer+ | Cameras assigned to this location. |
+| Method | Path           | Auth    | Description                                                |
+| ------ | -------------- | ------- | ---------------------------------------------------------- |
+| GET    | `/`            | viewer+ | List locations with camera counts.                         |
+| POST   | `/`            | admin+  | Create location with optional floor plan.                  |
+| GET    | `/:id`         | viewer+ | Get location with camera count.                            |
+| PATCH  | `/:id`         | admin+  | Update including floor plan JSON (canvas polygon objects). |
+| DELETE | `/:id`         | admin+  | Delete location (cameras' location_id set to null).        |
+| GET    | `/:id/cameras` | viewer+ | Cameras assigned to this location.                         |
 
 #### Tags — `/api/v1/tags/*` and `/api/v1/cameras/:id/tags`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | viewer+ | List all tags. |
-| POST | `/` | admin+ | Create tag with color. |
-| DELETE | `/:id` | admin+ | Delete tag + all assignments. |
-| GET | `/cameras/:id/tags` | viewer+ | Tags assigned to camera. |
-| POST | `/cameras/:id/tags` | admin+ | Assign tags to camera (replaces all). |
-| DELETE | `/cameras/:id/tags/:tagId` | admin+ | Remove one tag. |
+| Method | Path                       | Auth    | Description                           |
+| ------ | -------------------------- | ------- | ------------------------------------- |
+| GET    | `/`                        | viewer+ | List all tags.                        |
+| POST   | `/`                        | admin+  | Create tag with color.                |
+| DELETE | `/:id`                     | admin+  | Delete tag + all assignments.         |
+| GET    | `/cameras/:id/tags`        | viewer+ | Tags assigned to camera.              |
+| POST   | `/cameras/:id/tags`        | admin+  | Assign tags to camera (replaces all). |
+| DELETE | `/cameras/:id/tags/:tagId` | admin+  | Remove one tag.                       |
 
 #### Extensions — `/api/v1/extensions/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/marketplace` | viewer+ | Browse published extensions with categories, ratings. |
-| GET | `/marketplace/:id` | viewer+ | Extension detail page. |
-| GET | `/` | admin+ | Tenant's installed extensions. |
-| POST | `/` | admin+ | Install extension (checks plan limits). |
-| PATCH | `/:id/config` | admin+ | Update extension config (merged with defaults). |
-| PATCH | `/:id/toggle` | admin+ | Enable/disable without uninstalling. |
-| DELETE | `/:id` | admin+ | Uninstall. |
+| Method | Path               | Auth    | Description                                           |
+| ------ | ------------------ | ------- | ----------------------------------------------------- |
+| GET    | `/marketplace`     | viewer+ | Browse published extensions with categories, ratings. |
+| GET    | `/marketplace/:id` | viewer+ | Extension detail page.                                |
+| GET    | `/`                | admin+  | Tenant's installed extensions.                        |
+| POST   | `/`                | admin+  | Install extension (checks plan limits).               |
+| PATCH  | `/:id/config`      | admin+  | Update extension config (merged with defaults).       |
+| PATCH  | `/:id/toggle`      | admin+  | Enable/disable without uninstalling.                  |
+| DELETE | `/:id`             | admin+  | Uninstall.                                            |
 
 #### API Keys — `/api/v1/api-keys/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | admin+ | List keys (prefix shown, hash never returned). |
-| POST | `/` | admin+ | Create key. Returns full key **once** — not stored. |
-| DELETE | `/:id` | admin+ | Revoke key (sets `revoked_at`). |
+| Method | Path   | Auth   | Description                                         |
+| ------ | ------ | ------ | --------------------------------------------------- |
+| GET    | `/`    | admin+ | List keys (prefix shown, hash never returned).      |
+| POST   | `/`    | admin+ | Create key. Returns full key **once** — not stored. |
+| DELETE | `/:id` | admin+ | Revoke key (sets `revoked_at`).                     |
 
 #### Users — `/api/v1/users/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| PATCH | `/push-token` | Bearer | Register Expo push notification token for mobile app. |
+| Method | Path          | Auth   | Description                                           |
+| ------ | ------------- | ------ | ----------------------------------------------------- |
+| PATCH  | `/push-token` | Bearer | Register Expo push notification token for mobile app. |
 
 #### LPR — `/api/v1/lpr/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/status` | viewer+ | `{configured: bool, provider: "platerecognizer"}`. |
-| GET | `/watchlist` | viewer+ | List watchlist entries. |
-| POST | `/watchlist` | admin+ | Add plate. Normalizes to uppercase, deduplicates. |
-| PATCH | `/watchlist/:id` | admin+ | Toggle `alert_on_detect` or update label. |
-| DELETE | `/watchlist/:id` | admin+ | Remove plate. |
-| GET | `/detections` | viewer+ | Recent LPR detections (from events with type `lpr.detected`). |
+| Method | Path             | Auth    | Description                                                   |
+| ------ | ---------------- | ------- | ------------------------------------------------------------- |
+| GET    | `/status`        | viewer+ | `{configured: bool, provider: "platerecognizer"}`.            |
+| GET    | `/watchlist`     | viewer+ | List watchlist entries.                                       |
+| POST   | `/watchlist`     | admin+  | Add plate. Normalizes to uppercase, deduplicates.             |
+| PATCH  | `/watchlist/:id` | admin+  | Toggle `alert_on_detect` or update label.                     |
+| DELETE | `/watchlist/:id` | admin+  | Remove plate.                                                 |
+| GET    | `/detections`    | viewer+ | Recent LPR detections (from events with type `lpr.detected`). |
 
 #### Analytics — `/api/v1/analytics/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/timeseries?interval=&start=&end=` | viewer+ | Event counts over time (ClickHouse). |
-| GET | `/heatmap?start=&end=` | viewer+ | 24×7 grid of event counts by hour/day. |
-| GET | `/breakdown?by=type|severity|camera` | viewer+ | Pie/bar breakdown. |
-| GET | `/camera-activity?cameraId=` | viewer+ | Per-camera event timeline. |
-| GET | `/recordings-summary` | viewer+ | Recording storage totals by day. |
+| Method | Path                                | Auth     | Description                            |
+| ------ | ----------------------------------- | -------- | -------------------------------------- | ------- | ------------------ |
+| GET    | `/timeseries?interval=&start=&end=` | viewer+  | Event counts over time (ClickHouse).   |
+| GET    | `/heatmap?start=&end=`              | viewer+  | 24×7 grid of event counts by hour/day. |
+| GET    | `/breakdown?by=type                 | severity | camera`                                | viewer+ | Pie/bar breakdown. |
+| GET    | `/camera-activity?cameraId=`        | viewer+  | Per-camera event timeline.             |
+| GET    | `/recordings-summary`               | viewer+  | Recording storage totals by day.       |
 
 #### Edge Agents — `/api/v1/edge/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/agents/register` | X-Tenant-Id + API key | Upsert agent record (called by edge agent on startup). |
-| POST | `/agents/:agentId/heartbeat` | X-Tenant-Id | Update status, pending count, last_seen_at. Returns 200 always. |
-| GET | `/agents` | viewer+ | List all registered edge agents. |
-| GET | `/agents/:agentId` | viewer+ | Single agent. |
-| PATCH | `/agents/:agentId` | admin+ | Update name, location, config. |
-| DELETE | `/agents/:agentId` | admin+ | Remove agent record. |
+| Method | Path                         | Auth                  | Description                                                     |
+| ------ | ---------------------------- | --------------------- | --------------------------------------------------------------- |
+| POST   | `/agents/register`           | X-Tenant-Id + API key | Upsert agent record (called by edge agent on startup).          |
+| POST   | `/agents/:agentId/heartbeat` | X-Tenant-Id           | Update status, pending count, last_seen_at. Returns 200 always. |
+| GET    | `/agents`                    | viewer+               | List all registered edge agents.                                |
+| GET    | `/agents/:agentId`           | viewer+               | Single agent.                                                   |
+| PATCH  | `/agents/:agentId`           | admin+                | Update name, location, config.                                  |
+| DELETE | `/agents/:agentId`           | admin+                | Remove agent record.                                            |
 
 #### Config — `/api/v1/config/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | owner | List config keys (values masked). |
-| PUT | `/:key` | owner | Set config value. Encrypted at rest. |
-| DELETE | `/:key` | owner | Remove config key. |
+| Method | Path    | Auth  | Description                          |
+| ------ | ------- | ----- | ------------------------------------ |
+| GET    | `/`     | owner | List config keys (values masked).    |
+| PUT    | `/:key` | owner | Set config value. Encrypted at rest. |
+| DELETE | `/:key` | owner | Remove config key.                   |
 
 #### Health — `/health/*`
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/` | none | `{status: ok, services: {supabase, redis, go2rtc}}`. |
-| GET | `/metrics` | none | Prometheus text format (counters, histograms). |
+| Method | Path       | Auth | Description                                          |
+| ------ | ---------- | ---- | ---------------------------------------------------- |
+| GET    | `/`        | none | `{status: ok, services: {supabase, redis, go2rtc}}`. |
+| GET    | `/metrics` | none | Prometheus text format (counters, histograms).       |
 
 #### Docs — `/docs`
 
@@ -863,19 +922,19 @@ It runs alongside the Hono HTTP server in the same Bun process.
 
 ### Client → Server messages
 
-| Type | Payload | Effect |
-|------|---------|--------|
+| Type        | Payload                                   | Effect                                             |
+| ----------- | ----------------------------------------- | -------------------------------------------------- |
 | `subscribe` | `{cameraIds?, eventTypes?, minSeverity?}` | Adds filters; client only receives matching events |
-| `ping` | none | Server responds `{type: "pong"}` |
+| `ping`      | none                                      | Server responds `{type: "pong"}`                   |
 
 ### Server → Client messages
 
-| Type | Payload | When |
-|------|---------|------|
-| `connected` | `{clientId, tenantId}` | On successful auth |
-| `event` | full `OSPEvent` object | When matching event published to Redis |
-| `ping` | none | Every 30 s keepalive |
-| `error` | `{code, message}` | Auth failure, bad message |
+| Type        | Payload                | When                                   |
+| ----------- | ---------------------- | -------------------------------------- |
+| `connected` | `{clientId, tenantId}` | On successful auth                     |
+| `event`     | full `OSPEvent` object | When matching event published to Redis |
+| `ping`      | none                   | Every 30 s keepalive                   |
+| `error`     | `{code, message}`      | Auth failure, bad message              |
 
 ### Event routing
 
@@ -942,6 +1001,7 @@ redirects to `/cameras`.
 ### Dashboard pages
 
 **`/cameras`** — Camera grid/list. Features:
+
 - Live MJPEG thumbnail previews (10 s refresh via go2rtc `/api/frame.jpeg`)
 - Status dot (online/offline/connecting/error) with pulse animation
 - Search, filter by status/location/tag
@@ -950,6 +1010,7 @@ redirects to `/cameras`.
 - Add camera modal with protocol selector and connection test
 
 **`/cameras/[id]`** — Full camera detail page. Six tabs:
+
 - **Live** — WebRTC video player (WHEP), falls back to MP4 stream, then MJPEG. PTZ controls (joystick + presets). Two-way audio toggle (mic button opens getUserMedia, sends WebRTC backchannel). Recording start/stop with REC badge + duration timer.
 - **Timeline** — Recordings bar with 24 h scrubber. Click segment → video player seeks to that time. Events overlaid as pins.
 - **Events** — Filtered event list for this camera.
@@ -958,6 +1019,7 @@ redirects to `/cameras`.
 - **Info** — Manufacturer, model, firmware, connection metadata.
 
 **`/events`** — Event feed. Features:
+
 - Real-time updates via WebSocket (new events appear without refresh)
 - Filters: type, severity, camera, date range, acknowledged status
 - Acknowledge individually or bulk-acknowledge
@@ -965,12 +1027,14 @@ redirects to `/cameras`.
 - CSV/JSON export
 
 **`/recordings`** — Recording library. Features:
+
 - Grouped by date
 - Playback via HTML5 video + range requests
 - Filter by camera, trigger, date
 - CSV/JSON export
 
 **`/rules`** — Alert rule builder. Features:
+
 - Visual pipeline: Trigger box → Conditions block → Actions block
 - Trigger selector (event type)
 - Condition tree editor (AND/OR, field/op/value)
@@ -981,6 +1045,7 @@ redirects to `/cameras`.
 - Webhook delivery log panel (per rule, with request/response detail)
 
 **`/locations`** — Location management. Features:
+
 - Map view (lat/lng markers)
 - Floor plan editor (canvas — draw rooms, walls, place camera markers)
 - Assign cameras to locations
@@ -1002,6 +1067,7 @@ redirects to `/cameras`.
 | Desktop App | Autostart toggle, native notification test |
 
 **`/extensions`** — Marketplace. Features:
+
 - Browse published extensions by category
 - Install with one click
 - Configure per-extension settings
@@ -1009,6 +1075,7 @@ redirects to `/cameras`.
 - Demo extensions: motion heatmap, people counter, ANPR, ALPR, Slack alerts, Teams alerts, PagerDuty, SMS via Twilio
 
 **`/analytics`** — ClickHouse-powered dashboards. Features:
+
 - Event timeline (line chart)
 - Event type breakdown (donut)
 - Hourly heatmap (24×7 grid)
@@ -1017,6 +1084,7 @@ redirects to `/cameras`.
 - 24h / 7d / 30d / 90d presets
 
 **`/health`** — System health dashboard. Features:
+
 - Gateway status, Redis ping, Supabase connectivity
 - go2rtc stream list with individual stream health
 - Memory/CPU metrics from gateway Prometheus endpoint
@@ -1025,6 +1093,7 @@ redirects to `/cameras`.
 **`/monitor`** — Multi-camera wall view inside dashboard. Layouts: 1×1, 2×2, 3×3, 2×3, 1+5, 1+7. Auto-rotate option. "Open Wall" button.
 
 **`/wall`** — Fullscreen camera wall (no sidebar). Eight layouts (1×1 through 4×4, 1+5, 1+7). Features:
+
 - HUD auto-hides after 3.5 s, reappears on mouse move
 - Auto-rotate pages with amber progress bar
 - URL params: `?layout=`, `?rotate=`, `?filter=online`
@@ -1033,25 +1102,25 @@ redirects to `/cameras`.
 
 ### Key hooks and lib
 
-| File | Purpose |
-|------|---------|
-| `hooks/use-cameras.ts` | TanStack Query for camera list |
-| `hooks/use-events.ts` | Events with polling |
-| `hooks/use-event-stream.ts` | WebSocket connection + reconnect logic |
-| `hooks/use-live-feed.ts` | WebRTC WHEP + fallback chain |
-| `hooks/use-recordings.ts` | Recording list + timeline |
-| `hooks/use-analytics.ts` | ClickHouse analytics queries |
-| `hooks/use-tray-sync.ts` | Tauri tray badge sync |
-| `lib/api.ts` | Fetch wrapper with JWT refresh interceptor |
-| `lib/jwt.ts` | Token decode, expiry check |
-| `lib/transforms.ts` | API response → UI type conversions |
-| `lib/notifications.ts` | Web/native push notification registration |
-| `lib/tauri.ts` | Typed Tauri bridge (isTauri, updateTrayStatus, …) |
-| `lib/export.ts` | CSV + JSON export for events/recordings |
-| `stores/toast.ts` | Global toast notification store (Zustand) |
-| `stores/sidebar.ts` | Sidebar open/close state |
-| `stores/theme.ts` | Dark/light theme |
-| `stores/notification-prefs.ts` | Per-channel notification preferences |
+| File                           | Purpose                                           |
+| ------------------------------ | ------------------------------------------------- |
+| `hooks/use-cameras.ts`         | TanStack Query for camera list                    |
+| `hooks/use-events.ts`          | Events with polling                               |
+| `hooks/use-event-stream.ts`    | WebSocket connection + reconnect logic            |
+| `hooks/use-live-feed.ts`       | WebRTC WHEP + fallback chain                      |
+| `hooks/use-recordings.ts`      | Recording list + timeline                         |
+| `hooks/use-analytics.ts`       | ClickHouse analytics queries                      |
+| `hooks/use-tray-sync.ts`       | Tauri tray badge sync                             |
+| `lib/api.ts`                   | Fetch wrapper with JWT refresh interceptor        |
+| `lib/jwt.ts`                   | Token decode, expiry check                        |
+| `lib/transforms.ts`            | API response → UI type conversions                |
+| `lib/notifications.ts`         | Web/native push notification registration         |
+| `lib/tauri.ts`                 | Typed Tauri bridge (isTauri, updateTrayStatus, …) |
+| `lib/export.ts`                | CSV + JSON export for events/recordings           |
+| `stores/toast.ts`              | Global toast notification store (Zustand)         |
+| `stores/sidebar.ts`            | Sidebar open/close state                          |
+| `stores/theme.ts`              | Dark/light theme                                  |
+| `stores/notification-prefs.ts` | Per-channel notification preferences              |
 
 ### Global features
 
@@ -1070,16 +1139,16 @@ redirects to `/cameras`.
 
 ### Screens
 
-| Screen | Route | Description |
-|--------|-------|-------------|
-| Login | `/login` | Email/password auth, stores tokens in SecureStore |
-| Register | `/register` | Account creation |
-| Camera List | `/(tabs)/cameras` | Grid of camera thumbnails (5 s MJPEG refresh) |
-| Camera Detail | `/camera/[id]` | WebRTC live view + MJPEG fallback; PTZ; recording; motion zones list |
-| Events | `/(tabs)/events` | Event feed with severity color coding |
-| Recordings | `/(tabs)/recordings` | Date-grouped recordings list; cached offline (AsyncStorage) |
-| Settings | `/(tabs)/settings` | User profile, tenant info, push notification preferences |
-| Recording Controls | `/camera/[id]/record` | Full-screen recording timer, start/stop |
+| Screen             | Route                 | Description                                                          |
+| ------------------ | --------------------- | -------------------------------------------------------------------- |
+| Login              | `/login`              | Email/password auth, stores tokens in SecureStore                    |
+| Register           | `/register`           | Account creation                                                     |
+| Camera List        | `/(tabs)/cameras`     | Grid of camera thumbnails (5 s MJPEG refresh)                        |
+| Camera Detail      | `/camera/[id]`        | WebRTC live view + MJPEG fallback; PTZ; recording; motion zones list |
+| Events             | `/(tabs)/events`      | Event feed with severity color coding                                |
+| Recordings         | `/(tabs)/recordings`  | Date-grouped recordings list; cached offline (AsyncStorage)          |
+| Settings           | `/(tabs)/settings`    | User profile, tenant info, push notification preferences             |
+| Recording Controls | `/camera/[id]/record` | Full-screen recording timer, start/stop                              |
 
 ### Key features
 
@@ -1107,15 +1176,15 @@ enters their server URL on a connect screen; the webview navigates there.
 
 ### Features
 
-| Feature | Implementation |
-|---------|----------------|
-| System tray | `tauri-plugin-notification` — live camera count + alert count in tooltip |
-| Tray left-click | Toggle window show/hide |
-| Tray menu | Open / Start at Login / Quit |
-| Minimize to tray | `×` button hides window instead of quitting |
-| Auto-start on login | `tauri-plugin-autostart` (toggle in Settings → Desktop App) |
-| Native notifications | Replaces Web Notifications API (`isTauri()` guard in `notifications.ts`) |
-| Connection screen | Production mode: user enters server URL, verified with `/health`, then webview loads it |
+| Feature              | Implementation                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| System tray          | `tauri-plugin-notification` — live camera count + alert count in tooltip                |
+| Tray left-click      | Toggle window show/hide                                                                 |
+| Tray menu            | Open / Start at Login / Quit                                                            |
+| Minimize to tray     | `×` button hides window instead of quitting                                             |
+| Auto-start on login  | `tauri-plugin-autostart` (toggle in Settings → Desktop App)                             |
+| Native notifications | Replaces Web Notifications API (`isTauri()` guard in `notifications.ts`)                |
+| Connection screen    | Production mode: user enters server URL, verified with `/health`, then webview loads it |
 
 ### Build
 
@@ -1130,6 +1199,7 @@ pnpm --filter @osp/desktop build    # Produces .dmg / .msi / .deb
 ## 11. Go Microservices
 
 All Go services share the same patterns:
+
 - Module path: `github.com/MatiDes12/osp/services/<name>`
 - Go 1.22 / CGO disabled / Alpine Docker image
 - `internal/log/log.go` — structured slog JSON logging with startup/shutdown banners
@@ -1141,6 +1211,7 @@ All Go services share the same patterns:
 **Source:** `services/camera-ingest/`
 
 **Responsibilities:**
+
 - Manages camera stream registrations in go2rtc via its HTTP API
 - Monitors camera health at configurable intervals (default 30 s)
 - Publishes `camera:status` Redis channel events on status changes
@@ -1148,23 +1219,25 @@ All Go services share the same patterns:
 
 **Key packages:**
 
-| Package | Description |
-|---------|-------------|
-| `internal/camera` | Camera CRUD business logic |
-| `internal/stream` | go2rtc HTTP client (add/remove/list streams) |
-| `internal/health` | Per-camera health monitor, status state machine |
-| `internal/ptz` | PTZ controller — translates gRPC actions to ONVIF SOAP |
-| `internal/discovery` | ONVIF multicast discovery (WS-Discovery) |
-| `internal/server` | gRPC handler implementation |
-| `pkg/motion` | Pure-Go JPEG pixel-diff motion detector (1 fps polling) |
+| Package              | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `internal/camera`    | Camera CRUD business logic                              |
+| `internal/stream`    | go2rtc HTTP client (add/remove/list streams)            |
+| `internal/health`    | Per-camera health monitor, status state machine         |
+| `internal/ptz`       | PTZ controller — translates gRPC actions to ONVIF SOAP  |
+| `internal/discovery` | ONVIF multicast discovery (WS-Discovery)                |
+| `internal/server`    | gRPC handler implementation                             |
+| `pkg/motion`         | Pure-Go JPEG pixel-diff motion detector (1 fps polling) |
 
 **gRPC API (proto: `camera_ingest.proto`):**
+
 - `AddCamera(id, uri, protocol, config)` — registers stream in go2rtc
 - `RemoveCamera(id)` — removes from go2rtc
 - `GetCameraStatus(id)` — returns current status
 - `PtzCommand(cameraId, action, direction, speed, presetId)` — forwards PTZ
 
 **Motion detection (inline worker):**
+
 - `MotionService.StartPolling(ctx)` — 1-fps ticker, fetches JPEG from go2rtc for each camera
 - `Detector.ProcessJPEG()` — RGBA pixel diff against previous frame
 - Sensitivity 1–10 maps to diff ratio threshold 0.050–0.005
@@ -1177,6 +1250,7 @@ All Go services share the same patterns:
 **Source:** `services/video-pipeline/`
 
 **Responsibilities:**
+
 - Manages FFmpeg recording processes (start/stop/segment)
 - Uploads completed recordings to Cloudflare R2
 - Extracts snapshots (first frame of clip)
@@ -1185,15 +1259,15 @@ All Go services share the same patterns:
 
 **Key packages:**
 
-| Package | Description |
-|---------|-------------|
-| `internal/recording` | FFmpeg process lifecycle, segment detection |
-| `internal/storage` | R2 upload (AWS SDK S3-compatible), spool queue |
-| `internal/snapshot` | FFmpeg `-frames:v 1` extraction |
-| `internal/retention` | Periodic cleanup of expired recordings + R2 objects |
-| `internal/playback` | Generate signed playback URLs (presigned R2 or local path) |
-| `internal/db` | PostgreSQL queries (recordings table) |
-| `internal/dualdb` | Dual-write to primary + cloud mirror DB |
+| Package              | Description                                                |
+| -------------------- | ---------------------------------------------------------- |
+| `internal/recording` | FFmpeg process lifecycle, segment detection                |
+| `internal/storage`   | R2 upload (AWS SDK S3-compatible), spool queue             |
+| `internal/snapshot`  | FFmpeg `-frames:v 1` extraction                            |
+| `internal/retention` | Periodic cleanup of expired recordings + R2 objects        |
+| `internal/playback`  | Generate signed playback URLs (presigned R2 or local path) |
+| `internal/db`        | PostgreSQL queries (recordings table)                      |
+| `internal/dualdb`    | Dual-write to primary + cloud mirror DB                    |
 
 ### Event Engine Service
 
@@ -1201,6 +1275,7 @@ All Go services share the same patterns:
 **Source:** `services/event-engine/`
 
 **Responsibilities:**
+
 - Subscribes to Redis `events:*` channels
 - Persists incoming events to PostgreSQL
 - Evaluates alert rules against each event
@@ -1209,15 +1284,16 @@ All Go services share the same patterns:
 
 **Key packages:**
 
-| Package | Description |
-|---------|-------------|
-| `internal/events` | Event repository (Postgres), publisher, subscriber |
-| `internal/rules` | Rule engine: condition tree evaluator, cooldown, cache |
+| Package             | Description                                                      |
+| ------------------- | ---------------------------------------------------------------- |
+| `internal/events`   | Event repository (Postgres), publisher, subscriber               |
+| `internal/rules`    | Rule engine: condition tree evaluator, cooldown, cache           |
 | `internal/dispatch` | Notification dispatchers: push (Expo), email (SendGrid), webhook |
-| `internal/audit` | Writes to audit_logs table |
-| `internal/dualdb` | Dual-write pattern |
+| `internal/audit`    | Writes to audit_logs table                                       |
+| `internal/dualdb`   | Dual-write pattern                                               |
 
 **Rule evaluation:**
+
 1. Event arrives via Redis subscriber
 2. Load all enabled rules for tenant (from cache or DB)
 3. For each rule: check `trigger_event` matches, evaluate condition tree (recursive AND/OR), check cooldown not expired, check camera/zone whitelist
@@ -1240,6 +1316,7 @@ to this service with WASM sandbox via `isolated-vm`.
 **Source:** `services/gateway/src/services/extension-runner.ts`
 
 The current JS extension execution:
+
 - Uses Node.js `vm` module with `codeGeneration: {strings: false, wasm: false}`
 - Timeout clamped to prevent infinite loops
 - Guarded by `EXTENSION_ALLOW_INLINE_SOURCE=true` env var (must explicitly enable; off in prod)
@@ -1272,15 +1349,15 @@ Local site:
 
 ### Internal packages
 
-| Package | Description |
-|---------|-------------|
-| `internal/config` | Env var config loading (EDGE_AGENT_ID, CLOUD_GATEWAY_URL, etc.) |
-| `internal/log` | Shared slog structured logger (same as other Go services) |
-| `internal/storage` | BoltDB wrapper: enqueue, get pending, mark synced, prune old |
-| `internal/motion` | Pure-Go JPEG pixel-diff motion detector (adapted from camera-ingest) |
-| `internal/camera` | Camera manager: static list or auto-discover from go2rtc |
-| `internal/sync` | Cloud sync loop: heartbeat + batch event upload (50/cycle) |
-| `internal/health` | HTTP `/health` + `/status` endpoints |
+| Package            | Description                                                          |
+| ------------------ | -------------------------------------------------------------------- |
+| `internal/config`  | Env var config loading (EDGE_AGENT_ID, CLOUD_GATEWAY_URL, etc.)      |
+| `internal/log`     | Shared slog structured logger (same as other Go services)            |
+| `internal/storage` | BoltDB wrapper: enqueue, get pending, mark synced, prune old         |
+| `internal/motion`  | Pure-Go JPEG pixel-diff motion detector (adapted from camera-ingest) |
+| `internal/camera`  | Camera manager: static list or auto-discover from go2rtc             |
+| `internal/sync`    | Cloud sync loop: heartbeat + batch event upload (50/cycle)           |
+| `internal/health`  | HTTP `/health` + `/status` endpoints                                 |
 
 ### Sync behaviour
 
@@ -1328,11 +1405,13 @@ docker run -d --name osp-edge \
 go2rtc is the universal camera protocol translator and WebRTC server.
 
 **Ports:**
+
 - `1984` — HTTP API (stream management, MJPEG, JPEG snapshots, WHEP, WHIP)
 - `8554` — RTSP server (re-stream all cameras as RTSP)
 - `8555` — WebRTC server (ICE candidates from this port)
 
 **Config (`infra/docker/go2rtc.yaml`):**
+
 ```yaml
 api:
   listen: :1984
@@ -1353,6 +1432,7 @@ log:
   level: warn
   format: text
 ```
+
 Audio codecs include `opus` for WebRTC two-way audio backchannel.
 
 ### WebRTC live view (WHEP)
@@ -1371,6 +1451,7 @@ Browser                    Gateway              go2rtc           Camera
 ```
 
 ICE servers returned by `GET /cameras/:id/stream`:
+
 - Always: `stun:stun.l.google.com:19302`
 - Optional: TURN server from `TURN_SERVER_URL` env var (needed for NAT traversal)
 
@@ -1381,6 +1462,7 @@ ICE servers returned by `GET /cameras/:id/stream`:
 **Continuous:** starts on camera register if `recordingMode=continuous`
 
 Recording flow:
+
 1. `recording.service.ts` creates DB row (`status: recording`)
 2. Calls go2rtc `GET /api/stream.mp4?src=:id` (FFmpeg MP4 mux) to local file
 3. On stop: finalizes MP4, calculates duration + size, updates DB row
@@ -1402,6 +1484,7 @@ this via the `/:id/recording.mp4` and stream endpoints.
 ### Two-way audio
 
 For ONVIF cameras with `twoWayAudio` capability enabled:
+
 1. go2rtc registers stream with `?backchannel=1` appended to ONVIF URI
 2. go2rtc negotiates `sendrecv` audio with `opus` codec
 3. Browser opens microphone (`getUserMedia`), adds track to WebRTC connection
@@ -1442,23 +1525,23 @@ publishEvent(tenantId: string, event: OSPEvent): Promise<void>
 
 ```typescript
 {
-  id: string
-  cameraId: string
-  cameraName: string
-  zoneId: string | null
-  zoneName: string | null
-  tenantId: string
-  type: EventType
-  severity: EventSeverity
-  detectedAt: string        // ISO 8601
-  metadata: Record<string, unknown>
-  snapshotUrl: string | null
-  clipUrl: string | null
-  intensity: number          // 0–100
-  acknowledged: boolean
-  acknowledgedBy: string | null
-  acknowledgedAt: string | null
-  createdAt: string
+  id: string;
+  cameraId: string;
+  cameraName: string;
+  zoneId: string | null;
+  zoneName: string | null;
+  tenantId: string;
+  type: EventType;
+  severity: EventSeverity;
+  detectedAt: string; // ISO 8601
+  metadata: Record<string, unknown>;
+  snapshotUrl: string | null;
+  clipUrl: string | null;
+  intensity: number; // 0–100
+  acknowledged: boolean;
+  acknowledgedBy: string | null;
+  acknowledgedAt: string | null;
+  createdAt: string;
 }
 ```
 
@@ -1498,6 +1581,7 @@ only see those cameras, not all tenant cameras.
 ### SSO
 
 Uses Supabase's built-in OAuth (works on all Supabase plans):
+
 1. Frontend calls `GET /initiate?provider=google` → gets Supabase OAuth URL
 2. Browser redirects to Google (or Azure/GitHub), user authenticates
 3. Supabase redirects back to `/auth/callback` with `#access_token=...` in hash
@@ -1521,6 +1605,7 @@ endpoints. On exceed: `429 Too Many Requests` with `Retry-After` header.
 ### Rule evaluator (`lib/rule-evaluator.ts`)
 
 Called on every new event. Steps:
+
 1. Load all `enabled=true` rules for tenant (Redis-cached with 60 s TTL; invalidated on rule change)
 2. Filter rules by `trigger_event` matching event type
 3. Check `camera_ids` filter (empty = all cameras)
@@ -1536,17 +1621,18 @@ Called with each matched rule + event context. Actions execute independently
 
 **Action types:**
 
-| Type | What happens |
-|------|-------------|
-| `webhook` | HTTP POST to configured URL with event payload. Up to 5 retries with exponential backoff (1s, 2s, 4s, 8s). Each attempt logged to `webhook_delivery_attempts`. |
-| `email` | Sends formatted HTML email via SendGrid API v3. Uses `alertEmailTemplate`. Includes camera name, event type, severity, snapshot link. |
-| `push_notification` | Fetches all user `push_token` values for tenant. Posts to Expo Push API `https://exp.host/--/api/v2/push/send`. |
-| `record` | Calls `POST /cameras/:id/record/start` with `trigger: rule`. |
-| `in_app` | Inserts notification row in `notifications` table + publishes `rule.triggered` synthetic event to Redis → WebSocket. |
+| Type                | What happens                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webhook`           | HTTP POST to configured URL with event payload. Up to 5 retries with exponential backoff (1s, 2s, 4s, 8s). Each attempt logged to `webhook_delivery_attempts`. |
+| `email`             | Sends formatted HTML email via SendGrid API v3. Uses `alertEmailTemplate`. Includes camera name, event type, severity, snapshot link.                          |
+| `push_notification` | Fetches all user `push_token` values for tenant. Posts to Expo Push API `https://exp.host/--/api/v2/push/send`.                                                |
+| `record`            | Calls `POST /cameras/:id/record/start` with `trigger: rule`.                                                                                                   |
+| `in_app`            | Inserts notification row in `notifications` table + publishes `rule.triggered` synthetic event to Redis → WebSocket.                                           |
 
 ### Event publishing on action
 
 When a rule fires, a synthetic `rule.triggered` event is published to Redis with:
+
 ```json
 {
   "type": "custom",
@@ -1559,6 +1645,7 @@ When a rule fires, a synthetic `rule.triggered` event is published to Redis with
   }
 }
 ```
+
 This appears instantly in the browser event feed.
 
 ---
@@ -1571,6 +1658,7 @@ This appears instantly in the browser event feed.
 ### Trigger
 
 Fires fire-and-forget after any **motion** event is created (if `AI_PROVIDER=openai`):
+
 1. Fetch JPEG frame from go2rtc `/api/frame.jpeg?src={cameraId}`
 2. Post frame as base64 to OpenAI Vision
 3. Parse response: extract detections `[{type, confidence, label, boundingBox}]`
@@ -1609,6 +1697,7 @@ The web event feed shows colored badges (`AI: Person`, `AI: Vehicle`) when
 ### Trigger
 
 Fires fire-and-forget after any **motion** event, if LPR is configured:
+
 1. Fetch JPEG frame from go2rtc
 2. POST multipart form to `https://api.platerecognizer.com/v1/plate-reader/`
 3. Optional `LPR_REGIONS` param for region-specific accuracy (e.g. `us,gb`)
@@ -1629,6 +1718,7 @@ LPR_REGIONS=us,gb              # optional, improves accuracy
 ### Watchlist management
 
 Via `Settings → License Plates` or API:
+
 - `POST /api/v1/lpr/watchlist` — add plate (normalized to uppercase, e.g. "ABC1234")
 - Toggle `alert_on_detect` per entry
 - `GET /api/v1/lpr/detections` — recent detection events
@@ -1643,12 +1733,14 @@ Via `Settings → License Plates` or API:
 ### Tables
 
 **`events_analytics`** — Append-only event tracking
+
 ```sql
 camera_id    UUID,  tenant_id   UUID,  event_type  LowCardinality(String),
 severity     LowCardinality(String),  occurred_at DateTime,  hour DateTime
 ```
 
 **`recordings_analytics`** — Recording metadata
+
 ```sql
 camera_id UUID, tenant_id UUID, trigger LowCardinality(String),
 duration_sec UInt32, size_bytes UInt64, recorded_at DateTime
@@ -1669,13 +1761,13 @@ as fire-and-forget (never awaited in the request handler).
 
 ### API queries
 
-| Endpoint | ClickHouse query |
-|----------|-----------------|
-| `/timeseries` | `GROUP BY hour ORDER BY hour` with interval bucketing |
-| `/heatmap` | `GROUP BY toDayOfWeek(occurred_at), toHour(occurred_at)` |
-| `/breakdown` | `GROUP BY event_type` or `severity` |
-| `/camera-activity` | `WHERE camera_id = ? GROUP BY hour` |
-| `/recordings-summary` | `GROUP BY toDate(recorded_at)` |
+| Endpoint              | ClickHouse query                                         |
+| --------------------- | -------------------------------------------------------- |
+| `/timeseries`         | `GROUP BY hour ORDER BY hour` with interval bucketing    |
+| `/heatmap`            | `GROUP BY toDayOfWeek(occurred_at), toHour(occurred_at)` |
+| `/breakdown`          | `GROUP BY event_type` or `severity`                      |
+| `/camera-activity`    | `WHERE camera_id = ? GROUP BY hour`                      |
+| `/recordings-summary` | `GROUP BY toDate(recorded_at)`                           |
 
 ---
 
@@ -1698,6 +1790,7 @@ Event metadata update / custom action
 ### Extension manifest
 
 Declared in extension's `manifest.json`:
+
 ```json
 {
   "name": "my-extension",
@@ -1713,6 +1806,7 @@ Declared in extension's `manifest.json`:
 ### Hooks
 
 Extensions respond to named hooks. Built-in hooks:
+
 - `event.motion`, `event.person`, `event.vehicle`, `event.animal`
 - `recording.complete`, `recording.start`
 - `camera.online`, `camera.offline`
@@ -1720,6 +1814,7 @@ Extensions respond to named hooks. Built-in hooks:
 ### Execution sandbox
 
 `extension-runner.ts`:
+
 - Node.js `vm.runInContext()` with restricted context
 - `codeGeneration: {strings: false, wasm: false}` — no `eval()` or `new Function()`
 - Configurable timeout (default 5 s)
@@ -1729,6 +1824,7 @@ Extensions respond to named hooks. Built-in hooks:
 ### Demo extensions
 
 8 pre-installed demo extensions in seed data:
+
 1. **Motion Heatmap** — generates heatmap overlay from motion intensity
 2. **People Counter** — counts persons in frame over time
 3. **ANPR / ALPR** — alternative LPR (wraps LPR service)
@@ -1746,17 +1842,18 @@ Extensions respond to named hooks. Built-in hooks:
 
 File: `infra/docker/docker-compose.yml`
 
-| Service | Image | Ports | Description |
-|---------|-------|-------|-------------|
-| `redis` | `redis:7-alpine` | 6379 | Cache + pub/sub |
-| `go2rtc` | `alexxit/go2rtc` | 1984, 8554, 8555 | Camera proxy + WebRTC |
-| `clickhouse` | `clickhouse/clickhouse-server:23` | 8123, 9000 | Analytics DB |
-| `camera-ingest` | `osp-camera-ingest` (local build) | 50051, 8080 | Go service |
-| `video-pipeline` | `osp-video-pipeline` (local build) | 50052, 8081 | Go service |
-| `event-engine` | `osp-event-engine` (local build) | 50053, 8082 | Go service |
-| `extension-runtime` | `osp-extension-runtime` (local build) | 50054, 8083 | Go service |
+| Service             | Image                                 | Ports            | Description           |
+| ------------------- | ------------------------------------- | ---------------- | --------------------- |
+| `redis`             | `redis:7-alpine`                      | 6379             | Cache + pub/sub       |
+| `go2rtc`            | `alexxit/go2rtc`                      | 1984, 8554, 8555 | Camera proxy + WebRTC |
+| `clickhouse`        | `clickhouse/clickhouse-server:23`     | 8123, 9000       | Analytics DB          |
+| `camera-ingest`     | `osp-camera-ingest` (local build)     | 50051, 8080      | Go service            |
+| `video-pipeline`    | `osp-video-pipeline` (local build)    | 50052, 8081      | Go service            |
+| `event-engine`      | `osp-event-engine` (local build)      | 50053, 8082      | Go service            |
+| `extension-runtime` | `osp-extension-runtime` (local build) | 50054, 8083      | Go service            |
 
 **ClickHouse special config** (required for Docker Desktop on Windows):
+
 ```yaml
 cap_add: [SYS_NICE, IPC_LOCK]
 security_opt: [seccomp:unconfined]
@@ -1764,6 +1861,7 @@ security_opt: [seccomp:unconfined]
 ```
 
 **Named volumes:**
+
 - `redis-data` — Redis persistence
 - `go2rtc-config` — go2rtc stream config
 - `recordings-data` — mounted at `/data/recordings` in gateway
@@ -1782,6 +1880,7 @@ k8s/
 ```
 
 Apply:
+
 ```bash
 kubectl apply -k infra/k8s/overlays/production/
 ```
@@ -1795,6 +1894,7 @@ kubectl apply -k infra/k8s/overlays/production/
 ### Fly.io (gateway + Go services)
 
 Each service has a `fly.toml`:
+
 - `osp-gateway` — 3000/3002
 - `osp-camera-ingest` — 50051
 - `osp-video-pipeline` — 50052
@@ -1803,6 +1903,7 @@ Each service has a `fly.toml`:
 - `osp-edge-agent` — 8084 with `/data` persistent volume
 
 Deploy:
+
 ```bash
 fly secrets set SUPABASE_URL=... -a osp-gateway
 bash scripts/deploy-fly.sh gateway
@@ -1812,6 +1913,7 @@ bash scripts/deploy-fly.sh all
 ### CI/CD (GitHub Actions)
 
 `.github/workflows/`:
+
 - Lint + type-check on every push
 - Unit + integration tests on PR
 - Build check (all packages)
@@ -2010,21 +2112,22 @@ cd apps/mobile && pnpm start       # Expo dev server
 
 ### Service URLs (local dev)
 
-| Service | URL |
-|---------|-----|
-| Web dashboard | http://localhost:3001 |
-| API gateway | http://localhost:3000 |
+| Service           | URL                        |
+| ----------------- | -------------------------- |
+| Web dashboard     | http://localhost:3001      |
+| API gateway       | http://localhost:3000      |
 | API docs (Scalar) | http://localhost:3000/docs |
-| WebSocket | ws://localhost:3002 |
-| go2rtc API | http://localhost:1984 |
-| go2rtc RTSP | rtsp://localhost:8554 |
-| ClickHouse HTTP | http://localhost:8123 |
-| Redis | localhost:6379 |
-| Edge agent | http://localhost:8084 |
+| WebSocket         | ws://localhost:3002        |
+| go2rtc API        | http://localhost:1984      |
+| go2rtc RTSP       | rtsp://localhost:8554      |
+| ClickHouse HTTP   | http://localhost:8123      |
+| Redis             | localhost:6379             |
+| Edge agent        | http://localhost:8084      |
 
 ### Build Go services
 
 Each Go service builds into a Docker image:
+
 ```bash
 docker build -t osp-camera-ingest services/camera-ingest/
 docker build -t osp-video-pipeline services/video-pipeline/
@@ -2034,6 +2137,7 @@ docker build -t osp-edge-agent services/edge-agent/
 ```
 
 Or use the generic Dockerfile:
+
 ```bash
 docker build -f infra/docker/go-service.Dockerfile \
   --build-arg SERVICE_NAME=camera-ingest \
@@ -2043,12 +2147,14 @@ docker build -f infra/docker/go-service.Dockerfile \
 ### Database migrations
 
 All in `infra/supabase/migrations/`. Apply via Supabase CLI:
+
 ```bash
 supabase db push
 # or paste SQL directly into Supabase SQL Editor
 ```
 
 Migration order (1–21):
+
 1. Core enums
 2. Tenants
 3. Users + user_roles
@@ -2177,4 +2283,4 @@ sessions, 100% of errors.
 
 ---
 
-*Document generated 2026-03-20 · OSP v0.1.0 · 250+ source files · 61 commits*
+_Document generated 2026-03-20 · OSP v0.1.0 · 250+ source files · 61 commits_

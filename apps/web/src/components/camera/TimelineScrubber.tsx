@@ -34,7 +34,10 @@ function formatDateLabel(dateStr: string): string {
 
 function timeToPercent(timeStr: string, dayStart: number): number {
   const DAY_MS = 24 * 60 * 60 * 1000;
-  return Math.max(0, Math.min(100, ((new Date(timeStr).getTime() - dayStart) / DAY_MS) * 100));
+  return Math.max(
+    0,
+    Math.min(100, ((new Date(timeStr).getTime() - dayStart) / DAY_MS) * 100),
+  );
 }
 
 function percentToTime(percent: number, dayStart: number): Date {
@@ -49,39 +52,62 @@ function formatHHMM(date: Date): string {
 
 function getRecordingColor(trigger: string): string {
   switch (trigger) {
-    case "motion":       return "#f59e0b"; // amber-500
-    case "ai_detection": return "#a855f7"; // purple-500
-    case "manual":       return "#3b82f6"; // blue-500
-    case "rule":         return "#06b6d4"; // cyan-500
-    default:             return "#22c55e"; // green-500 (continuous)
+    case "motion":
+      return "#f59e0b"; // amber-500
+    case "ai_detection":
+      return "#a855f7"; // purple-500
+    case "manual":
+      return "#3b82f6"; // blue-500
+    case "rule":
+      return "#06b6d4"; // cyan-500
+    default:
+      return "#22c55e"; // green-500 (continuous)
   }
 }
 
 function getEventDotColor(type: string): string {
   switch (type) {
-    case "motion":         return "#ef4444"; // red-500
-    case "person":         return "#f97316"; // orange-500
-    case "vehicle":        return "#38bdf8"; // sky-400
-    case "animal":         return "#4ade80"; // green-400
-    case "tampering":      return "#eab308"; // yellow-500
-    case "audio":          return "#c084fc"; // purple-400
-    case "camera_offline": return "#6b7280"; // gray-500
-    case "camera_online":  return "#6b7280"; // gray-500
-    default:               return "#a1a1aa"; // zinc-400
+    case "motion":
+      return "#ef4444"; // red-500
+    case "person":
+      return "#f97316"; // orange-500
+    case "vehicle":
+      return "#38bdf8"; // sky-400
+    case "animal":
+      return "#4ade80"; // green-400
+    case "tampering":
+      return "#eab308"; // yellow-500
+    case "audio":
+      return "#c084fc"; // purple-400
+    case "camera_offline":
+      return "#6b7280"; // gray-500
+    case "camera_online":
+      return "#6b7280"; // gray-500
+    default:
+      return "#a1a1aa"; // zinc-400
   }
 }
 
 function getEventLabel(type: string): string {
   switch (type) {
-    case "motion":         return "Motion";
-    case "person":         return "Person";
-    case "vehicle":        return "Vehicle";
-    case "animal":         return "Animal";
-    case "tampering":      return "Tampering";
-    case "audio":          return "Audio";
-    case "camera_offline": return "Camera offline";
-    case "camera_online":  return "Camera online";
-    default:               return type.charAt(0).toUpperCase() + type.slice(1);
+    case "motion":
+      return "Motion";
+    case "person":
+      return "Person";
+    case "vehicle":
+      return "Vehicle";
+    case "animal":
+      return "Animal";
+    case "tampering":
+      return "Tampering";
+    case "audio":
+      return "Audio";
+    case "camera_offline":
+      return "Camera offline";
+    case "camera_online":
+      return "Camera online";
+    default:
+      return type.charAt(0).toUpperCase() + type.slice(1);
   }
 }
 
@@ -121,7 +147,11 @@ export function TimelineScrubber({
   const trackRef = useRef<HTMLDivElement>(null);
   const [currentDate, setCurrentDate] = useState(date ?? getTodayStr());
   const [hover, setHover] = useState<HoverState | null>(null);
-  const [snapshotModal, setSnapshotModal] = useState<{ src: string; label: string; timestamp: string } | null>(null);
+  const [snapshotModal, setSnapshotModal] = useState<{
+    src: string;
+    label: string;
+    timestamp: string;
+  } | null>(null);
 
   useEffect(() => {
     if (date) setCurrentDate(date);
@@ -165,7 +195,10 @@ export function TimelineScrubber({
   const getPercent = useCallback((clientX: number): number => {
     const rect = trackRef.current?.getBoundingClientRect();
     if (!rect) return 0;
-    return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    return Math.max(
+      0,
+      Math.min(100, ((clientX - rect.left) / rect.width) * 100),
+    );
   }, []);
 
   const handleMouseMove = useCallback(
@@ -216,7 +249,7 @@ export function TimelineScrubber({
 
   const hourMarkers = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => ({
-      left: (i * 4 / 24) * 100,
+      left: ((i * 4) / 24) * 100,
       label: `${String(i * 4).padStart(2, "0")}:00`,
     }));
   }, []);
@@ -243,12 +276,16 @@ export function TimelineScrubber({
   }
 
   return (
-    <div className={`bg-zinc-900 rounded-lg border border-zinc-800 select-none ${className ?? ""}`}>
+    <div
+      className={`bg-zinc-900 rounded-lg border border-zinc-800 select-none ${className ?? ""}`}
+    >
       {/* Header: legend + date nav */}
       <div className="flex items-center justify-between px-3 pt-2 pb-1 gap-2 flex-wrap">
         {/* Legend */}
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-[9px] uppercase tracking-wide text-zinc-600 font-medium">Rec</span>
+          <span className="text-[9px] uppercase tracking-wide text-zinc-600 font-medium">
+            Rec
+          </span>
           {recordingLegend.map((l) => (
             <span key={l.label} className="flex items-center gap-1">
               <span
@@ -258,7 +295,9 @@ export function TimelineScrubber({
               <span className="text-[10px] text-zinc-500">{l.label}</span>
             </span>
           ))}
-          <span className="text-[9px] uppercase tracking-wide text-zinc-600 font-medium ml-2">Events</span>
+          <span className="text-[9px] uppercase tracking-wide text-zinc-600 font-medium ml-2">
+            Events
+          </span>
           {eventLegend.map((l) => (
             <span key={l.label} className="flex items-center gap-1">
               <span
@@ -307,10 +346,15 @@ export function TimelineScrubber({
         <div className="flex items-stretch gap-2">
           {/* Left col: time + row labels */}
           <div className="w-10 shrink-0 flex flex-col items-end gap-0.5">
-            <span className="text-[10px] font-mono text-zinc-500 leading-5" style={{ fontFamily: "monospace" }}>
+            <span
+              className="text-[10px] font-mono text-zinc-500 leading-5"
+              style={{ fontFamily: "monospace" }}
+            >
               00:00
             </span>
-            <span className="text-[8px] text-zinc-700 leading-5 mt-0.5">EVT</span>
+            <span className="text-[8px] text-zinc-700 leading-5 mt-0.5">
+              EVT
+            </span>
           </div>
 
           {/* Track container — recording bar + event row share same x-axis */}
@@ -378,9 +422,7 @@ export function TimelineScrubber({
                 >
                   {/* Camera icon for events that have a snapshot */}
                   {evt.thumbnailUrl && (
-                    <Camera
-                      className="absolute -top-3 left-1/2 -translate-x-1/2 w-2 h-2 text-zinc-300 pointer-events-none"
-                    />
+                    <Camera className="absolute -top-3 left-1/2 -translate-x-1/2 w-2 h-2 text-zinc-300 pointer-events-none" />
                   )}
                 </button>
               ))}
@@ -395,63 +437,75 @@ export function TimelineScrubber({
             </div>
 
             {/* ── Hover tooltip ── */}
-            {hover && (() => {
-              const pinLeft = Math.max(2, Math.min(98, hover.percent));
-              const isRight = pinLeft > 65;
-              return (
-                <div
-                  className="absolute -top-1 z-20 pointer-events-none"
-                  style={{
-                    left: `${pinLeft}%`,
-                    transform: isRight ? "translateX(-100%) translateY(-100%)" : "translateY(-100%)",
-                  }}
-                >
-                  {hover.nearEvent ? (
-                    /* Event tooltip with optional thumbnail */
-                    <div className="bg-zinc-800 border border-zinc-600 rounded-lg shadow-lg overflow-hidden text-left min-w-[140px]">
-                      {hover.nearEvent.thumbnailUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={hover.nearEvent.thumbnailUrl}
-                          alt="Event snapshot"
-                          className="w-full h-20 object-cover"
-                        />
-                      )}
-                      <div className="px-2 py-1.5 space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: getEventDotColor(hover.nearEvent.type) }}
-                          />
-                          <span className="text-[11px] font-medium text-zinc-200">
-                            {getEventLabel(hover.nearEvent.type)}
-                          </span>
-                        </div>
-                        <span className="block text-[10px] text-zinc-400 font-mono">
-                          {new Date(hover.nearEvent.timestamp).toLocaleTimeString()}
-                        </span>
+            {hover &&
+              (() => {
+                const pinLeft = Math.max(2, Math.min(98, hover.percent));
+                const isRight = pinLeft > 65;
+                return (
+                  <div
+                    className="absolute -top-1 z-20 pointer-events-none"
+                    style={{
+                      left: `${pinLeft}%`,
+                      transform: isRight
+                        ? "translateX(-100%) translateY(-100%)"
+                        : "translateY(-100%)",
+                    }}
+                  >
+                    {hover.nearEvent ? (
+                      /* Event tooltip with optional thumbnail */
+                      <div className="bg-zinc-800 border border-zinc-600 rounded-lg shadow-lg overflow-hidden text-left min-w-[140px]">
                         {hover.nearEvent.thumbnailUrl && (
-                          <span className="flex items-center gap-1 text-[9px] text-zinc-500">
-                            <Camera className="w-2.5 h-2.5" />
-                            Snapshot saved
-                          </span>
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={hover.nearEvent.thumbnailUrl}
+                            alt="Event snapshot"
+                            className="w-full h-20 object-cover"
+                          />
                         )}
+                        <div className="px-2 py-1.5 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{
+                                backgroundColor: getEventDotColor(
+                                  hover.nearEvent.type,
+                                ),
+                              }}
+                            />
+                            <span className="text-[11px] font-medium text-zinc-200">
+                              {getEventLabel(hover.nearEvent.type)}
+                            </span>
+                          </div>
+                          <span className="block text-[10px] text-zinc-400 font-mono">
+                            {new Date(
+                              hover.nearEvent.timestamp,
+                            ).toLocaleTimeString()}
+                          </span>
+                          {hover.nearEvent.thumbnailUrl && (
+                            <span className="flex items-center gap-1 text-[9px] text-zinc-500">
+                              <Camera className="w-2.5 h-2.5" />
+                              Snapshot saved
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    /* Plain time tooltip */
-                    <div className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-200 font-mono whitespace-nowrap shadow">
-                      {formatHHMM(percentToTime(hover.percent, dayStart))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+                    ) : (
+                      /* Plain time tooltip */
+                      <div className="px-2 py-1 rounded bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-200 font-mono whitespace-nowrap shadow">
+                        {formatHHMM(percentToTime(hover.percent, dayStart))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
           </div>
 
           {/* Right col: time */}
           <div className="w-10 shrink-0 flex flex-col items-start gap-0.5">
-            <span className="text-[10px] font-mono text-zinc-500 leading-5" style={{ fontFamily: "monospace" }}>
+            <span
+              className="text-[10px] font-mono text-zinc-500 leading-5"
+              style={{ fontFamily: "monospace" }}
+            >
               24:00
             </span>
           </div>
@@ -493,9 +547,15 @@ export function TimelineScrubber({
               <div className="flex items-center gap-2">
                 <span
                   className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: getEventDotColor(snapshotModal.label.toLowerCase()) }}
+                  style={{
+                    backgroundColor: getEventDotColor(
+                      snapshotModal.label.toLowerCase(),
+                    ),
+                  }}
                 />
-                <span className="text-sm font-medium text-zinc-200">{snapshotModal.label} — Snapshot</span>
+                <span className="text-sm font-medium text-zinc-200">
+                  {snapshotModal.label} — Snapshot
+                </span>
                 <span className="text-xs text-zinc-500 font-mono">
                   {new Date(snapshotModal.timestamp).toLocaleString()}
                 </span>
@@ -505,8 +565,18 @@ export function TimelineScrubber({
                 className="p-1 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer rounded"
                 aria-label="Close"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -526,8 +596,18 @@ export function TimelineScrubber({
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors cursor-pointer"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 3l14 9-14 9V3z"
+                  />
                 </svg>
                 Seek to recording
               </button>
@@ -536,8 +616,18 @@ export function TimelineScrubber({
                 download={`snapshot-${snapshotModal.timestamp}.jpg`}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded-md transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
                 </svg>
                 Download
               </a>

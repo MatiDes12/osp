@@ -9,6 +9,7 @@ trigger: always
 ## Camera Pipeline Pattern
 
 When working on camera-related code:
+
 1. Camera discovery uses ONVIF probing on LAN + manual RTSP URI entry
 2. go2rtc handles all protocol translation (RTSP/ONVIF -> WebRTC/HLS)
 3. FFmpeg handles transcoding, segmented recording, thumbnail extraction
@@ -17,6 +18,7 @@ When working on camera-related code:
 ## Multi-Tenant Data Access
 
 Every database query MUST be tenant-scoped:
+
 ```sql
 -- ALWAYS include tenant_id in WHERE clauses
 SELECT * FROM cameras WHERE tenant_id = $1 AND id = $2;
@@ -27,6 +29,7 @@ SELECT * FROM cameras WHERE tenant_id = $1 AND id = $2;
 ## Extension Hook Points
 
 When adding new features, consider if they need extension hooks:
+
 - `onMotionDetected` — after motion detection triggers
 - `onPersonDetected` — after AI person detection
 - `onCameraOffline` — when camera health check fails
@@ -38,13 +41,14 @@ Extensions register via manifest and execute in sandboxed runtime.
 ## API Endpoint Pattern
 
 All new endpoints follow this pattern:
+
 ```typescript
 // services/gateway/src/routes/cameras.ts
-app.get('/api/v1/cameras', authMiddleware, tenantMiddleware, async (c) => {
-  const tenantId = c.get('tenantId')
-  const cameras = await cameraService.listByTenant(tenantId)
-  return c.json({ data: cameras, meta: { total: cameras.length } })
-})
+app.get("/api/v1/cameras", authMiddleware, tenantMiddleware, async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameras = await cameraService.listByTenant(tenantId);
+  return c.json({ data: cameras, meta: { total: cameras.length } });
+});
 ```
 
 ## Video Storage Pattern

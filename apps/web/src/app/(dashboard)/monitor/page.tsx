@@ -35,14 +35,14 @@ const LAYOUTS: {
   readonly maxCells: number;
   readonly shortcut: string;
 }[] = [
-  { id: "1x1", label: "Single", icon: Expand,      maxCells: 1,  shortcut: "1" },
-  { id: "2x2", label: "2×2",    icon: Grid2x2,     maxCells: 4,  shortcut: "2" },
-  { id: "3x3", label: "3×3",    icon: Grid3x3,     maxCells: 9,  shortcut: "3" },
-  { id: "4x4", label: "4×4",    icon: LayoutGrid,  maxCells: 16, shortcut: "4" },
-  { id: "2x3", label: "2×3",    icon: LayoutGrid,  maxCells: 6,  shortcut: "5" },
-  { id: "3x4", label: "3×4",    icon: LayoutGrid,  maxCells: 12, shortcut: "6" },
-  { id: "1+5", label: "1+5",    icon: MonitorPlay, maxCells: 6,  shortcut: "7" },
-  { id: "1+7", label: "1+7",    icon: MonitorPlay, maxCells: 8,  shortcut: "8" },
+  { id: "1x1", label: "Single", icon: Expand, maxCells: 1, shortcut: "1" },
+  { id: "2x2", label: "2×2", icon: Grid2x2, maxCells: 4, shortcut: "2" },
+  { id: "3x3", label: "3×3", icon: Grid3x3, maxCells: 9, shortcut: "3" },
+  { id: "4x4", label: "4×4", icon: LayoutGrid, maxCells: 16, shortcut: "4" },
+  { id: "2x3", label: "2×3", icon: LayoutGrid, maxCells: 6, shortcut: "5" },
+  { id: "3x4", label: "3×4", icon: LayoutGrid, maxCells: 12, shortcut: "6" },
+  { id: "1+5", label: "1+5", icon: MonitorPlay, maxCells: 6, shortcut: "7" },
+  { id: "1+7", label: "1+7", icon: MonitorPlay, maxCells: 8, shortcut: "8" },
 ];
 
 const ROTATE_OPTIONS = [5, 10, 15, 30, 60] as const;
@@ -82,7 +82,9 @@ function LiveClock() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-  return <span className="tabular-nums font-mono text-sm text-zinc-300">{time}</span>;
+  return (
+    <span className="tabular-nums font-mono text-sm text-zinc-300">{time}</span>
+  );
 }
 
 // ─── Camera cell ─────────────────────────────────────────────────────────────
@@ -103,12 +105,18 @@ function CameraCell({
   return (
     <div
       className={`relative bg-black rounded overflow-hidden cursor-pointer transition-all duration-150 h-full ${
-        isFocused ? "ring-2 ring-blue-500" : "ring-0 hover:ring-1 hover:ring-zinc-600"
+        isFocused
+          ? "ring-2 ring-blue-500"
+          : "ring-0 hover:ring-1 hover:ring-zinc-600"
       }`}
       onClick={onFocus}
       onDoubleClick={onDoubleClick}
     >
-      <LiveViewPlayer cameraId={camera.id} cameraName={camera.name} className="w-full h-full" />
+      <LiveViewPlayer
+        cameraId={camera.id}
+        cameraName={camera.name}
+        className="w-full h-full"
+      />
       {showLabel && (
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1.5 pointer-events-none">
           <div className="flex items-center justify-between">
@@ -161,7 +169,9 @@ function CameraGrid({
     const strip = cameras.slice(1, stripCount + 1);
     return (
       <div className="h-full w-full flex gap-1">
-        <div className={`min-w-0 ${layout === "1+5" ? "flex-[2]" : "flex-[3]"}`}>
+        <div
+          className={`min-w-0 ${layout === "1+5" ? "flex-[2]" : "flex-[3]"}`}
+        >
           {main && (
             <CameraCell
               camera={main}
@@ -221,7 +231,8 @@ function CameraGrid({
 export default function MonitorPage() {
   const { cameras, loading, error, refetch } = useCameras();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(containerRef);
+  const { isFullscreen, toggle: toggleFullscreen } =
+    useFullscreen(containerRef);
   const pageStartRef = useRef(Date.now());
 
   const [layout, setLayout] = useState<GridLayout>("2x2");
@@ -236,21 +247,34 @@ export default function MonitorPage() {
   const [rotateProgress, setRotateProgress] = useState(0);
 
   const filteredCameras = useMemo(
-    () => (filterOnline ? cameras.filter((c) => c.status === "online") : [...cameras]),
+    () =>
+      filterOnline
+        ? cameras.filter((c) => c.status === "online")
+        : [...cameras],
     [cameras, filterOnline],
   );
-  const onlineCameras = useMemo(() => cameras.filter((c) => c.status === "online"), [cameras]);
+  const onlineCameras = useMemo(
+    () => cameras.filter((c) => c.status === "online"),
+    [cameras],
+  );
 
-  const layoutConfig = useMemo(() => LAYOUTS.find((l) => l.id === layout)!, [layout]);
+  const layoutConfig = useMemo(
+    () => LAYOUTS.find((l) => l.id === layout)!,
+    [layout],
+  );
   const maxVisible = layoutConfig.maxCells;
-  const totalPages = Math.max(1, Math.ceil(filteredCameras.length / maxVisible));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredCameras.length / maxVisible),
+  );
 
   const visibleCameras = useMemo(() => {
     const start = pageOffset * maxVisible;
     return filteredCameras.slice(start, start + maxVisible);
   }, [filteredCameras, pageOffset, maxVisible]);
 
-  const focusedCamera = focusedIdx !== null ? (visibleCameras[focusedIdx] ?? null) : null;
+  const focusedCamera =
+    focusedIdx !== null ? (visibleCameras[focusedIdx] ?? null) : null;
 
   useEffect(() => {
     if (pageOffset > 0 && pageOffset >= totalPages)
@@ -259,7 +283,10 @@ export default function MonitorPage() {
 
   // Auto-rotate progress
   useEffect(() => {
-    if (!autoRotate || totalPages <= 1) { setRotateProgress(0); return; }
+    if (!autoRotate || totalPages <= 1) {
+      setRotateProgress(0);
+      return;
+    }
     const intervalMs = rotateSec * 1000;
     const id = setInterval(() => {
       const elapsed = Date.now() - pageStartRef.current;
@@ -288,17 +315,36 @@ export default function MonitorPage() {
   // Keyboard navigation
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
       switch (e.key) {
-        case "Escape": setFocusedIdx(null); break;
-        case "f": case "F": toggleFullscreen(); break;
-        case "m": setGlobalMuted((v) => !v); break;
-        case "l": setShowLabels((v) => !v); break;
-        case "r": setAutoRotate((v) => !v); break;
-        case "ArrowRight": case "n":
-          setPageOffset((p) => Math.min(p + 1, totalPages - 1)); break;
-        case "ArrowLeft": case "p":
-          setPageOffset((p) => Math.max(p - 1, 0)); break;
+        case "Escape":
+          setFocusedIdx(null);
+          break;
+        case "f":
+        case "F":
+          toggleFullscreen();
+          break;
+        case "m":
+          setGlobalMuted((v) => !v);
+          break;
+        case "l":
+          setShowLabels((v) => !v);
+          break;
+        case "r":
+          setAutoRotate((v) => !v);
+          break;
+        case "ArrowRight":
+        case "n":
+          setPageOffset((p) => Math.min(p + 1, totalPages - 1));
+          break;
+        case "ArrowLeft":
+        case "p":
+          setPageOffset((p) => Math.max(p - 1, 0));
+          break;
         default:
           LAYOUTS.forEach((l) => {
             if (e.key === l.shortcut) {
@@ -339,7 +385,9 @@ export default function MonitorPage() {
       <div className="flex flex-col items-center justify-center h-[calc(100vh-5rem)]">
         <MonitorPlay className="h-10 w-10 text-zinc-600 mb-3" />
         <p className="text-sm text-zinc-400">No cameras to monitor</p>
-        <p className="text-xs text-zinc-600 mt-1">Add cameras first, then come back here</p>
+        <p className="text-xs text-zinc-600 mt-1">
+          Add cameras first, then come back here
+        </p>
       </div>
     );
   }
@@ -357,7 +405,9 @@ export default function MonitorPage() {
       >
         {/* Title + status */}
         <MonitorPlay className="h-4 w-4 text-blue-400 shrink-0" />
-        <span className="text-sm font-semibold text-zinc-200 shrink-0">Surveillance Monitor</span>
+        <span className="text-sm font-semibold text-zinc-200 shrink-0">
+          Surveillance Monitor
+        </span>
         <div className="flex items-center gap-1.5 ml-1">
           <Circle className="h-2 w-2 fill-green-500 text-green-500 shrink-0" />
           <span className="text-[11px] text-zinc-400 tabular-nums font-mono">
@@ -378,7 +428,9 @@ export default function MonitorPage() {
           <button
             onClick={() => setAutoRotate((v) => !v)}
             className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-              autoRotate ? "bg-amber-500/20 text-amber-400" : "text-zinc-500 hover:text-zinc-300"
+              autoRotate
+                ? "bg-amber-500/20 text-amber-400"
+                : "text-zinc-500 hover:text-zinc-300"
             }`}
             title="Auto-rotate pages (R)"
           >
@@ -392,7 +444,9 @@ export default function MonitorPage() {
               className="bg-zinc-800 text-[10px] text-zinc-300 border border-zinc-700 rounded px-1 py-0.5 outline-none cursor-pointer"
             >
               {ROTATE_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s}s</option>
+                <option key={s} value={s}>
+                  {s}s
+                </option>
               ))}
             </select>
           )}
@@ -404,7 +458,9 @@ export default function MonitorPage() {
         <button
           onClick={() => setFilterOnline((f) => !f)}
           className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-            filterOnline ? "bg-green-500/20 text-green-400" : "text-zinc-500 hover:text-zinc-300"
+            filterOnline
+              ? "bg-green-500/20 text-green-400"
+              : "text-zinc-500 hover:text-zinc-300"
           }`}
           title="Show online cameras only"
         >
@@ -415,7 +471,9 @@ export default function MonitorPage() {
         <button
           onClick={() => setShowLabels((l) => !l)}
           className={`px-2 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-            showLabels ? "bg-blue-500/15 text-blue-400" : "text-zinc-500 hover:text-zinc-300"
+            showLabels
+              ? "bg-blue-500/15 text-blue-400"
+              : "text-zinc-500 hover:text-zinc-300"
           }`}
           title="Toggle camera labels (L)"
         >
@@ -430,7 +488,10 @@ export default function MonitorPage() {
             onClick={() => setShowLayoutPicker((p) => !p)}
             className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 rounded border border-zinc-800 hover:border-zinc-700 transition-colors cursor-pointer"
           >
-            {(() => { const Icon = layoutConfig.icon; return <Icon className="h-3.5 w-3.5" />; })()}
+            {(() => {
+              const Icon = layoutConfig.icon;
+              return <Icon className="h-3.5 w-3.5" />;
+            })()}
             {layoutConfig.label}
             <ChevronDown className="h-3 w-3" />
           </button>
@@ -455,7 +516,9 @@ export default function MonitorPage() {
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {l.label}
-                    <span className="ml-auto text-zinc-600 font-mono">{l.shortcut}</span>
+                    <span className="ml-auto text-zinc-600 font-mono">
+                      {l.shortcut}
+                    </span>
                   </button>
                 );
               })}
@@ -473,7 +536,11 @@ export default function MonitorPage() {
           }`}
           title={`${globalMuted ? "Unmute" : "Mute"} all (M)`}
         >
-          {globalMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {globalMuted ? (
+            <VolumeX className="h-4 w-4" />
+          ) : (
+            <Volume2 className="h-4 w-4" />
+          )}
         </button>
 
         {/* Fullscreen */}
@@ -482,7 +549,11 @@ export default function MonitorPage() {
           className="p-1.5 rounded text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer shrink-0"
           title="Fullscreen (F)"
         >
-          {isFullscreen ? <Shrink className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          {isFullscreen ? (
+            <Shrink className="h-4 w-4" />
+          ) : (
+            <Maximize2 className="h-4 w-4" />
+          )}
         </button>
 
         {/* Open dedicated wall */}
@@ -515,9 +586,13 @@ export default function MonitorPage() {
             </button>
             <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-sm">
               <Circle className="h-2 w-2 fill-green-500 text-green-500" />
-              <span className="text-sm font-medium text-zinc-100">{focusedCamera.name}</span>
+              <span className="text-sm font-medium text-zinc-100">
+                {focusedCamera.name}
+              </span>
               {focusedCamera.location?.label && (
-                <span className="text-xs text-zinc-500">{focusedCamera.location.label}</span>
+                <span className="text-xs text-zinc-500">
+                  {focusedCamera.location.label}
+                </span>
               )}
             </div>
           </div>
@@ -548,20 +623,25 @@ export default function MonitorPage() {
                   key={i}
                   onClick={() => setPageOffset(i)}
                   className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                    i === pageOffset ? "w-4 bg-blue-500" : "w-1.5 bg-zinc-700 hover:bg-zinc-500"
+                    i === pageOffset
+                      ? "w-4 bg-blue-500"
+                      : "w-1.5 bg-zinc-700 hover:bg-zinc-500"
                   }`}
                 />
               ))}
             </div>
             <button
-              onClick={() => setPageOffset((p) => Math.min(totalPages - 1, p + 1))}
+              onClick={() =>
+                setPageOffset((p) => Math.min(totalPages - 1, p + 1))
+              }
               disabled={pageOffset >= totalPages - 1}
               className="px-2 py-0.5 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-30 cursor-pointer"
             >
               Next
             </button>
             <span className="text-[10px] text-zinc-600 ml-2 font-mono tabular-nums">
-              Page {pageOffset + 1}/{totalPages} · {filteredCameras.length} cameras
+              Page {pageOffset + 1}/{totalPages} · {filteredCameras.length}{" "}
+              cameras
             </span>
           </div>
 

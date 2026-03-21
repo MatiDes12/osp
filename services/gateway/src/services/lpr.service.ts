@@ -18,10 +18,10 @@ const logger = createLogger("lpr");
 const PLATERECOGNIZER_URL = "https://api.platerecognizer.com/v1/plate-reader/";
 
 export interface PlateDetection {
-  plate: string;        // normalised uppercase, e.g. "ABC1234"
-  confidence: number;   // 0–1
-  region: string;       // country/region code, e.g. "us-ca"
-  vehicle: string;      // "car" | "truck" | "motorcycle" | "bus" | "unknown"
+  plate: string; // normalised uppercase, e.g. "ABC1234"
+  confidence: number; // 0–1
+  region: string; // country/region code, e.g. "us-ca"
+  vehicle: string; // "car" | "truck" | "motorcycle" | "bus" | "unknown"
   boundingBox: { x: number; y: number; width: number; height: number } | null;
 }
 
@@ -32,13 +32,18 @@ export interface LprResult {
 }
 
 export function isLprConfigured(): boolean {
-  return !!(get("LPR_API_KEY") && (get("LPR_PROVIDER") ?? "platerecognizer") === "platerecognizer");
+  return !!(
+    get("LPR_API_KEY") &&
+    (get("LPR_PROVIDER") ?? "platerecognizer") === "platerecognizer"
+  );
 }
 
 /**
  * Submit a JPEG frame buffer to PlateRecognizer and return detected plates.
  */
-export async function analyzeFrameForPlates(imageBuffer: Buffer): Promise<LprResult> {
+export async function analyzeFrameForPlates(
+  imageBuffer: Buffer,
+): Promise<LprResult> {
   const apiKey = get("LPR_API_KEY");
   if (!apiKey) return { detections: [], provider: "none", processingMs: 0 };
 
@@ -46,7 +51,11 @@ export async function analyzeFrameForPlates(imageBuffer: Buffer): Promise<LprRes
 
   try {
     const form = new FormData();
-    form.append("upload", new Blob([imageBuffer], { type: "image/jpeg" }), "frame.jpg");
+    form.append(
+      "upload",
+      new Blob([imageBuffer], { type: "image/jpeg" }),
+      "frame.jpg",
+    );
 
     // Optional: restrict to specific regions for accuracy (e.g. "us,gb")
     const regions = get("LPR_REGIONS");
@@ -61,11 +70,18 @@ export async function analyzeFrameForPlates(imageBuffer: Buffer): Promise<LprRes
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      logger.warn("PlateRecognizer API error", { status: String(res.status), body: errText.slice(0, 200) });
-      return { detections: [], provider: "platerecognizer", processingMs: Date.now() - start };
+      logger.warn("PlateRecognizer API error", {
+        status: String(res.status),
+        body: errText.slice(0, 200),
+      });
+      return {
+        detections: [],
+        provider: "platerecognizer",
+        processingMs: Date.now() - start,
+      };
     }
 
-    const json = await res.json() as {
+    const json = (await res.json()) as {
       results: Array<{
         plate: { upper: string };
         score: number;
@@ -96,10 +112,18 @@ export async function analyzeFrameForPlates(imageBuffer: Buffer): Promise<LprRes
       ms: String(Date.now() - start),
     });
 
-    return { detections, provider: "platerecognizer", processingMs: Date.now() - start };
+    return {
+      detections,
+      provider: "platerecognizer",
+      processingMs: Date.now() - start,
+    };
   } catch (err) {
     logger.warn("LPR analysis failed", { error: String(err) });
-    return { detections: [], provider: "platerecognizer", processingMs: Date.now() - start };
+    return {
+      detections: [],
+      provider: "platerecognizer",
+      processingMs: Date.now() - start,
+    };
   }
 }
 

@@ -18,14 +18,35 @@ export interface OSPExtension {
   onInstall?(ctx: { tenantId: string }): Promise<void>;
   onUninstall?(ctx: { tenantId: string }): Promise<void>;
   hooks?: {
-    onMotionDetected?(event: MotionEvent, ctx: HookContext): Promise<HookResult>;
-    onPersonDetected?(event: PersonEvent, ctx: HookContext): Promise<HookResult>;
-    onVehicleDetected?(event: VehicleEvent, ctx: HookContext): Promise<HookResult>;
-    onCameraOffline?(event: CameraStatusEvent, ctx: HookContext): Promise<HookResult>;
-    onCameraOnline?(event: CameraStatusEvent, ctx: HookContext): Promise<HookResult>;
-    onRecordingComplete?(event: RecordingEvent, ctx: HookContext): Promise<HookResult>;
+    onMotionDetected?(
+      event: MotionEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
+    onPersonDetected?(
+      event: PersonEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
+    onVehicleDetected?(
+      event: VehicleEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
+    onCameraOffline?(
+      event: CameraStatusEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
+    onCameraOnline?(
+      event: CameraStatusEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
+    onRecordingComplete?(
+      event: RecordingEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
     onAlertTriggered?(event: AlertEvent, ctx: HookContext): Promise<HookResult>;
-    onScheduledTick?(event: ScheduledEvent, ctx: HookContext): Promise<HookResult>;
+    onScheduledTick?(
+      event: ScheduledEvent,
+      ctx: HookContext,
+    ): Promise<HookResult>;
   };
   widgets?: DashboardWidget[];
   settings?: SettingsSchema;

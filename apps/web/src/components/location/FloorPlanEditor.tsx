@@ -79,12 +79,12 @@ export interface FloorObject {
   rotation: number;
   label?: string;
   color?: string;
-  cameraId?: string;    // linked real camera ID
+  cameraId?: string; // linked real camera ID
   cameraStatus?: string;
   furnitureType?: string;
-  wallHeight?: number;  // for 3D
+  wallHeight?: number; // for 3D
   locked?: boolean;
-  floorLevel?: number;  // Floor level (0 = ground, 1 = 1st floor, etc.)
+  floorLevel?: number; // Floor level (0 = ground, 1 = 1st floor, etc.)
 }
 
 interface FloorPlanEditorProps {
@@ -104,9 +104,16 @@ const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 4;
 
 const ROOM_COLORS = [
-  "#3B82F6", "#22C55E", "#F59E0B", "#A855F7",
-  "#06B6D4", "#EF4444", "#EC4899", "#F97316",
-  "#6366F1", "#14B8A6",
+  "#3B82F6",
+  "#22C55E",
+  "#F59E0B",
+  "#A855F7",
+  "#06B6D4",
+  "#EF4444",
+  "#EC4899",
+  "#F97316",
+  "#6366F1",
+  "#14B8A6",
 ];
 
 const FURNITURE_TYPES = [
@@ -121,19 +128,27 @@ const FURNITURE_TYPES = [
 ];
 
 let _uid = Date.now();
-function uid(): string { return String(_uid++); }
+function uid(): string {
+  return String(_uid++);
+}
 
-const TOOLS: { id: Tool; icon: typeof Square; label: string; key: string; group: number }[] = [
-  { id: "select",    icon: MousePointer2, label: "Select",    key: "V", group: 0 },
-  { id: "pan",       icon: Move,          label: "Pan",       key: "H", group: 0 },
-  { id: "room",      icon: Square,        label: "Room",      key: "R", group: 1 },
-  { id: "wall",      icon: Minus,         label: "Wall",      key: "W", group: 1 },
-  { id: "door",      icon: DoorOpen,      label: "Door",      key: "D", group: 1 },
-  { id: "window",    icon: ArrowUpDown,   label: "Window",    key: "N", group: 1 },
-  { id: "camera",    icon: Camera,        label: "Camera",    key: "C", group: 2 },
-  { id: "furniture", icon: Armchair,       label: "Furniture", key: "F", group: 2 },
-  { id: "label",     icon: Type,          label: "Label",     key: "T", group: 2 },
-  { id: "measure",   icon: Ruler,         label: "Measure",   key: "M", group: 3 },
+const TOOLS: {
+  id: Tool;
+  icon: typeof Square;
+  label: string;
+  key: string;
+  group: number;
+}[] = [
+  { id: "select", icon: MousePointer2, label: "Select", key: "V", group: 0 },
+  { id: "pan", icon: Move, label: "Pan", key: "H", group: 0 },
+  { id: "room", icon: Square, label: "Room", key: "R", group: 1 },
+  { id: "wall", icon: Minus, label: "Wall", key: "W", group: 1 },
+  { id: "door", icon: DoorOpen, label: "Door", key: "D", group: 1 },
+  { id: "window", icon: ArrowUpDown, label: "Window", key: "N", group: 1 },
+  { id: "camera", icon: Camera, label: "Camera", key: "C", group: 2 },
+  { id: "furniture", icon: Armchair, label: "Furniture", key: "F", group: 2 },
+  { id: "label", icon: Type, label: "Label", key: "T", group: 2 },
+  { id: "measure", icon: Ruler, label: "Measure", key: "M", group: 3 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -141,7 +156,9 @@ const TOOLS: { id: Tool; icon: typeof Square; label: string; key: string; group:
 // ---------------------------------------------------------------------------
 
 function snap(value: number, enabled: boolean): number {
-  return enabled ? Math.round(value / GRID_SIZE) * GRID_SIZE : Math.round(value);
+  return enabled
+    ? Math.round(value / GRID_SIZE) * GRID_SIZE
+    : Math.round(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,8 +178,11 @@ function toIso(x: number, y: number, z: number): Point {
 
 function drawGrid2D(
   ctx: CanvasRenderingContext2D,
-  w: number, h: number,
-  zoom: number, ox: number, oy: number,
+  w: number,
+  h: number,
+  zoom: number,
+  ox: number,
+  oy: number,
   showGrid: boolean,
 ) {
   if (!showGrid) return;
@@ -172,18 +192,27 @@ function drawGrid2D(
   const sx = ox % step;
   const sy = oy % step;
   for (let x = sx; x < w; x += step) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
   }
   for (let y = sy; y < h; y += step) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
   }
 }
 
 function drawObj2D(
   ctx: CanvasRenderingContext2D,
   obj: FloorObject,
-  zoom: number, ox: number, oy: number,
-  selected: boolean, hovered: boolean,
+  zoom: number,
+  ox: number,
+  oy: number,
+  selected: boolean,
+  hovered: boolean,
 ) {
   const sx = obj.x * zoom + ox;
   const sy = obj.y * zoom + oy;
@@ -275,7 +304,11 @@ function drawObj2D(
     case "camera": {
       const r = 12 * zoom;
       const isOnline = obj.cameraStatus === "online";
-      const baseColor = isOnline ? "#22C55E" : obj.cameraId ? "#EF4444" : "#3B82F6";
+      const baseColor = isOnline
+        ? "#22C55E"
+        : obj.cameraId
+          ? "#EF4444"
+          : "#3B82F6";
 
       // FOV cone
       const fovLen = 50 * zoom;
@@ -286,8 +319,14 @@ function drawObj2D(
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(sx, sy);
-      ctx.lineTo(sx + Math.cos(rot - fovAngle) * fovLen, sy + Math.sin(rot - fovAngle) * fovLen);
-      ctx.lineTo(sx + Math.cos(rot + fovAngle) * fovLen, sy + Math.sin(rot + fovAngle) * fovLen);
+      ctx.lineTo(
+        sx + Math.cos(rot - fovAngle) * fovLen,
+        sy + Math.sin(rot - fovAngle) * fovLen,
+      );
+      ctx.lineTo(
+        sx + Math.cos(rot + fovAngle) * fovLen,
+        sy + Math.sin(rot + fovAngle) * fovLen,
+      );
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
@@ -343,7 +382,11 @@ function drawObj2D(
         ctx.font = `${Math.max(8, 9 * zoom)}px Inter, system-ui`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(obj.label ?? obj.furnitureType ?? "", sx + sw / 2, sy + sh / 2);
+        ctx.fillText(
+          obj.label ?? obj.furnitureType ?? "",
+          sx + sw / 2,
+          sy + sh / 2,
+        );
       }
       break;
     }
@@ -396,8 +439,11 @@ function drawObj2D(
 
 function drawMeasureLine(
   ctx: CanvasRenderingContext2D,
-  start: Point, end: Point,
-  zoom: number, ox: number, oy: number,
+  start: Point,
+  end: Point,
+  zoom: number,
+  ox: number,
+  oy: number,
 ) {
   const sx = start.x * zoom + ox;
   const sy = start.y * zoom + oy;
@@ -433,7 +479,9 @@ function drawMeasureLine(
 function drawObjIso(
   ctx: CanvasRenderingContext2D,
   obj: FloorObject,
-  zoom: number, ox: number, oy: number,
+  zoom: number,
+  ox: number,
+  oy: number,
   selected: boolean,
 ) {
   if (obj.type === "label" || obj.type === "camera") {
@@ -442,7 +490,9 @@ function drawObjIso(
     return;
   }
 
-  const height = (obj.wallHeight ?? (obj.type === "room" ? 40 : obj.type === "wall" ? 50 : 15)) * zoom;
+  const height =
+    (obj.wallHeight ??
+      (obj.type === "room" ? 40 : obj.type === "wall" ? 50 : 15)) * zoom;
 
   // Floor face
   const fl = toIso(obj.x * zoom, obj.y * zoom, 0);
@@ -466,40 +516,56 @@ function drawObjIso(
   ctx.strokeStyle = col + "60";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(fl.x, fl.y); ctx.lineTo(fr.x, fr.y);
-  ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+  ctx.moveTo(fl.x, fl.y);
+  ctx.lineTo(fr.x, fr.y);
+  ctx.lineTo(br.x, br.y);
+  ctx.lineTo(bl.x, bl.y);
   ctx.closePath();
-  ctx.fill(); ctx.stroke();
+  ctx.fill();
+  ctx.stroke();
 
   if (obj.type !== "furniture") {
     // Right wall
     ctx.fillStyle = col + "30";
     ctx.beginPath();
-    ctx.moveTo(fr.x, fr.y); ctx.lineTo(br.x, br.y);
-    ctx.lineTo(fbr.x, fbr.y); ctx.lineTo(ftr.x, ftr.y);
+    ctx.moveTo(fr.x, fr.y);
+    ctx.lineTo(br.x, br.y);
+    ctx.lineTo(fbr.x, fbr.y);
+    ctx.lineTo(ftr.x, ftr.y);
     ctx.closePath();
-    ctx.fill(); ctx.stroke();
+    ctx.fill();
+    ctx.stroke();
 
     // Left wall
     ctx.fillStyle = col + "25";
     ctx.beginPath();
-    ctx.moveTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
-    ctx.lineTo(fbr.x, fbr.y); ctx.lineTo(fbl.x, fbl.y);
+    ctx.moveTo(bl.x, bl.y);
+    ctx.lineTo(br.x, br.y);
+    ctx.lineTo(fbr.x, fbr.y);
+    ctx.lineTo(fbl.x, fbl.y);
     ctx.closePath();
-    ctx.fill(); ctx.stroke();
+    ctx.fill();
+    ctx.stroke();
 
     // Top face
     ctx.fillStyle = col + "10";
     ctx.beginPath();
-    ctx.moveTo(ftl.x, ftl.y); ctx.lineTo(ftr.x, ftr.y);
-    ctx.lineTo(fbr.x, fbr.y); ctx.lineTo(fbl.x, fbl.y);
+    ctx.moveTo(ftl.x, ftl.y);
+    ctx.lineTo(ftr.x, ftr.y);
+    ctx.lineTo(fbr.x, fbr.y);
+    ctx.lineTo(fbl.x, fbl.y);
     ctx.closePath();
-    ctx.fill(); ctx.stroke();
+    ctx.fill();
+    ctx.stroke();
   }
 
   // Label
   if (obj.label) {
-    const center = toIso((obj.x + obj.w / 2) * zoom, (obj.y + obj.h / 2) * zoom, height + 10);
+    const center = toIso(
+      (obj.x + obj.w / 2) * zoom,
+      (obj.y + obj.h / 2) * zoom,
+      height + 10,
+    );
     ctx.fillStyle = "#E4E4E7";
     ctx.font = `${Math.max(9, 10 * zoom)}px Inter, system-ui`;
     ctx.textAlign = "center";
@@ -511,8 +577,10 @@ function drawObjIso(
     ctx.lineWidth = 2;
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
-    ctx.moveTo(ftl.x, ftl.y); ctx.lineTo(ftr.x, ftr.y);
-    ctx.lineTo(fbr.x, fbr.y); ctx.lineTo(fbl.x, fbl.y);
+    ctx.moveTo(ftl.x, ftl.y);
+    ctx.lineTo(ftr.x, ftr.y);
+    ctx.lineTo(fbr.x, fbr.y);
+    ctx.lineTo(fbl.x, fbl.y);
     ctx.closePath();
     ctx.stroke();
     ctx.setLineDash([]);
@@ -525,7 +593,10 @@ function drawObjIso(
 //  Live Snapshot Hook (auto-refreshes every 10s)
 // ---------------------------------------------------------------------------
 
-function useSnapshotUrl(cameraId: string | undefined, enabled: boolean): string | null {
+function useSnapshotUrl(
+  cameraId: string | undefined,
+  enabled: boolean,
+): string | null {
   const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
   const prevUrlRef = useRef<string | null>(null);
   const fetchingRef = useRef(false);
@@ -643,7 +714,11 @@ function CameraPopup({
           />
         ) : (
           <div className="flex items-center justify-center h-full text-zinc-600 text-xs">
-            {!camera ? "Not Linked" : !isOnline ? "Camera Offline" : "Loading..."}
+            {!camera
+              ? "Not Linked"
+              : !isOnline
+                ? "Camera Offline"
+                : "Loading..."}
           </div>
         )}
         <button
@@ -655,7 +730,9 @@ function CameraPopup({
         {camera?.status === "online" && (
           <div className="absolute top-2 left-2 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[9px] font-bold text-green-400 uppercase">Live</span>
+            <span className="text-[9px] font-bold text-green-400 uppercase">
+              Live
+            </span>
           </div>
         )}
       </div>
@@ -665,7 +742,8 @@ function CameraPopup({
           {camera?.name ?? obj.label ?? "Unlinked Camera"}
         </p>
         <p className="text-[10px] text-zinc-500 mt-0.5">
-          Position: ({Math.round(obj.x)}, {Math.round(obj.y)}) / Rotation: {obj.rotation ?? 0} deg
+          Position: ({Math.round(obj.x)}, {Math.round(obj.y)}) / Rotation:{" "}
+          {obj.rotation ?? 0} deg
         </p>
         {camera && (
           <button
@@ -697,7 +775,9 @@ export function FloorPlanEditor({
   const [tool, setTool] = useState<Tool>("select");
   const [viewMode, setViewMode] = useState<ViewMode>("2d");
   const [currentFloor, setCurrentFloor] = useState<number>(0); // Current floor level (0 = ground, 1 = 1st floor, etc.)
-  const [objects, setObjects] = useState<FloorObject[]>([...initialObjects] as FloorObject[]);
+  const [objects, setObjects] = useState<FloorObject[]>([
+    ...initialObjects,
+  ] as FloorObject[]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -721,10 +801,17 @@ export function FloorPlanEditor({
   const [measureEnd, setMeasureEnd] = useState<Point | null>(null);
 
   // Preview rect while dragging to show dimensions
-  const [previewRect, setPreviewRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [previewRect, setPreviewRect] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
 
   // Undo/redo
-  const [history, setHistory] = useState<FloorObject[][]>([[...initialObjects] as FloorObject[]]);
+  const [history, setHistory] = useState<FloorObject[][]>([
+    [...initialObjects] as FloorObject[],
+  ]);
   const [histIdx, setHistIdx] = useState(0);
 
   // Drag refs
@@ -740,23 +827,35 @@ export function FloorPlanEditor({
     [objects, currentFloor],
   );
 
-  const selectedObj = useMemo(() => objects.find((o) => o.id === selectedId), [objects, selectedId]);
-  const popupObj = useMemo(() => objects.find((o) => o.id === popupCameraId), [objects, popupCameraId]);
+  const selectedObj = useMemo(
+    () => objects.find((o) => o.id === selectedId),
+    [objects, selectedId],
+  );
+  const popupObj = useMemo(
+    () => objects.find((o) => o.id === popupCameraId),
+    [objects, popupCameraId],
+  );
   const linkedCamera = useMemo(
-    () => (popupObj?.cameraId ? cameras?.find((c) => c.id === popupObj.cameraId) : undefined),
+    () =>
+      popupObj?.cameraId
+        ? cameras?.find((c) => c.id === popupObj.cameraId)
+        : undefined,
     [popupObj, cameras],
   );
 
   // ── History ────────────────────────────────────────────────────────
-  const commit = useCallback((objs: FloorObject[]) => {
-    setHistory((prev) => {
-      const trimmed = prev.slice(0, histIdx + 1);
-      return [...trimmed, [...objs]];
-    });
-    setHistIdx((i) => i + 1);
-    setObjects(objs);
-    setDirty(true);
-  }, [histIdx]);
+  const commit = useCallback(
+    (objs: FloorObject[]) => {
+      setHistory((prev) => {
+        const trimmed = prev.slice(0, histIdx + 1);
+        return [...trimmed, [...objs]];
+      });
+      setHistIdx((i) => i + 1);
+      setObjects(objs);
+      setDirty(true);
+    },
+    [histIdx],
+  );
 
   const undo = useCallback(() => {
     if (histIdx <= 0) return;
@@ -791,10 +890,13 @@ export function FloorPlanEditor({
         if (o.type === "camera") {
           if ((wx - o.x) ** 2 + (wy - o.y) ** 2 < 18 ** 2) return o;
         } else if (o.type === "label") {
-          if (wx >= o.x && wx <= o.x + 120 && wy >= o.y && wy <= o.y + 25) return o;
+          if (wx >= o.x && wx <= o.x + 120 && wy >= o.y && wy <= o.y + 25)
+            return o;
         } else {
-          const x1 = Math.min(o.x, o.x + o.w), x2 = Math.max(o.x, o.x + o.w);
-          const y1 = Math.min(o.y, o.y + o.h), y2 = Math.max(o.y, o.y + o.h);
+          const x1 = Math.min(o.x, o.x + o.w),
+            x2 = Math.max(o.x, o.x + o.w);
+          const y1 = Math.min(o.y, o.y + o.h),
+            y2 = Math.max(o.y, o.y + o.h);
           if (wx >= x1 && wx <= x2 && wy >= y1 && wy <= y2) return o;
         }
       }
@@ -812,9 +914,12 @@ export function FloorPlanEditor({
       const w = toWorld(cx, cy);
       const s: Point = { x: snap(w.x, snapEnabled), y: snap(w.y, snapEnabled) };
 
-      if (tool === "pan" || (e.button === 1) || (e.button === 0 && e.altKey)) {
+      if (tool === "pan" || e.button === 1 || (e.button === 0 && e.altKey)) {
         drawingRef.current = true;
-        panStartRef.current = { x: e.clientX - offset.x, y: e.clientY - offset.y };
+        panStartRef.current = {
+          x: e.clientX - offset.x,
+          y: e.clientY - offset.y,
+        };
         return;
       }
 
@@ -843,8 +948,13 @@ export function FloorPlanEditor({
 
       if (tool === "camera") {
         const cam: FloorObject = {
-          id: uid(), type: "camera",
-          x: s.x, y: s.y, w: 0, h: 0, rotation: 0,
+          id: uid(),
+          type: "camera",
+          x: s.x,
+          y: s.y,
+          w: 0,
+          h: 0,
+          rotation: 0,
           label: "New Camera",
           floorLevel: currentFloor,
         };
@@ -881,7 +991,16 @@ export function FloorPlanEditor({
       drawingRef.current = true;
       drawStartRef.current = s;
     },
-    [tool, offset, toWorld, hitTest, objects, snapEnabled, commit, measureStart],
+    [
+      tool,
+      offset,
+      toWorld,
+      hitTest,
+      objects,
+      snapEnabled,
+      commit,
+      measureStart,
+    ],
   );
 
   // ── Mouse move ─────────────────────────────────────────────────────
@@ -915,7 +1034,9 @@ export function FloorPlanEditor({
           y: snap(w.y - dragOffRef.current.y, snapEnabled),
         };
         setObjects((prev) =>
-          prev.map((o) => (o.id === dragIdRef.current ? { ...o, x: s.x, y: s.y } : o)),
+          prev.map((o) =>
+            o.id === dragIdRef.current ? { ...o, x: s.x, y: s.y } : o,
+          ),
         );
         return;
       }
@@ -959,36 +1080,64 @@ export function FloorPlanEditor({
       const dw = s.x - start.x;
       const dh = s.y - start.y;
 
-      if (Math.abs(dw) < 5 && Math.abs(dh) < 5 && tool !== "door" && tool !== "window") return;
+      if (
+        Math.abs(dw) < 5 &&
+        Math.abs(dh) < 5 &&
+        tool !== "door" &&
+        tool !== "window"
+      )
+        return;
 
       let obj: FloorObject;
 
       switch (tool) {
         case "room":
           obj = {
-            id: uid(), type: "room",
-            x: Math.min(start.x, s.x), y: Math.min(start.y, s.y),
-            w: Math.abs(dw), h: Math.abs(dh),
-            rotation: 0, color: roomColor, label: "Room",
+            id: uid(),
+            type: "room",
+            x: Math.min(start.x, s.x),
+            y: Math.min(start.y, s.y),
+            w: Math.abs(dw),
+            h: Math.abs(dh),
+            rotation: 0,
+            color: roomColor,
+            label: "Room",
             floorLevel: currentFloor,
           };
           break;
         case "wall":
-          obj = { id: uid(), type: "wall", x: start.x, y: start.y, w: dw, h: dh, rotation: 0, floorLevel: currentFloor };
+          obj = {
+            id: uid(),
+            type: "wall",
+            x: start.x,
+            y: start.y,
+            w: dw,
+            h: dh,
+            rotation: 0,
+            floorLevel: currentFloor,
+          };
           break;
         case "door":
           obj = {
-            id: uid(), type: "door",
-            x: start.x, y: start.y,
-            w: Math.max(Math.abs(dw), GRID_SIZE * 2), h: 0, rotation: 0,
+            id: uid(),
+            type: "door",
+            x: start.x,
+            y: start.y,
+            w: Math.max(Math.abs(dw), GRID_SIZE * 2),
+            h: 0,
+            rotation: 0,
             floorLevel: currentFloor,
           };
           break;
         case "window":
           obj = {
-            id: uid(), type: "window",
-            x: start.x, y: start.y,
-            w: Math.max(Math.abs(dw), GRID_SIZE * 2), h: 0, rotation: 0,
+            id: uid(),
+            type: "window",
+            x: start.x,
+            y: start.y,
+            w: Math.max(Math.abs(dw), GRID_SIZE * 2),
+            h: 0,
+            rotation: 0,
             floorLevel: currentFloor,
           };
           break;
@@ -1018,11 +1167,18 @@ export function FloorPlanEditor({
   // ── Keyboard ───────────────────────────────────────────────────────
   useEffect(() => {
     function handler(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
       const k = e.key.toLowerCase();
 
       for (const t of TOOLS) {
-        if (k === t.key.toLowerCase()) { setTool(t.id); return; }
+        if (k === t.key.toLowerCase()) {
+          setTool(t.id);
+          return;
+        }
       }
 
       if (k === "delete" || k === "backspace") {
@@ -1031,14 +1187,21 @@ export function FloorPlanEditor({
           setSelectedId(null);
         }
       } else if ((e.metaKey || e.ctrlKey) && k === "z" && e.shiftKey) {
-        e.preventDefault(); redo();
+        e.preventDefault();
+        redo();
       } else if ((e.metaKey || e.ctrlKey) && k === "z") {
-        e.preventDefault(); undo();
+        e.preventDefault();
+        undo();
       } else if ((e.metaKey || e.ctrlKey) && k === "d") {
         // Duplicate
         e.preventDefault();
         if (selectedObj) {
-          const dup: FloorObject = { ...selectedObj, id: uid(), x: selectedObj.x + 20, y: selectedObj.y + 20 };
+          const dup: FloorObject = {
+            ...selectedObj,
+            id: uid(),
+            x: selectedObj.x + 20,
+            y: selectedObj.y + 20,
+          };
           commit([...objects, dup]);
           setSelectedId(dup.id);
         }
@@ -1047,7 +1210,9 @@ export function FloorPlanEditor({
         if (selectedObj && !selectedObj.locked) {
           const delta = k === "]" ? 15 : -15;
           const updated = objects.map((o) =>
-            o.id === selectedId ? { ...o, rotation: (o.rotation + delta + 360) % 360 } : o,
+            o.id === selectedId
+              ? { ...o, rotation: (o.rotation + delta + 360) % 360 }
+              : o,
           );
           commit(updated);
         }
@@ -1092,18 +1257,40 @@ export function FloorPlanEditor({
       if (viewMode === "2d") {
         drawGrid2D(ctx!, r.width, r.height, zoom, offset.x, offset.y, showGrid);
         for (const obj of visibleObjects) {
-          drawObj2D(ctx!, obj, zoom, offset.x, offset.y, obj.id === selectedId, obj.id === hoveredId);
+          drawObj2D(
+            ctx!,
+            obj,
+            zoom,
+            offset.x,
+            offset.y,
+            obj.id === selectedId,
+            obj.id === hoveredId,
+          );
         }
       } else {
         // Iso / 3D view
         for (const obj of visibleObjects) {
-          drawObjIso(ctx!, obj, zoom, offset.x, offset.y, obj.id === selectedId);
+          drawObjIso(
+            ctx!,
+            obj,
+            zoom,
+            offset.x,
+            offset.y,
+            obj.id === selectedId,
+          );
         }
       }
 
       // Measure line
       if (measureStart && measureEnd) {
-        drawMeasureLine(ctx!, measureStart, measureEnd, zoom, offset.x, offset.y);
+        drawMeasureLine(
+          ctx!,
+          measureStart,
+          measureEnd,
+          zoom,
+          offset.x,
+          offset.y,
+        );
       }
 
       // Preview rectangle while dragging
@@ -1124,7 +1311,12 @@ export function FloorPlanEditor({
         ctx!.font = "bold 11px monospace";
         const dimText = `${Math.abs(Math.round(previewRect.w))} × ${Math.abs(Math.round(previewRect.h))}`;
         const textWidth = ctx!.measureText(dimText).width;
-        ctx!.fillRect(sx + sw / 2 - textWidth / 2 - 4, sy + sh / 2 - 10, textWidth + 8, 20);
+        ctx!.fillRect(
+          sx + sw / 2 - textWidth / 2 - 4,
+          sy + sh / 2 - 10,
+          textWidth + 8,
+          20,
+        );
         ctx!.fillStyle = "#fff";
         ctx!.fillText(dimText, sx + sw / 2 - textWidth / 2, sy + sh / 2 + 4);
       }
@@ -1133,16 +1325,26 @@ export function FloorPlanEditor({
     }
     render();
     return () => cancelAnimationFrame(raf);
-  }, [visibleObjects, zoom, offset, selectedId, hoveredId, showGrid, viewMode, measureStart, measureEnd, previewRect]);
+  }, [
+    visibleObjects,
+    zoom,
+    offset,
+    selectedId,
+    hoveredId,
+    showGrid,
+    viewMode,
+    measureStart,
+    measureEnd,
+    previewRect,
+  ]);
 
   // ── Object property updates ────────────────────────────────────────
-  const updateObj = useCallback(
-    (id: string, patch: Partial<FloorObject>) => {
-      setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, ...patch } : o)));
-      setDirty(true);
-    },
-    [],
-  );
+  const updateObj = useCallback((id: string, patch: Partial<FloorObject>) => {
+    setObjects((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    );
+    setDirty(true);
+  }, []);
 
   const deleteSelected = useCallback(() => {
     if (!selectedId || selectedObj?.locked) return;
@@ -1152,21 +1354,36 @@ export function FloorPlanEditor({
 
   const duplicateSelected = useCallback(() => {
     if (!selectedObj) return;
-    const dup: FloorObject = { ...selectedObj, id: uid(), x: selectedObj.x + 20, y: selectedObj.y + 20 };
+    const dup: FloorObject = {
+      ...selectedObj,
+      id: uid(),
+      x: selectedObj.x + 20,
+      y: selectedObj.y + 20,
+    };
     commit([...objects, dup]);
     setSelectedId(dup.id);
   }, [selectedObj, objects, commit]);
 
   // ── Cursor ─────────────────────────────────────────────────────────
   const cursor =
-    tool === "pan" ? "cursor-grab"
-    : tool === "select" ? (hoveredId ? "cursor-move" : "cursor-default")
-    : tool === "measure" ? "cursor-crosshair"
-    : "cursor-crosshair";
+    tool === "pan"
+      ? "cursor-grab"
+      : tool === "select"
+        ? hoveredId
+          ? "cursor-move"
+          : "cursor-default"
+        : tool === "measure"
+          ? "cursor-crosshair"
+          : "cursor-crosshair";
 
   // ── Group tools by group number for dividers ───────────────────────
   const toolGroups = useMemo(() => {
-    const groups: { id: Tool; icon: typeof Square; label: string; key: string }[][] = [];
+    const groups: {
+      id: Tool;
+      icon: typeof Square;
+      label: string;
+      key: string;
+    }[][] = [];
     let lastGroup = -1;
     for (const t of TOOLS) {
       if (t.group !== lastGroup) {
@@ -1233,7 +1450,9 @@ export function FloorPlanEditor({
                   }}
                   title={`${t.label} (${t.key})`}
                   className={`p-1.5 rounded transition-colors cursor-pointer ${
-                    tool === t.id ? "bg-blue-500/20 text-blue-400" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                    tool === t.id
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -1253,7 +1472,9 @@ export function FloorPlanEditor({
                 key={c}
                 onClick={() => setRoomColor(c)}
                 className={`h-4 w-4 rounded-full border-2 cursor-pointer transition-transform ${
-                  roomColor === c ? "border-white scale-125" : "border-transparent hover:scale-110"
+                  roomColor === c
+                    ? "border-white scale-125"
+                    : "border-transparent hover:scale-110"
                 }`}
                 style={{ backgroundColor: c }}
               />
@@ -1284,35 +1505,108 @@ export function FloorPlanEditor({
         <div className="mx-1 h-5 w-px bg-zinc-800" />
 
         {/* Zoom */}
-        <button onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.2))} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"><ZoomIn className="h-3.5 w-3.5" /></button>
-        <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-center">{Math.round(zoom * 100)}%</span>
-        <button onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.2))} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"><ZoomOut className="h-3.5 w-3.5" /></button>
+        <button
+          onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.2))}
+          className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+        </button>
+        <span className="text-[10px] text-zinc-500 tabular-nums w-8 text-center">
+          {Math.round(zoom * 100)}%
+        </span>
+        <button
+          onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z - 0.2))}
+          className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+        >
+          <ZoomOut className="h-3.5 w-3.5" />
+        </button>
 
         <div className="mx-1 h-5 w-px bg-zinc-800" />
 
         {/* Undo/Redo */}
-        <button onClick={undo} disabled={histIdx <= 0} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer disabled:opacity-30" title="Undo (Cmd+Z)"><Undo2 className="h-3.5 w-3.5" /></button>
-        <button onClick={redo} disabled={histIdx >= history.length - 1} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer disabled:opacity-30" title="Redo (Cmd+Shift+Z)"><Redo2 className="h-3.5 w-3.5" /></button>
+        <button
+          onClick={undo}
+          disabled={histIdx <= 0}
+          className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer disabled:opacity-30"
+          title="Undo (Cmd+Z)"
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={redo}
+          disabled={histIdx >= history.length - 1}
+          className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer disabled:opacity-30"
+          title="Redo (Cmd+Shift+Z)"
+        >
+          <Redo2 className="h-3.5 w-3.5" />
+        </button>
 
         {/* Selected actions */}
         {selectedObj && (
           <>
             <div className="mx-1 h-5 w-px bg-zinc-800" />
-            <button onClick={() => updateObj(selectedId!, { rotation: (selectedObj.rotation + 15) % 360 })} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer" title="Rotate (])"><RotateCw className="h-3.5 w-3.5" /></button>
-            <button onClick={duplicateSelected} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer" title="Duplicate (Cmd+D)"><Copy className="h-3.5 w-3.5" /></button>
-            <button onClick={deleteSelected} className="p-1.5 text-red-500 hover:text-red-400 cursor-pointer" title="Delete (Del)"><Trash2 className="h-3.5 w-3.5" /></button>
+            <button
+              onClick={() =>
+                updateObj(selectedId!, {
+                  rotation: (selectedObj.rotation + 15) % 360,
+                })
+              }
+              className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              title="Rotate (])"
+            >
+              <RotateCw className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={duplicateSelected}
+              className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              title="Duplicate (Cmd+D)"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={deleteSelected}
+              className="p-1.5 text-red-500 hover:text-red-400 cursor-pointer"
+              title="Delete (Del)"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </>
         )}
 
         <div className="flex-1" />
 
         {/* Clear */}
-        <button onClick={() => { commit([]); setSelectedId(null); }} className="p-1.5 text-zinc-600 hover:text-zinc-400 cursor-pointer" title="Clear All"><RotateCcw className="h-3.5 w-3.5" /></button>
-        <button onClick={() => { const canvas = canvasRef.current; if(!canvas) return; const a = document.createElement("a"); a.download = `${locationName}-floorplan.png`; a.href = canvas.toDataURL(); a.click(); }} className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer" title="Export PNG"><Download className="h-3.5 w-3.5" /></button>
+        <button
+          onClick={() => {
+            commit([]);
+            setSelectedId(null);
+          }}
+          className="p-1.5 text-zinc-600 hover:text-zinc-400 cursor-pointer"
+          title="Clear All"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const a = document.createElement("a");
+            a.download = `${locationName}-floorplan.png`;
+            a.href = canvas.toDataURL();
+            a.click();
+          }}
+          className="p-1.5 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+          title="Export PNG"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
 
         {/* Save */}
         <button
-          onClick={() => { onSave(objects); setDirty(false); }}
+          onClick={() => {
+            onSave(objects);
+            setDirty(false);
+          }}
           disabled={!dirty}
           className="ml-2 px-3 py-1 text-[11px] font-medium rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-40"
         >
@@ -1325,14 +1619,16 @@ export function FloorPlanEditor({
         {viewMode === "3d" ? (
           /* ── Three.js 3D View ──────────────────────────────────── */
           <div className="flex-1 relative overflow-hidden">
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-full bg-[#09090B]">
-                <div className="text-center">
-                  <div className="h-6 w-6 mx-auto mb-2 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-500" />
-                  <p className="text-xs text-zinc-500">Loading 3D view...</p>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full bg-[#09090B]">
+                  <div className="text-center">
+                    <div className="h-6 w-6 mx-auto mb-2 animate-spin rounded-full border-2 border-zinc-600 border-t-blue-500" />
+                    <p className="text-xs text-zinc-500">Loading 3D view...</p>
+                  </div>
                 </div>
-              </div>
-            }>
+              }
+            >
               <FloorPlan3DViewLazy objects={visibleObjects} cameras={cameras} />
             </Suspense>
           </div>
@@ -1345,17 +1641,25 @@ export function FloorPlanEditor({
               onMouseDown={onDown}
               onMouseMove={onMove}
               onMouseUp={onUp}
-              onMouseLeave={() => { drawingRef.current = false; dragIdRef.current = null; setHoveredId(null); }}
+              onMouseLeave={() => {
+                drawingRef.current = false;
+                dragIdRef.current = null;
+                setHoveredId(null);
+              }}
             />
 
             {/* Camera popup */}
             {popupObj && popupObj.type === "camera" && (
               <CameraPopup
                 obj={popupObj}
-                zoom={zoom} ox={offset.x} oy={offset.y}
+                zoom={zoom}
+                ox={offset.x}
+                oy={offset.y}
                 camera={linkedCamera}
                 onClose={() => setPopupCameraId(null)}
-                onNavigate={(id) => { window.location.href = `/cameras/${id}`; }}
+                onNavigate={(id) => {
+                  window.location.href = `/cameras/${id}`;
+                }}
               />
             )}
 
@@ -1364,9 +1668,15 @@ export function FloorPlanEditor({
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="text-center">
                   <Square className="h-8 w-8 text-zinc-700 mx-auto mb-2" />
-                  <p className="text-sm text-zinc-500">Select Room (R) and drag to draw</p>
-                  <p className="text-xs text-zinc-600 mt-1">Place cameras (C), add furniture (F), measure (M)</p>
-                  <p className="text-xs text-zinc-700 mt-1">Alt+drag to pan, scroll to zoom, [ ] to rotate</p>
+                  <p className="text-sm text-zinc-500">
+                    Select Room (R) and drag to draw
+                  </p>
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Place cameras (C), add furniture (F), measure (M)
+                  </p>
+                  <p className="text-xs text-zinc-700 mt-1">
+                    Alt+drag to pan, scroll to zoom, [ ] to rotate
+                  </p>
                 </div>
               </div>
             )}
@@ -1376,117 +1686,168 @@ export function FloorPlanEditor({
         {/* ── Properties panel ──────────────────────────────────── */}
         {selectedObj && (
           <div className="w-52 shrink-0 border-l border-zinc-800 bg-zinc-950 p-3 space-y-3 overflow-y-auto">
-            <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Properties</h4>
+            <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+              Properties
+            </h4>
 
             <div>
               <span className="text-[10px] text-zinc-600">Type</span>
-              <p className="text-xs text-zinc-300 capitalize">{selectedObj.type}</p>
+              <p className="text-xs text-zinc-300 capitalize">
+                {selectedObj.type}
+              </p>
             </div>
 
             <div>
               <span className="text-[10px] text-zinc-600">Label</span>
               <input
                 value={selectedObj.label ?? ""}
-                onChange={(e) => updateObj(selectedId!, { label: e.target.value })}
+                onChange={(e) =>
+                  updateObj(selectedId!, { label: e.target.value })
+                }
                 className="w-full mt-0.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[10px]">
-              <div><span className="text-zinc-600">X</span><p className="text-zinc-400 font-mono">{Math.round(selectedObj.x)}</p></div>
-              <div><span className="text-zinc-600">Y</span><p className="text-zinc-400 font-mono">{Math.round(selectedObj.y)}</p></div>
-              {selectedObj.w !== 0 && <div><span className="text-zinc-600">W</span><p className="text-zinc-400 font-mono">{Math.abs(Math.round(selectedObj.w))}</p></div>}
-              {selectedObj.h !== 0 && <div><span className="text-zinc-600">H</span><p className="text-zinc-400 font-mono">{Math.abs(Math.round(selectedObj.h))}</p></div>}
+              <div>
+                <span className="text-zinc-600">X</span>
+                <p className="text-zinc-400 font-mono">
+                  {Math.round(selectedObj.x)}
+                </p>
+              </div>
+              <div>
+                <span className="text-zinc-600">Y</span>
+                <p className="text-zinc-400 font-mono">
+                  {Math.round(selectedObj.y)}
+                </p>
+              </div>
+              {selectedObj.w !== 0 && (
+                <div>
+                  <span className="text-zinc-600">W</span>
+                  <p className="text-zinc-400 font-mono">
+                    {Math.abs(Math.round(selectedObj.w))}
+                  </p>
+                </div>
+              )}
+              {selectedObj.h !== 0 && (
+                <div>
+                  <span className="text-zinc-600">H</span>
+                  <p className="text-zinc-400 font-mono">
+                    {Math.abs(Math.round(selectedObj.h))}
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
               <span className="text-[10px] text-zinc-600">Rotation</span>
               <div className="flex items-center gap-1 mt-0.5">
                 <input
-                  type="range" min="0" max="360" step="5"
+                  type="range"
+                  min="0"
+                  max="360"
+                  step="5"
                   value={selectedObj.rotation}
-                  onChange={(e) => updateObj(selectedId!, { rotation: Number(e.target.value) })}
+                  onChange={(e) =>
+                    updateObj(selectedId!, { rotation: Number(e.target.value) })
+                  }
                   className="flex-1 h-1 accent-blue-500"
                 />
-                <span className="text-[10px] text-zinc-400 font-mono w-8 text-right">{selectedObj.rotation}</span>
+                <span className="text-[10px] text-zinc-400 font-mono w-8 text-right">
+                  {selectedObj.rotation}
+                </span>
               </div>
             </div>
 
             {/* Camera link */}
-            {selectedObj.type === "camera" && cameras && (() => {
-              // Build a set of camera IDs already linked to OTHER floor plan objects
-              const linkedCameraIds = new Set(
-                objects
-                  .filter((o) => o.type === "camera" && o.id !== selectedId && o.cameraId)
-                  .map((o) => o.cameraId!),
-              );
+            {selectedObj.type === "camera" &&
+              cameras &&
+              (() => {
+                // Build a set of camera IDs already linked to OTHER floor plan objects
+                const linkedCameraIds = new Set(
+                  objects
+                    .filter(
+                      (o) =>
+                        o.type === "camera" &&
+                        o.id !== selectedId &&
+                        o.cameraId,
+                    )
+                    .map((o) => o.cameraId!),
+                );
 
-              return (
-                <div>
-                  <span className="text-[10px] text-zinc-600">Link Camera</span>
-                  <select
-                    value={selectedObj.cameraId ?? ""}
-                    onChange={(e) => {
-                      const newCamId = e.target.value || undefined;
-                      const cam = newCamId ? cameras.find((c) => c.id === newCamId) : undefined;
-                      updateObj(selectedId!, {
-                        cameraId: newCamId,
-                        cameraStatus: cam?.status,
-                        label: cam?.name ?? (newCamId ? selectedObj.label : "New Camera"),
-                      });
-                    }}
-                    className="w-full mt-0.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Not linked</option>
-                    {cameras.map((c) => {
-                      const taken = linkedCameraIds.has(c.id);
-                      return (
-                        <option
-                          key={c.id}
-                          value={c.id}
-                          disabled={taken}
-                          className={taken ? "text-zinc-600" : ""}
-                        >
-                          {c.name} ({c.status}){taken ? " — already linked" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-
-                  {/* Unlink button */}
-                  {selectedObj.cameraId && (
-                    <button
-                      onClick={() => {
+                return (
+                  <div>
+                    <span className="text-[10px] text-zinc-600">
+                      Link Camera
+                    </span>
+                    <select
+                      value={selectedObj.cameraId ?? ""}
+                      onChange={(e) => {
+                        const newCamId = e.target.value || undefined;
+                        const cam = newCamId
+                          ? cameras.find((c) => c.id === newCamId)
+                          : undefined;
                         updateObj(selectedId!, {
-                          cameraId: undefined,
-                          cameraStatus: undefined,
-                          label: "New Camera",
+                          cameraId: newCamId,
+                          cameraStatus: cam?.status,
+                          label:
+                            cam?.name ??
+                            (newCamId ? selectedObj.label : "New Camera"),
                         });
                       }}
-                      className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors cursor-pointer"
+                      className="w-full mt-0.5 rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      Unlink Camera
-                    </button>
-                  )}
+                      <option value="">Not linked</option>
+                      {cameras.map((c) => {
+                        const taken = linkedCameraIds.has(c.id);
+                        return (
+                          <option
+                            key={c.id}
+                            value={c.id}
+                            disabled={taken}
+                            className={taken ? "text-zinc-600" : ""}
+                          >
+                            {c.name} ({c.status})
+                            {taken ? " — already linked" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
 
-                  {selectedObj.cameraId && (
-                    <button
-                      onClick={() => setPopupCameraId(selectedId)}
-                      className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Preview Live Feed
-                    </button>
-                  )}
+                    {/* Unlink button */}
+                    {selectedObj.cameraId && (
+                      <button
+                        onClick={() => {
+                          updateObj(selectedId!, {
+                            cameraId: undefined,
+                            cameraStatus: undefined,
+                            label: "New Camera",
+                          });
+                        }}
+                        className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors cursor-pointer"
+                      >
+                        Unlink Camera
+                      </button>
+                    )}
 
-                  {cameras.length === 0 && (
-                    <p className="mt-1 text-[9px] text-zinc-600">
-                      No cameras found. Add cameras first.
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
+                    {selectedObj.cameraId && (
+                      <button
+                        onClick={() => setPopupCameraId(selectedId)}
+                        className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Preview Live Feed
+                      </button>
+                    )}
+
+                    {cameras.length === 0 && (
+                      <p className="mt-1 text-[9px] text-zinc-600">
+                        No cameras found. Add cameras first.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
             {/* Room color */}
             {selectedObj.type === "room" && (
@@ -1498,7 +1859,9 @@ export function FloorPlanEditor({
                       key={c}
                       onClick={() => updateObj(selectedId!, { color: c })}
                       className={`h-4 w-4 rounded-full border-2 cursor-pointer ${
-                        selectedObj.color === c ? "border-white" : "border-transparent"
+                        selectedObj.color === c
+                          ? "border-white"
+                          : "border-transparent"
                       }`}
                       style={{ backgroundColor: c }}
                     />
@@ -1512,7 +1875,9 @@ export function FloorPlanEditor({
               <input
                 type="checkbox"
                 checked={selectedObj.locked ?? false}
-                onChange={(e) => updateObj(selectedId!, { locked: e.target.checked })}
+                onChange={(e) =>
+                  updateObj(selectedId!, { locked: e.target.checked })
+                }
                 className="accent-blue-500"
               />
               <span className="text-[10px] text-zinc-400">Lock position</span>
@@ -1533,15 +1898,33 @@ export function FloorPlanEditor({
       {/* ── Label dialog ────────────────────────────────────────── */}
       {labelDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setLabelDialogOpen(false)} role="button" tabIndex={-1} aria-label="Close" />
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setLabelDialogOpen(false)}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close"
+          />
           <div className="relative z-50 w-72 rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-lg">
-            <h4 className="text-sm font-semibold text-zinc-100 mb-3">Add Label</h4>
+            <h4 className="text-sm font-semibold text-zinc-100 mb-3">
+              Add Label
+            </h4>
             <input
               value={labelInput}
               onChange={(e) => setLabelInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && labelInput.trim()) {
-                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim(), floorLevel: currentFloor };
+                  const obj: FloorObject = {
+                    id: uid(),
+                    type: "label",
+                    x: pendingLabelPos!.x,
+                    y: pendingLabelPos!.y,
+                    w: 0,
+                    h: 0,
+                    rotation: 0,
+                    label: labelInput.trim(),
+                    floorLevel: currentFloor,
+                  };
                   commit([...objects, obj]);
                   setLabelDialogOpen(false);
                 }
@@ -1551,11 +1934,26 @@ export function FloorPlanEditor({
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-3">
-              <button onClick={() => setLabelDialogOpen(false)} className="px-3 py-1.5 text-xs rounded border border-zinc-700 text-zinc-400 cursor-pointer">Cancel</button>
+              <button
+                onClick={() => setLabelDialogOpen(false)}
+                className="px-3 py-1.5 text-xs rounded border border-zinc-700 text-zinc-400 cursor-pointer"
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => {
                   if (!labelInput.trim()) return;
-                  const obj: FloorObject = { id: uid(), type: "label", x: pendingLabelPos!.x, y: pendingLabelPos!.y, w: 0, h: 0, rotation: 0, label: labelInput.trim(), floorLevel: currentFloor };
+                  const obj: FloorObject = {
+                    id: uid(),
+                    type: "label",
+                    x: pendingLabelPos!.x,
+                    y: pendingLabelPos!.y,
+                    w: 0,
+                    h: 0,
+                    rotation: 0,
+                    label: labelInput.trim(),
+                    floorLevel: currentFloor,
+                  };
                   commit([...objects, obj]);
                   setLabelDialogOpen(false);
                 }}
@@ -1572,19 +1970,32 @@ export function FloorPlanEditor({
       {/* ── Furniture picker ────────────────────────────────────── */}
       {furniturePicker && pendingLabelPos && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setFurniturePicker(false)} role="button" tabIndex={-1} aria-label="Close" />
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setFurniturePicker(false)}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close"
+          />
           <div className="relative z-50 w-80 rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-lg">
-            <h4 className="text-sm font-semibold text-zinc-100 mb-3">Place Furniture</h4>
+            <h4 className="text-sm font-semibold text-zinc-100 mb-3">
+              Place Furniture
+            </h4>
             <div className="grid grid-cols-4 gap-2">
               {FURNITURE_TYPES.map((ft) => (
                 <button
                   key={ft.id}
                   onClick={() => {
                     const obj: FloorObject = {
-                      id: uid(), type: "furniture",
-                      x: pendingLabelPos.x, y: pendingLabelPos.y,
-                      w: ft.w, h: ft.h, rotation: 0,
-                      furnitureType: ft.id, label: ft.label,
+                      id: uid(),
+                      type: "furniture",
+                      x: pendingLabelPos.x,
+                      y: pendingLabelPos.y,
+                      w: ft.w,
+                      h: ft.h,
+                      rotation: 0,
+                      furnitureType: ft.id,
+                      label: ft.label,
                       floorLevel: currentFloor,
                     };
                     commit([...objects, obj]);

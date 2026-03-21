@@ -371,8 +371,7 @@ export class RecordingService {
    * Falls back to the gateway's local file-serving endpoint.
    */
   async getPlaybackUrl(recordingId: string, tenantId: string): Promise<string> {
-    const gatewayUrl =
-      get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
+    const gatewayUrl = get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
 
     const fallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
 

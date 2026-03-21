@@ -72,9 +72,9 @@ test.describe("Settings page", () => {
 
     await page.getByText("Users & Roles").first().click();
 
-    await expect(
-      page.getByText(/admin@acme\.com|Users/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/admin@acme\.com|Users/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("clicking 'Notifications' shows notification preferences", async ({
@@ -114,9 +114,9 @@ test.describe("Settings page", () => {
 
     await page.getByText("Billing").first().click();
 
-    await expect(
-      page.getByRole("heading", { name: "Billing" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible({
+      timeout: 10_000,
+    });
     // BillingTab shows "Current Plan"
     await expect(page.getByText("Current Plan")).toBeVisible();
   });
@@ -128,9 +128,9 @@ test.describe("Settings page", () => {
 
     await page.getByText("API Keys").first().click();
 
-    await expect(
-      page.getByText(/API Keys|Create/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/API Keys|Create/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("clicking 'Cameras' tab shows camera list or Add Camera option", async ({
@@ -145,9 +145,9 @@ test.describe("Settings page", () => {
     await settingsNav.getByText("Cameras").first().click();
 
     // The cameras settings tab renders camera names or an empty state
-    await expect(
-      page.getByText(/Front Door|Cameras|Add/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Front Door|Cameras|Add/i).first()).toBeVisible(
+      { timeout: 10_000 },
+    );
   });
 
   /* ------------------------------------------------------------------ */
@@ -167,8 +167,8 @@ test.describe("Settings page", () => {
   test("?tab=billing opens the Billing tab directly", async ({ page }) => {
     await gotoAuthenticated(page, "/settings?tab=billing");
 
-    await expect(
-      page.getByRole("heading", { name: "Billing" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });

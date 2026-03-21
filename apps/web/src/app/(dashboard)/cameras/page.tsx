@@ -49,18 +49,28 @@ export default function CamerasPage() {
   const [webSetupDone, setWebSetupDone] = useState(true); // true = don't show by default
 
   // Selection state
-  const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(new Set());
+  const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Active recording camera IDs for live REC indicator
-  const [activeRecordingCameraIds, setActiveRecordingCameraIds] = useState<Set<string>>(new Set());
+  const [activeRecordingCameraIds, setActiveRecordingCameraIds] = useState<
+    Set<string>
+  >(new Set());
 
   // Camera tag assignments (camera_id -> tag[])
-  const [cameraTagsMap, setCameraTagsMap] = useState<Map<string, CameraTag[]>>(new Map());
+  const [cameraTagsMap, setCameraTagsMap] = useState<Map<string, CameraTag[]>>(
+    new Map(),
+  );
 
   // Stable camera IDs string for dependency tracking (avoids re-running effects
   // when cameras array reference changes but IDs stay the same)
   const cameraIds = useMemo(
-    () => cameras.map((c) => c.id).sort().join(","),
+    () =>
+      cameras
+        .map((c) => c.id)
+        .sort()
+        .join(","),
     [cameras],
   );
 
@@ -72,14 +82,19 @@ export default function CamerasPage() {
     let cancelled = false;
     async function fetchActiveRecordings() {
       try {
-        const res = await fetch(`${API_URL}/api/v1/recordings?status=recording&limit=50`, {
-          headers: getAuthHeaders(),
-        });
+        const res = await fetch(
+          `${API_URL}/api/v1/recordings?status=recording&limit=50`,
+          {
+            headers: getAuthHeaders(),
+          },
+        );
         const json = await res.json();
         if (!cancelled && json.success && Array.isArray(json.data)) {
           const ids = new Set<string>();
           for (const rec of json.data) {
-            const camId = (rec as Record<string, unknown>).camera_id ?? (rec as Record<string, unknown>).cameraId;
+            const camId =
+              (rec as Record<string, unknown>).camera_id ??
+              (rec as Record<string, unknown>).cameraId;
             if (camId) ids.add(camId as string);
           }
           setActiveRecordingCameraIds(ids);
@@ -89,7 +104,9 @@ export default function CamerasPage() {
       }
     }
     fetchActiveRecordings();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [loading]);
 
   // Check setup / onboarding state on mount
@@ -109,7 +126,11 @@ export default function CamerasPage() {
   const showDesktopSetup = !loading && isTauri() && !desktopSetupDone;
   const showWebSetup = !loading && !isTauri() && !webSetupDone;
   const showOnboarding =
-    !loading && !showDesktopSetup && !showWebSetup && !onboardingDismissed && cameras.length === 0;
+    !loading &&
+    !showDesktopSetup &&
+    !showWebSetup &&
+    !onboardingDismissed &&
+    cameras.length === 0;
 
   // Fetch camera tag assignments — depends on stable camera IDs, not array reference
   useEffect(() => {
@@ -133,7 +154,8 @@ export default function CamerasPage() {
             if (camTagJson.success && Array.isArray(camTagJson.data)) {
               const camTags: CameraTag[] = [];
               for (const assignment of camTagJson.data) {
-                const tagId = (assignment as Record<string, unknown>).tag_id as string;
+                const tagId = (assignment as Record<string, unknown>)
+                  .tag_id as string;
                 const tag = tagLookup.get(tagId);
                 if (tag) camTags.push(tag);
               }
@@ -155,7 +177,9 @@ export default function CamerasPage() {
     }
 
     fetchAssignments();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [cameraIds, tags]);
 
   const handleToggleTagFilter = useCallback((tagId: string) => {
@@ -239,7 +263,9 @@ export default function CamerasPage() {
     [addCamera],
   );
 
-  const allSelected = filteredCameras.length > 0 && selectedCameraIds.size === filteredCameras.length;
+  const allSelected =
+    filteredCameras.length > 0 &&
+    selectedCameraIds.size === filteredCameras.length;
 
   return (
     <div>
@@ -356,9 +382,7 @@ export default function CamerasPage() {
       )}
 
       {/* Error */}
-      {error && !loading && (
-        <PageError message={error} onRetry={refetch} />
-      )}
+      {error && !loading && <PageError message={error} onRetry={refetch} />}
 
       {/* Camera grid */}
       {!loading && !error && (

@@ -85,7 +85,10 @@ function ResetPasswordContent() {
       const json = await res.json();
 
       if (!json.success) {
-        setError(json.error?.message ?? "Failed to reset password. The link may have expired.");
+        setError(
+          json.error?.message ??
+            "Failed to reset password. The link may have expired.",
+        );
         return;
       }
 
@@ -153,9 +156,12 @@ function ResetPasswordContent() {
               <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
                 <CheckCircle2 className="h-6 w-6 text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-zinc-50">Password reset</h2>
+              <h2 className="text-2xl font-bold text-zinc-50">
+                Password reset
+              </h2>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                Your password has been reset successfully. You can now sign in with your new password.
+                Your password has been reset successfully. You can now sign in
+                with your new password.
               </p>
 
               <Link
@@ -168,7 +174,9 @@ function ResetPasswordContent() {
           ) : (
             /* Form state */
             <div>
-              <h2 className="text-2xl font-bold text-zinc-50">Reset your password</h2>
+              <h2 className="text-2xl font-bold text-zinc-50">
+                Reset your password
+              </h2>
               <p className="mt-1 text-sm text-zinc-400">
                 Enter your new password below
               </p>
@@ -177,7 +185,8 @@ function ResetPasswordContent() {
                 <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-400">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    No reset token found. Please use the link from your email, or{" "}
+                    No reset token found. Please use the link from your email,
+                    or{" "}
                     <Link href="/forgot-password" className="underline">
                       request a new one
                     </Link>
@@ -218,7 +227,9 @@ function ResetPasswordContent() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-zinc-500 transition-colors duration-150 hover:text-zinc-300"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -277,7 +288,9 @@ function ResetPasswordContent() {
                       type="button"
                       onClick={() => setShowConfirmPassword((v) => !v)}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-zinc-500 transition-colors duration-150 hover:text-zinc-300"
-                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showConfirmPassword ? "Hide password" : "Show password"
+                      }
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -334,7 +347,13 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-zinc-950"><div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-500" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-blue-500" />
+        </div>
+      }
+    >
       <ResetPasswordContent />
     </Suspense>
   );

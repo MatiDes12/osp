@@ -39,52 +39,79 @@ test.describe("Camera management", () => {
 
     // Camera names from mock data
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Parking Lot/ })
+        .first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Server Room/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Server Room/ })
+        .first(),
     ).toBeVisible();
   });
 
   test("displays 'Add Camera' button", async ({ page }) => {
-    await expect(
-      page.getByRole("button", { name: "Add Camera" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: "Add Camera" })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test("search input filters cameras by name", async ({ page }) => {
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeVisible({ timeout: 10_000 });
 
     const searchInput = page.getByPlaceholder("Search cameras by name...");
     await searchInput.fill("Parking");
 
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Parking Lot/ })
+        .first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeHidden();
   });
 
   test("clearing search restores full camera list", async ({ page }) => {
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeVisible({ timeout: 10_000 });
 
     const searchInput = page.getByPlaceholder("Search cameras by name...");
     await searchInput.fill("Parking");
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeHidden();
 
     await searchInput.clear();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+      page
+        .getByRole("main")
+        .getByRole("link", { name: /Front Door/ })
+        .first(),
     ).toBeVisible();
   });
 
@@ -121,20 +148,26 @@ test.describe("Camera management", () => {
   });
 
   test("selecting RTSP protocol advances to form step", async ({ page }) => {
-    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await page
+      .getByRole("button", { name: "Add Camera" })
+      .click({ timeout: 10_000 });
 
     // Click the RTSP protocol card — it renders as a button containing the text "RTSP"
     await page.getByRole("button", { name: /RTSP/i }).first().click();
 
     // The form step should show a Camera Name input and IP Address field
-    await expect(page.getByLabel(/Camera Name/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByLabel(/Camera Name/i)).toBeVisible({
+      timeout: 5_000,
+    });
     await expect(page.getByLabel(/IP Address/i)).toBeVisible();
   });
 
   test("filling RTSP form and submitting closes the dialog", async ({
     page,
   }) => {
-    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await page
+      .getByRole("button", { name: "Add Camera" })
+      .click({ timeout: 10_000 });
 
     // Step 1 — pick RTSP
     await page.getByRole("button", { name: /RTSP/i }).first().click();
@@ -144,36 +177,43 @@ test.describe("Camera management", () => {
     await page.getByLabel(/IP Address/i).fill("192.168.1.50");
 
     // Submit
-    await page.getByRole("button", { name: /Add Camera|Save/i }).last().click({ force: true });
+    await page
+      .getByRole("button", { name: /Add Camera|Save/i })
+      .last()
+      .click({ force: true });
 
     // Dialog should close after successful submission
-    await expect(
-      page.getByRole("heading", { name: "Add Camera" }),
-    ).toBeHidden({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Add Camera" })).toBeHidden({
+      timeout: 10_000,
+    });
   });
 
   test("closing the dialog with Escape key works", async ({ page }) => {
-    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await page
+      .getByRole("button", { name: "Add Camera" })
+      .click({ timeout: 10_000 });
     await expect(
       page.getByRole("heading", { name: "Add Camera" }),
     ).toBeVisible();
 
     await page.keyboard.press("Escape");
-    await expect(
-      page.getByRole("heading", { name: "Add Camera" }),
-    ).toBeHidden({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: "Add Camera" })).toBeHidden({
+      timeout: 5_000,
+    });
   });
 
   test("closing the dialog via the close button works", async ({ page }) => {
-    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await page
+      .getByRole("button", { name: "Add Camera" })
+      .click({ timeout: 10_000 });
     await expect(
       page.getByRole("heading", { name: "Add Camera" }),
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Close" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Add Camera" }),
-    ).toBeHidden({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: "Add Camera" })).toBeHidden({
+      timeout: 5_000,
+    });
   });
 
   /* ------------------------------------------------------------------ */
@@ -197,8 +237,6 @@ test.describe("Camera management", () => {
     await expect(page.getByText("online").first()).toBeVisible();
 
     // Info / details section
-    await expect(
-      page.getByText(/Camera Details|rtsp/i).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/Camera Details|rtsp/i).first()).toBeVisible();
   });
 });

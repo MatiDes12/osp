@@ -196,7 +196,8 @@ export function OnboardingWizard({
                 Add Your First Camera
               </h2>
               <p className="text-sm text-zinc-400 mb-5">
-                Connect an IP camera to start monitoring. You can add more later.
+                Connect an IP camera to start monitoring. You can add more
+                later.
               </p>
 
               <form onSubmit={handleAddCamera} className="space-y-3">
@@ -266,7 +267,9 @@ export function OnboardingWizard({
                     className="block text-sm font-medium text-zinc-300 mb-1"
                   >
                     Location{" "}
-                    <span className="text-zinc-500 font-normal">(optional)</span>
+                    <span className="text-zinc-500 font-normal">
+                      (optional)
+                    </span>
                   </label>
                   <input
                     id="onb-camera-location"

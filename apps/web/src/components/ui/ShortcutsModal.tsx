@@ -10,7 +10,10 @@ interface ShortcutsModalProps {
 
 interface ShortcutGroup {
   readonly title: string;
-  readonly shortcuts: readonly { readonly keys: string; readonly description: string }[];
+  readonly shortcuts: readonly {
+    readonly keys: string;
+    readonly description: string;
+  }[];
 }
 
 const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
@@ -27,9 +30,7 @@ const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
   },
   {
     title: "Camera",
-    shortcuts: [
-      { keys: "Cmd+N", description: "Add new camera" },
-    ],
+    shortcuts: [{ keys: "Cmd+N", description: "Add new camera" }],
   },
   {
     title: "General",
@@ -72,7 +73,10 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm" aria-hidden="true" />
+      <div
+        className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm"
+        aria-hidden="true"
+      />
 
       {/* Modal */}
       <div
@@ -125,7 +129,11 @@ export function ShortcutsModal({ open, onClose }: ShortcutsModalProps) {
 
         <div className="mt-5 pt-4 border-t border-zinc-800">
           <p className="text-xs text-zinc-600 text-center">
-            Press <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400">?</kbd> to toggle this panel
+            Press{" "}
+            <kbd className="rounded border border-zinc-700 bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-400">
+              ?
+            </kbd>{" "}
+            to toggle this panel
           </p>
         </div>
       </div>

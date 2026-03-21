@@ -15,7 +15,9 @@ function makeFilterBuilderProxy(primaryFB: unknown, cloudFB: unknown): unknown {
       cloudFired = true;
       Promise.resolve(cloudFB as PromiseLike<unknown>).then(
         (r: unknown) => {
-          const result = r as { error?: { message?: string; details?: string } } | null;
+          const result = r as {
+            error?: { message?: string; details?: string };
+          } | null;
           if (result?.error) {
             console.warn(
               "[dual-write] cloud error:",
@@ -51,7 +53,10 @@ function makeFilterBuilderProxy(primaryFB: unknown, cloudFB: unknown): unknown {
             : undefined;
 
         // If the result is still Promise-like (another builder), keep proxying
-        if (primaryResult && typeof (primaryResult as Record<string, unknown>).then === "function") {
+        if (
+          primaryResult &&
+          typeof (primaryResult as Record<string, unknown>).then === "function"
+        ) {
           return makeFilterBuilderProxy(primaryResult, cloudResult);
         }
         return primaryResult;
@@ -65,7 +70,11 @@ function makeQueryBuilderProxy(primaryQB: unknown, cloudQB: unknown): unknown {
     get(target, prop) {
       const val = (target as Record<string | symbol, unknown>)[prop];
 
-      if (typeof prop === "string" && WRITE_METHODS.has(prop) && typeof val === "function") {
+      if (
+        typeof prop === "string" &&
+        WRITE_METHODS.has(prop) &&
+        typeof val === "function"
+      ) {
         return (...args: unknown[]) => {
           const primaryResult = (val as Function).apply(target, args);
           const cloudVal = (cloudQB as Record<string | symbol, unknown>)[prop];
@@ -82,7 +91,10 @@ function makeQueryBuilderProxy(primaryQB: unknown, cloudQB: unknown): unknown {
   });
 }
 
-function makeCloudMirrorProxy(primary: SupabaseClient, cloud: SupabaseClient): SupabaseClient {
+function makeCloudMirrorProxy(
+  primary: SupabaseClient,
+  cloud: SupabaseClient,
+): SupabaseClient {
   return new Proxy(primary, {
     get(target, prop, receiver) {
       if (prop === "from") {
@@ -113,7 +125,9 @@ export function getSupabase(): SupabaseClient {
     const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
 
     if (!url || !key) {
-      throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+      throw new Error(
+        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required",
+      );
     }
 
     const primary = makeClient(url, key);
@@ -124,8 +138,13 @@ export function getSupabase(): SupabaseClient {
     const cloudKey = process.env["SUPABASE_CLOUD_SERVICE_ROLE_KEY"];
 
     if (cloudUrl && cloudKey && cloudUrl !== url) {
-      console.info(`[supabase] dual-write enabled — primary: ${url}  cloud: ${cloudUrl}`);
-      adminClient = makeCloudMirrorProxy(primary, makeClient(cloudUrl, cloudKey));
+      console.info(
+        `[supabase] dual-write enabled — primary: ${url}  cloud: ${cloudUrl}`,
+      );
+      adminClient = makeCloudMirrorProxy(
+        primary,
+        makeClient(cloudUrl, cloudKey),
+      );
     } else {
       adminClient = primary;
     }

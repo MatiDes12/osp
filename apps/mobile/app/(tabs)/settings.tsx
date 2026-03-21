@@ -44,7 +44,8 @@ function extractUserFromJwt(token: string): JwtUser | null {
   return {
     id: (payload["sub"] as string) ?? "",
     email: (payload["email"] as string) ?? "",
-    displayName: (meta["display_name"] as string) ?? (payload["email"] as string) ?? "",
+    displayName:
+      (meta["display_name"] as string) ?? (payload["email"] as string) ?? "",
     role: (meta["role"] as string) ?? "viewer",
   };
 }
@@ -137,10 +138,7 @@ export default function SettingsScreen() {
             <InfoRow label="Name" value={tenant.name} />
             <InfoRow label="Plan" value={tenant.plan.toUpperCase()} />
             <InfoRow label="Max Cameras" value={String(tenant.maxCameras)} />
-            <InfoRow
-              label="Retention"
-              value={`${tenant.retentionDays} days`}
-            />
+            <InfoRow label="Retention" value={`${tenant.retentionDays} days`} />
           </View>
         </View>
       )}

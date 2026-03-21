@@ -46,7 +46,11 @@ function fmtDuration(sec: number): string {
 function fmtBucket(iso: string, granularity: "hour" | "day"): string {
   const d = new Date(iso);
   if (granularity === "hour") {
-    return d.toLocaleTimeString([], { month: "short", day: "numeric", hour: "2-digit" });
+    return d.toLocaleTimeString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+    });
   }
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
@@ -121,8 +125,14 @@ function TimelineChart({
   const PAD = { top: 10, right: 4, bottom: 28, left: 36 };
 
   const maxCount = Math.max(...data.map((d) => d.count), 1);
-  const xs = data.map((_, i) => PAD.left + (i / Math.max(data.length - 1, 1)) * (W - PAD.left - PAD.right));
-  const ys = data.map((d) => PAD.top + (1 - d.count / maxCount) * (H - PAD.top - PAD.bottom));
+  const xs = data.map(
+    (_, i) =>
+      PAD.left +
+      (i / Math.max(data.length - 1, 1)) * (W - PAD.left - PAD.right),
+  );
+  const ys = data.map(
+    (d) => PAD.top + (1 - d.count / maxCount) * (H - PAD.top - PAD.bottom),
+  );
 
   const points = xs.map((x, i) => `${x},${ys[i]}`).join(" ");
   const fillPath = `M${xs[0]},${H - PAD.bottom} ${xs.map((x, i) => `L${x},${ys[i]}`).join(" ")} L${xs[xs.length - 1]},${H - PAD.bottom} Z`;
@@ -140,16 +150,35 @@ function TimelineChart({
     .filter((_, i) => i % xStep === 0 || i === data.length - 1);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40" preserveAspectRatio="none">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-40"
+      preserveAspectRatio="none"
+    >
       {/* Grid lines */}
       {yTicks.map((t) => (
-        <line key={t.label} x1={PAD.left} x2={W - PAD.right} y1={t.y} y2={t.y}
-          stroke="#ffffff10" strokeWidth="0.5" />
+        <line
+          key={t.label}
+          x1={PAD.left}
+          x2={W - PAD.right}
+          y1={t.y}
+          y2={t.y}
+          stroke="#ffffff10"
+          strokeWidth="0.5"
+        />
       ))}
       {/* Y labels */}
       {yTicks.map((t) => (
-        <text key={t.label} x={PAD.left - 2} y={t.y + 1.5} textAnchor="end"
-          fontSize="5" fill="#6b7280">{t.label}</text>
+        <text
+          key={t.label}
+          x={PAD.left - 2}
+          y={t.y + 1.5}
+          textAnchor="end"
+          fontSize="5"
+          fill="#6b7280"
+        >
+          {t.label}
+        </text>
       ))}
       {/* Fill */}
       <defs>
@@ -160,11 +189,24 @@ function TimelineChart({
       </defs>
       <path d={fillPath} fill="url(#areaGrad)" />
       {/* Line */}
-      <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="1.2"
-        strokeLinejoin="round" strokeLinecap="round" />
+      <polyline
+        points={points}
+        fill="none"
+        stroke="#3b82f6"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
       {/* X labels */}
       {xTicks.map(({ i, label }) => (
-        <text key={i} x={xs[i]} y={H - 2} textAnchor="middle" fontSize="4.5" fill="#6b7280">
+        <text
+          key={i}
+          x={xs[i]}
+          y={H - 2}
+          textAnchor="middle"
+          fontSize="4.5"
+          fill="#6b7280"
+        >
           {label}
         </text>
       ))}
@@ -217,22 +259,48 @@ function DonutChart({ data }: { data: AnalyticsEventTypeBreakdown[] }) {
     <div className="flex items-center gap-4">
       <svg viewBox="0 0 100 100" className="w-36 h-36 shrink-0">
         {slices.map((s) => (
-          <path key={s.type} d={s.path}
-            fill={EVENT_COLORS[s.type] ?? "#6b7280"} opacity="0.9" />
+          <path
+            key={s.type}
+            d={s.path}
+            fill={EVENT_COLORS[s.type] ?? "#6b7280"}
+            opacity="0.9"
+          />
         ))}
-        <text x={CX} y={CY + 1} textAnchor="middle" dominantBaseline="middle"
-          fontSize="8" fontWeight="600" fill="white">{total}</text>
-        <text x={CX} y={CY + 10} textAnchor="middle" fontSize="4.5" fill="#9ca3af">
+        <text
+          x={CX}
+          y={CY + 1}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize="8"
+          fontWeight="600"
+          fill="white"
+        >
+          {total}
+        </text>
+        <text
+          x={CX}
+          y={CY + 10}
+          textAnchor="middle"
+          fontSize="4.5"
+          fill="#9ca3af"
+        >
           events
         </text>
       </svg>
       <ul className="flex-1 space-y-1.5">
         {slices.slice(0, 6).map((s) => (
-          <li key={s.type} className="flex items-center justify-between text-xs">
+          <li
+            key={s.type}
+            className="flex items-center justify-between text-xs"
+          >
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full inline-block"
-                style={{ background: EVENT_COLORS[s.type] ?? "#6b7280" }} />
-              <span className="text-gray-300 capitalize">{s.type.replace(/_/g, " ")}</span>
+              <span
+                className="w-2 h-2 rounded-full inline-block"
+                style={{ background: EVENT_COLORS[s.type] ?? "#6b7280" }}
+              />
+              <span className="text-gray-300 capitalize">
+                {s.type.replace(/_/g, " ")}
+              </span>
             </span>
             <span className="text-gray-400">{s.pct}%</span>
           </li>
@@ -247,7 +315,9 @@ function DonutChart({ data }: { data: AnalyticsEventTypeBreakdown[] }) {
 function HeatmapChart({ data }: { data: AnalyticsHeatmapCell[] }) {
   const maxCount = Math.max(...data.map((d) => d.count), 1);
   // Build a 7 × 24 grid
-  const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  const grid: number[][] = Array.from({ length: 7 }, () =>
+    new Array(24).fill(0),
+  );
   for (const cell of data) {
     grid[cell.dayOfWeek - 1]![cell.hourOfDay] = cell.count;
   }
@@ -258,7 +328,10 @@ function HeatmapChart({ data }: { data: AnalyticsHeatmapCell[] }) {
         {/* Hour labels */}
         <div className="flex ml-10 mb-1">
           {Array.from({ length: 24 }, (_, h) => (
-            <div key={h} className="flex-1 text-center text-[9px] text-gray-600">
+            <div
+              key={h}
+              className="flex-1 text-center text-[9px] text-gray-600"
+            >
               {h % 4 === 0 ? `${h}h` : ""}
             </div>
           ))}
@@ -279,15 +352,23 @@ function HeatmapChart({ data }: { data: AnalyticsHeatmapCell[] }) {
                       ? "bg-blue-600/80"
                       : "bg-blue-400";
               return (
-                <div key={hour} title={`${DOW_LABELS[dow]} ${hour}:00 — ${count} events`}
-                  className={`flex-1 h-4 rounded-[2px] ${bg} cursor-default`} />
+                <div
+                  key={hour}
+                  title={`${DOW_LABELS[dow]} ${hour}:00 — ${count} events`}
+                  className={`flex-1 h-4 rounded-[2px] ${bg} cursor-default`}
+                />
               );
             })}
           </div>
         ))}
         <div className="flex items-center gap-2 mt-3 justify-end text-[10px] text-gray-500">
           <span>Less</span>
-          {["bg-white/5", "bg-blue-900/70", "bg-blue-600/80", "bg-blue-400"].map((c) => (
+          {[
+            "bg-white/5",
+            "bg-blue-900/70",
+            "bg-blue-600/80",
+            "bg-blue-400",
+          ].map((c) => (
             <span key={c} className={`w-3 h-3 rounded-sm ${c}`} />
           ))}
           <span>More</span>
@@ -405,7 +486,10 @@ export default function AnalyticsPage() {
                 {PRESETS.map((p) => (
                   <button
                     key={p.value}
-                    onClick={() => { setPreset(p.value); setShowPresetMenu(false); }}
+                    onClick={() => {
+                      setPreset(p.value);
+                      setShowPresetMenu(false);
+                    }}
                     className={`block w-full px-4 py-2 text-left text-sm
                       ${preset === p.value ? "text-blue-400" : "text-gray-300 hover:text-white hover:bg-white/5"}`}
                   >
@@ -437,14 +521,24 @@ export default function AnalyticsPage() {
         <StatCard
           icon={HardDrive}
           label="Storage Used"
-          value={recordings.data ? fmtBytes(recordings.data.totalSizeBytes) : "—"}
-          sub={recordings.data ? `${recordings.data.totalRecordings} recordings` : undefined}
+          value={
+            recordings.data ? fmtBytes(recordings.data.totalSizeBytes) : "—"
+          }
+          sub={
+            recordings.data
+              ? `${recordings.data.totalRecordings} recordings`
+              : undefined
+          }
           color="green"
         />
         <StatCard
           icon={Clock}
           label="Recording Time"
-          value={recordings.data ? fmtDuration(recordings.data.totalDurationSec) : "—"}
+          value={
+            recordings.data
+              ? fmtDuration(recordings.data.totalDurationSec)
+              : "—"
+          }
           sub="total duration"
           color="orange"
         />
@@ -455,7 +549,9 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={16} className="text-blue-400" />
           <h2 className="text-sm font-medium text-white">Event Timeline</h2>
-          <span className="ml-auto text-xs text-gray-500 capitalize">{granularity}ly breakdown</span>
+          <span className="ml-auto text-xs text-gray-500 capitalize">
+            {granularity}ly breakdown
+          </span>
         </div>
         {timeseries.loading ? (
           <div className="h-40 flex items-center justify-center text-gray-500 text-sm">
@@ -488,7 +584,9 @@ export default function AnalyticsPage() {
           <div className="flex items-center gap-2 mb-4">
             <Camera size={16} className="text-green-400" />
             <h2 className="text-sm font-medium text-white">Top Cameras</h2>
-            <span className="ml-auto text-xs text-gray-500">by event count</span>
+            <span className="ml-auto text-xs text-gray-500">
+              by event count
+            </span>
           </div>
           {cameras.loading ? (
             <div className="h-40 flex items-center justify-center text-gray-500 text-sm">
@@ -505,7 +603,9 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle size={16} className="text-amber-400" />
           <h2 className="text-sm font-medium text-white">Activity Heatmap</h2>
-          <span className="ml-auto text-xs text-gray-500">events by hour × day of week</span>
+          <span className="ml-auto text-xs text-gray-500">
+            events by hour × day of week
+          </span>
         </div>
         {heatmap.loading ? (
           <div className="h-32 flex items-center justify-center text-gray-500 text-sm">
@@ -521,7 +621,9 @@ export default function AnalyticsPage() {
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5">
           <div className="flex items-center gap-2 mb-4">
             <HardDrive size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-medium text-white">Daily Storage Growth</h2>
+            <h2 className="text-sm font-medium text-white">
+              Daily Storage Growth
+            </h2>
           </div>
           <TimelineChart
             data={recordings.data.dailyStorageBytes.map((d) => ({
@@ -533,13 +635,17 @@ export default function AnalyticsPage() {
           {/* Trigger legend */}
           {Object.keys(recordings.data.byTrigger).length > 0 && (
             <div className="flex flex-wrap gap-3 mt-4">
-              {Object.entries(recordings.data.byTrigger).map(([trigger, count]) => (
-                <span key={trigger}
-                  className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                  {trigger}: {count}
-                </span>
-              ))}
+              {Object.entries(recordings.data.byTrigger).map(
+                ([trigger, count]) => (
+                  <span
+                    key={trigger}
+                    className="flex items-center gap-1.5 text-xs text-gray-400"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    {trigger}: {count}
+                  </span>
+                ),
+              )}
             </div>
           )}
         </div>

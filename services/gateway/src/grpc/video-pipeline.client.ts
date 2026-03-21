@@ -70,7 +70,10 @@ export interface VideoPipelineClient {
     tenantId: string,
     options?: { recordingId?: string; timestampSec?: number },
   ): Promise<SnapshotResult>;
-  getPlaybackURL(recordingId: string, tenantId: string): Promise<PlaybackURLResult>;
+  getPlaybackURL(
+    recordingId: string,
+    tenantId: string,
+  ): Promise<PlaybackURLResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +133,9 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
         );
       } catch (err) {
         if (isServiceUnavailable(err)) {
-          logger.warn("Video-pipeline service not available, using direct mode");
+          logger.warn(
+            "Video-pipeline service not available, using direct mode",
+          );
           throw new GrpcFallbackError("video-pipeline", "startRecording");
         }
         throw err;
@@ -146,7 +151,9 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
         );
       } catch (err) {
         if (isServiceUnavailable(err)) {
-          logger.warn("Video-pipeline service not available, using direct mode");
+          logger.warn(
+            "Video-pipeline service not available, using direct mode",
+          );
           throw new GrpcFallbackError("video-pipeline", "stopRecording");
         }
         throw err;
@@ -162,7 +169,9 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
         );
       } catch (err) {
         if (isServiceUnavailable(err)) {
-          logger.warn("Video-pipeline service not available, using direct mode");
+          logger.warn(
+            "Video-pipeline service not available, using direct mode",
+          );
           throw new GrpcFallbackError("video-pipeline", "getRecordingStatus");
         }
         throw err;
@@ -185,7 +194,9 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
         );
       } catch (err) {
         if (isServiceUnavailable(err)) {
-          logger.warn("Video-pipeline service not available, using direct mode");
+          logger.warn(
+            "Video-pipeline service not available, using direct mode",
+          );
           throw new GrpcFallbackError("video-pipeline", "generateSnapshot");
         }
         throw err;
@@ -202,9 +213,12 @@ function createGrpcVideoPipelineClient(): VideoPipelineClient {
       } catch (err) {
         if (
           isServiceUnavailable(err) ||
-          (err instanceof Error && err.message.includes("not found on gRPC stub"))
+          (err instanceof Error &&
+            err.message.includes("not found on gRPC stub"))
         ) {
-          logger.warn("Video-pipeline service not available, using direct mode");
+          logger.warn(
+            "Video-pipeline service not available, using direct mode",
+          );
           throw new GrpcFallbackError("video-pipeline", "getPlaybackURL");
         }
         throw err;

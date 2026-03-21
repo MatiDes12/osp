@@ -2,7 +2,15 @@ import { z } from "zod";
 
 const FloorPlanObjectSchema = z.object({
   id: z.string(),
-  type: z.enum(["room", "wall", "door", "window", "camera", "label", "furniture"]),
+  type: z.enum([
+    "room",
+    "wall",
+    "door",
+    "window",
+    "camera",
+    "label",
+    "furniture",
+  ]),
   x: z.number(),
   y: z.number(),
   w: z.number(),

@@ -3,7 +3,10 @@
 import { useToastStore, type ToastType } from "@/stores/toast";
 import { Check, X, AlertCircle, Info } from "lucide-react";
 
-const TYPE_STYLES: Record<ToastType, { border: string; bg: string; text: string; icon: typeof Check }> = {
+const TYPE_STYLES: Record<
+  ToastType,
+  { border: string; bg: string; text: string; icon: typeof Check }
+> = {
   success: {
     border: "border-green-500/30",
     bg: "bg-green-500/10",

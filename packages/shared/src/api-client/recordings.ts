@@ -11,9 +11,7 @@ export interface ListRecordingsParams extends PaginationParams {
 
 export function createRecordingsApi(client: ApiClient) {
   return {
-    list(
-      params?: ListRecordingsParams,
-    ): Promise<ApiResponse<Recording[]>> {
+    list(params?: ListRecordingsParams): Promise<ApiResponse<Recording[]>> {
       return client.get<Recording[]>(
         "/api/v1/recordings",
         params as Record<string, string | number | boolean | undefined>,

@@ -4,7 +4,8 @@ import type { Camera, CameraStatus } from "@osp/shared/types";
 import { colors, spacing, borderRadius, fontSize } from "@/constants/theme";
 import { getAccessToken } from "@/lib/auth";
 
-const GO2RTC_URL = process.env.EXPO_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
+const GO2RTC_URL =
+  process.env.EXPO_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
 
 interface CameraCardProps {
   readonly camera: Camera;
@@ -88,7 +89,9 @@ export function CameraCard({ camera, onPress }: CameraCardProps) {
             resizeMode="cover"
           />
         ) : (
-          <Text style={styles.thumbnailText}>{camera.name.charAt(0).toUpperCase()}</Text>
+          <Text style={styles.thumbnailText}>
+            {camera.name.charAt(0).toUpperCase()}
+          </Text>
         )}
       </View>
 
@@ -106,9 +109,7 @@ export function CameraCard({ camera, onPress }: CameraCardProps) {
           </Text>
         </View>
 
-        <Text style={styles.lastSeen}>
-          {formatLastSeen(camera.lastSeenAt)}
-        </Text>
+        <Text style={styles.lastSeen}>{formatLastSeen(camera.lastSeenAt)}</Text>
       </View>
     </TouchableOpacity>
   );

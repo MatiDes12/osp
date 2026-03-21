@@ -13,7 +13,9 @@ function getAuthHeaders(): Record<string, string> {
     typeof window !== "undefined"
       ? localStorage.getItem("osp_access_token")
       : null;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
@@ -93,8 +95,8 @@ export default function LocationDetailPage({
           setCameras(
             raw.map((c) => ({
               id: (c.id ?? "") as string,
-              name: ((c.name ?? "") as string),
-              status: ((c.status ?? "offline") as string),
+              name: (c.name ?? "") as string,
+              status: (c.status ?? "offline") as string,
             })),
           );
         }
@@ -142,7 +144,9 @@ export default function LocationDetailPage({
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] text-center">
         <MapPin className="h-8 w-8 text-zinc-600 mb-3" />
-        <p className="text-sm text-zinc-400 mb-4">{error ?? "Location not found"}</p>
+        <p className="text-sm text-zinc-400 mb-4">
+          {error ?? "Location not found"}
+        </p>
         <Link
           href="/locations"
           className="text-sm text-blue-400 hover:text-blue-300 cursor-pointer"
@@ -176,7 +180,8 @@ export default function LocationDetailPage({
         <div className="flex items-center gap-1.5 ml-auto">
           <Camera className="h-3.5 w-3.5 text-zinc-500" />
           <span className="text-xs text-zinc-400">
-            {cameras.length} camera{cameras.length !== 1 ? "s" : ""} at this location
+            {cameras.length} camera{cameras.length !== 1 ? "s" : ""} at this
+            location
           </span>
         </div>
       </div>

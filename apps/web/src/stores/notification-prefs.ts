@@ -82,9 +82,7 @@ export const useNotificationPrefsStore = create<NotificationPrefsState>(
 /**
  * Check whether a notification should be shown right now based on user prefs.
  */
-export function shouldShowNotification(
-  severity: string,
-): boolean {
+export function shouldShowNotification(severity: string): boolean {
   const state = useNotificationPrefsStore.getState();
 
   if (!state.pushEnabled) return false;

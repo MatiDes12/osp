@@ -65,7 +65,10 @@ export default function CamerasScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => fetchCameras()}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => fetchCameras()}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>

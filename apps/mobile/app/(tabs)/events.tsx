@@ -70,7 +70,10 @@ export default function EventsScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => fetchEvents()}>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => fetchEvents()}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>

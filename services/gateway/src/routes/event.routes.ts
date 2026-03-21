@@ -1,4 +1,10 @@
-import { existsSync, statSync, createReadStream, mkdirSync, createWriteStream } from "node:fs";
+import {
+  existsSync,
+  statSync,
+  createReadStream,
+  mkdirSync,
+  createWriteStream,
+} from "node:fs";
 import { join } from "node:path";
 import { assertSafePath } from "../lib/path-guard.js";
 import { Readable } from "node:stream";
@@ -19,7 +25,11 @@ import {
   getAIDetectionService,
   type DetectionResult,
 } from "../services/ai-detection.service.js";
-import { analyzeFrameForPlates, checkWatchlist, isLprConfigured } from "../services/lpr.service.js";
+import {
+  analyzeFrameForPlates,
+  checkWatchlist,
+  isLprConfigured,
+} from "../services/lpr.service.js";
 import { trackEvent } from "../services/analytics.service.js";
 import {
   ListEventsSchema,
@@ -60,7 +70,11 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     .single();
 
   if (cameraError || !camera) {
-    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found or does not belong to tenant", 404);
+    throw new ApiError(
+      "CAMERA_NOT_FOUND",
+      "Camera not found or does not belong to tenant",
+      404,
+    );
   }
 
   // Optionally look up zone name
@@ -252,7 +266,9 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
         // Create typed events for high-confidence detections.
         const typedDetections = detections.filter(
-          (d): d is DetectionResult & {
+          (
+            d,
+          ): d is DetectionResult & {
             type: Exclude<DetectionResult["type"], "unknown">;
           } => d.type !== "unknown" && d.confidence > 0.7,
         );
@@ -403,7 +419,9 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
       try {
         const go2rtcUrl = get("GO2RTC_API_URL") ?? "http://localhost:1984";
         const snapshotUrl = `${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(lprCameraId)}`;
-        const snapRes = await fetch(snapshotUrl, { signal: AbortSignal.timeout(5_000) });
+        const snapRes = await fetch(snapshotUrl, {
+          signal: AbortSignal.timeout(5_000),
+        });
         if (!snapRes.ok) return;
 
         const arrayBuf = await snapRes.arrayBuffer();
@@ -429,21 +447,29 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
         });
 
         // Check watchlist and create lpr.alert events for any hits
-        const hits = await checkWatchlist(tenantId, lprResult.detections, lprSupabase);
+        const hits = await checkWatchlist(
+          tenantId,
+          lprResult.detections,
+          lprSupabase,
+        );
         for (const hit of hits) {
-          const { data: alertEvent } = await lprSupabase.from("events").insert({
-            tenant_id: tenantId,
-            camera_id: lprCameraId,
-            type: "lpr.alert",
-            severity: "high",
-            metadata: {
-              plate: hit.plate,
-              label: hit.label,
-              watchlistId: hit.watchlistId,
-              triggeredByEventId: lprEventId,
-            },
-            detected_at: new Date().toISOString(),
-          }).select("id").single();
+          const { data: alertEvent } = await lprSupabase
+            .from("events")
+            .insert({
+              tenant_id: tenantId,
+              camera_id: lprCameraId,
+              type: "lpr.alert",
+              severity: "high",
+              metadata: {
+                plate: hit.plate,
+                label: hit.label,
+                watchlistId: hit.watchlistId,
+                triggeredByEventId: lprEventId,
+              },
+              detected_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
 
           if (alertEvent) {
             ruleLogger.info("LPR watchlist alert created", {
@@ -537,7 +563,9 @@ eventRoutes.get("/summary", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
 
-  const from = c.req.query("from") ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const from =
+    c.req.query("from") ??
+    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const to = c.req.query("to") ?? new Date().toISOString();
 
   // Counts by type
@@ -657,7 +685,9 @@ eventRoutes.get("/:id/clip", requireAuth("viewer"), async (c) => {
   if (!filePath) {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
-  try { assertSafePath(filePath); } catch {
+  try {
+    assertSafePath(filePath);
+  } catch {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
   if (!existsSync(filePath)) {
@@ -724,7 +754,9 @@ eventRoutes.get("/:id/thumbnail", requireAuth("viewer"), async (c) => {
   if (!clipPath) {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
-  try { assertSafePath(clipPath); } catch {
+  try {
+    assertSafePath(clipPath);
+  } catch {
     throw new ApiError("CLIP_NOT_FOUND", "Event clip not found on disk", 404);
   }
   if (!existsSync(clipPath)) {
@@ -733,7 +765,11 @@ eventRoutes.get("/:id/thumbnail", requireAuth("viewer"), async (c) => {
 
   const thumbPath = getThumbnailPathFromClipPath(clipPath);
   if (!existsSync(thumbPath)) {
-    throw new ApiError("THUMBNAIL_NOT_FOUND", "Event thumbnail not found on disk", 404);
+    throw new ApiError(
+      "THUMBNAIL_NOT_FOUND",
+      "Event thumbnail not found on disk",
+      404,
+    );
   }
 
   const stats = statSync(thumbPath);
@@ -793,16 +829,7 @@ async function generateClipThumbnail(clipPath: string): Promise<void> {
   await new Promise<void>((resolvePromise) => {
     const ffmpeg = spawn(
       "ffmpeg",
-      [
-        "-y",
-        "-i",
-        clipPath,
-        "-frames:v",
-        "1",
-        "-q:v",
-        "2",
-        thumbPath,
-      ],
+      ["-y", "-i", clipPath, "-frames:v", "1", "-q:v", "2", thumbPath],
       { stdio: "ignore" },
     );
 

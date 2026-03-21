@@ -48,7 +48,9 @@ export function tenantContext() {
   });
 }
 
-async function loadTenantPlanFromDb(tenantId: string): Promise<TenantPlan | null> {
+async function loadTenantPlanFromDb(
+  tenantId: string,
+): Promise<TenantPlan | null> {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -58,7 +60,10 @@ async function loadTenantPlanFromDb(tenantId: string): Promise<TenantPlan | null
       .single();
 
     if (error || !data) {
-      logger.warn("Failed to load tenant plan from DB", { tenantId, error: String(error) });
+      logger.warn("Failed to load tenant plan from DB", {
+        tenantId,
+        error: String(error),
+      });
       return null;
     }
 

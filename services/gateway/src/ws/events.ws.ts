@@ -78,9 +78,12 @@ export function startRedisSubscription(): void {
     // Create a dedicated subscriber connection (ioredis requires separate connections for pub/sub)
     subscriber = getRedis().duplicate();
 
-    subscriber.on("pmessage", (_pattern: string, channel: string, message: string) => {
-      handleRedisMessage(channel, message);
-    });
+    subscriber.on(
+      "pmessage",
+      (_pattern: string, channel: string, message: string) => {
+        handleRedisMessage(channel, message);
+      },
+    );
 
     subscriber.on("error", (err) => {
       logger.error("Redis subscriber error", { error: String(err) });
@@ -88,7 +91,9 @@ export function startRedisSubscription(): void {
 
     subscriber.psubscribe("events:*", (err) => {
       if (err) {
-        logger.error("Failed to subscribe to events channels", { error: String(err) });
+        logger.error("Failed to subscribe to events channels", {
+          error: String(err),
+        });
         return;
       }
       subscriptionActive = true;
@@ -140,10 +145,7 @@ export function handleRedisMessage(channel: string, message: string): void {
  * Handles a new WebSocket connection for real-time event subscriptions.
  * Expects a JWT token as a query parameter for authentication.
  */
-export function handleWebSocketUpgrade(
-  ws: WebSocket,
-  token: string,
-): void {
+export function handleWebSocketUpgrade(ws: WebSocket, token: string): void {
   const clientId = crypto.randomUUID();
 
   ws.addEventListener("open", async () => {
@@ -185,9 +187,7 @@ export function handleWebSocketUpgrade(
 
     try {
       const message = JSON.parse(
-        typeof messageEvent.data === "string"
-          ? messageEvent.data
-          : "",
+        typeof messageEvent.data === "string" ? messageEvent.data : "",
       ) as { type: string; [key: string]: unknown };
 
       switch (message.type) {
@@ -250,10 +250,16 @@ export function broadcastEvent(tenantId: string, event: OSPEvent): void {
   try {
     const redis = getRedis();
     redis.publish(`events:${tenantId}`, JSON.stringify(event)).catch((err) => {
-      logger.error("Failed to publish event to Redis", { tenantId, error: String(err) });
+      logger.error("Failed to publish event to Redis", {
+        tenantId,
+        error: String(err),
+      });
     });
   } catch (err) {
-    logger.error("Failed to get Redis for event publish", { tenantId, error: String(err) });
+    logger.error("Failed to get Redis for event publish", {
+      tenantId,
+      error: String(err),
+    });
   }
 
   // Also broadcast locally (for clients connected to this instance)
@@ -317,7 +323,11 @@ function matchesFilters(event: OSPEvent, filters: ClientFilters): boolean {
  */
 function parseFilters(message: Record<string, unknown>): ClientFilters {
   const filters: ClientFilters = {};
-  const result: { cameraIds?: string[]; eventTypes?: EventType[]; minSeverity?: EventSeverity } = {};
+  const result: {
+    cameraIds?: string[];
+    eventTypes?: EventType[];
+    minSeverity?: EventSeverity;
+  } = {};
 
   if (Array.isArray(message["cameraIds"])) {
     result.cameraIds = (message["cameraIds"] as unknown[]).filter(
@@ -331,7 +341,10 @@ function parseFilters(message: Record<string, unknown>): ClientFilters {
     );
   }
 
-  if (typeof message["minSeverity"] === "string" && message["minSeverity"] in SEVERITY_ORDER) {
+  if (
+    typeof message["minSeverity"] === "string" &&
+    message["minSeverity"] in SEVERITY_ORDER
+  ) {
     result.minSeverity = message["minSeverity"] as EventSeverity;
   }
 

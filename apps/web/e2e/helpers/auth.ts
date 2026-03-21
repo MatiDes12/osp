@@ -12,7 +12,10 @@ export async function loginAs(page: Page): Promise<void> {
     const base64url = (obj: unknown) => {
       const json = JSON.stringify(obj);
       // btoa → base64; then convert to base64url
-      return btoa(json).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+      return btoa(json)
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .replaceAll("=", "");
     };
 
     const header = { alg: "none", typ: "JWT" };
@@ -38,7 +41,10 @@ export async function loginAs(page: Page): Promise<void> {
  * Navigate to a page as an authenticated user.
  * Sets up the origin, injects tokens, then navigates to the target path.
  */
-export async function gotoAuthenticated(page: Page, path: string): Promise<void> {
+export async function gotoAuthenticated(
+  page: Page,
+  path: string,
+): Promise<void> {
   // Establish the origin first so localStorage is available
   await page.goto("/");
   await loginAs(page);

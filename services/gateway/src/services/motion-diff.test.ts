@@ -57,4 +57,3 @@ describe("motion-diff", () => {
     expect(estimateIntensity(1.5)).toBe(100);
   });
 });
-

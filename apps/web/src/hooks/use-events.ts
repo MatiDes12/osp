@@ -22,9 +22,7 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-function toSearchParams(
-  params?: Record<string, unknown>,
-): string {
+function toSearchParams(params?: Record<string, unknown>): string {
   if (!params) return "";
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -78,27 +76,19 @@ export function useEvents(
     fetchEvents();
   }, [fetchEvents]);
 
-  const acknowledge = useCallback(
-    async (id: string): Promise<void> => {
-      const response = await fetch(
-        `${API_URL}/api/v1/events/${id}/acknowledge`,
-        {
-          method: "PATCH",
-          headers: getAuthHeaders(),
-        },
-      );
-      const json: ApiResponse<OSPEvent> = await response.json();
-      if (!json.success) {
-        throw new Error(json.error?.message ?? "Failed to acknowledge event");
-      }
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === id ? { ...e, acknowledged: true } : e,
-        ),
-      );
-    },
-    [],
-  );
+  const acknowledge = useCallback(async (id: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/api/v1/events/${id}/acknowledge`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+    });
+    const json: ApiResponse<OSPEvent> = await response.json();
+    if (!json.success) {
+      throw new Error(json.error?.message ?? "Failed to acknowledge event");
+    }
+    setEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, acknowledged: true } : e)),
+    );
+  }, []);
 
   const bulkAcknowledge = useCallback(
     async (eventIds: string[]): Promise<number> => {
@@ -119,9 +109,7 @@ export function useEvents(
       }
       const idSet = new Set(eventIds);
       setEvents((prev) =>
-        prev.map((e) =>
-          idSet.has(e.id) ? { ...e, acknowledged: true } : e,
-        ),
+        prev.map((e) => (idSet.has(e.id) ? { ...e, acknowledged: true } : e)),
       );
       return json.data.acknowledgedCount;
     },
@@ -137,4 +125,3 @@ export function useEvents(
     bulkAcknowledge,
   };
 }
-

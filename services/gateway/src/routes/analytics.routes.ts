@@ -21,7 +21,9 @@ const DateRangeSchema = z.object({
   from: z
     .string()
     .optional()
-    .transform((v) => v ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+    .transform(
+      (v) => v ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    ),
   to: z
     .string()
     .optional()
@@ -47,8 +49,11 @@ const TimeSeriesSchema = DateRangeSchema.extend({
 
 analyticsRoutes.get("/events/timeseries", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
-  const parsed = TimeSeriesSchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
+  const parsed = TimeSeriesSchema.safeParse(
+    Object.fromEntries(new URL(c.req.url).searchParams),
+  );
+  if (!parsed.success)
+    throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
 
   const data = await getEventTimeSeries({
     tenantId,
@@ -70,8 +75,11 @@ const HeatmapSchema = DateRangeSchema.extend({
 
 analyticsRoutes.get("/events/heatmap", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
-  const parsed = HeatmapSchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
+  const parsed = HeatmapSchema.safeParse(
+    Object.fromEntries(new URL(c.req.url).searchParams),
+  );
+  if (!parsed.success)
+    throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
 
   const data = await getEventHeatmap({
     tenantId,
@@ -88,8 +96,11 @@ analyticsRoutes.get("/events/heatmap", requireAuth("viewer"), async (c) => {
 
 analyticsRoutes.get("/events/breakdown", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
-  const parsed = DateRangeSchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
+  const parsed = DateRangeSchema.safeParse(
+    Object.fromEntries(new URL(c.req.url).searchParams),
+  );
+  if (!parsed.success)
+    throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
 
   const data = await getEventBreakdown({
     tenantId,
@@ -112,8 +123,11 @@ const CameraActivitySchema = DateRangeSchema.extend({
 
 analyticsRoutes.get("/cameras/activity", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
-  const parsed = CameraActivitySchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
+  const parsed = CameraActivitySchema.safeParse(
+    Object.fromEntries(new URL(c.req.url).searchParams),
+  );
+  if (!parsed.success)
+    throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
 
   const data = await getCameraActivity({
     tenantId,
@@ -129,8 +143,11 @@ analyticsRoutes.get("/cameras/activity", requireAuth("viewer"), async (c) => {
 
 analyticsRoutes.get("/recordings/summary", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
-  const parsed = DateRangeSchema.safeParse(Object.fromEntries(new URL(c.req.url).searchParams));
-  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
+  const parsed = DateRangeSchema.safeParse(
+    Object.fromEntries(new URL(c.req.url).searchParams),
+  );
+  if (!parsed.success)
+    throw new ApiError("VALIDATION_ERROR", "Invalid query params", 400);
 
   const data = await getRecordingsSummary({
     tenantId,

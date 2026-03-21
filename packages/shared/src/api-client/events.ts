@@ -1,5 +1,9 @@
 import type { ApiClient } from "./client.js";
-import type { ApiResponse, PaginationParams, TimeRangeParams } from "../types/api.js";
+import type {
+  ApiResponse,
+  PaginationParams,
+  TimeRangeParams,
+} from "../types/api.js";
 import type { OSPEvent, EventSummary } from "../types/event.js";
 import type { ListEventsInput } from "../schemas/event.schema.js";
 
@@ -8,7 +12,10 @@ export function createEventsApi(client: ApiClient) {
     list(
       params?: ListEventsInput & PaginationParams,
     ): Promise<ApiResponse<OSPEvent[]>> {
-      return client.get<OSPEvent[]>("/api/v1/events", params as Record<string, string | number | boolean | undefined>);
+      return client.get<OSPEvent[]>(
+        "/api/v1/events",
+        params as Record<string, string | number | boolean | undefined>,
+      );
     },
 
     get(id: string): Promise<ApiResponse<OSPEvent>> {
@@ -28,9 +35,7 @@ export function createEventsApi(client: ApiClient) {
       );
     },
 
-    summary(
-      params?: TimeRangeParams,
-    ): Promise<ApiResponse<EventSummary>> {
+    summary(params?: TimeRangeParams): Promise<ApiResponse<EventSummary>> {
       return client.get<EventSummary>(
         "/api/v1/events/summary",
         params as Record<string, string | number | boolean | undefined>,

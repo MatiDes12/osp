@@ -11,9 +11,7 @@ export interface MarketplaceParams {
 
 export function createExtensionsApi(client: ApiClient) {
   return {
-    marketplace(
-      params?: MarketplaceParams,
-    ): Promise<ApiResponse<Extension[]>> {
+    marketplace(params?: MarketplaceParams): Promise<ApiResponse<Extension[]>> {
       return client.get<Extension[]>(
         "/api/v1/extensions/marketplace",
         params as Record<string, string | number | boolean | undefined>,

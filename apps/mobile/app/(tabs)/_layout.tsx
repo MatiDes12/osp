@@ -7,7 +7,13 @@ import { registerForPushNotifications } from "@/lib/push-notifications";
 import { transformTenant } from "@/lib/transforms";
 import type { Tenant } from "@osp/shared/types";
 
-function TabIcon({ name, focused }: { readonly name: string; readonly focused: boolean }) {
+function TabIcon({
+  name,
+  focused,
+}: {
+  readonly name: string;
+  readonly focused: boolean;
+}) {
   const icons: Record<string, string> = {
     Cameras: "[]",
     Events: "!",

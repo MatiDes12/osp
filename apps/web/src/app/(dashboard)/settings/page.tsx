@@ -110,8 +110,16 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const RECORDING_MODES = [
-  { value: "motion", label: "Motion-triggered", description: "Record only when motion is detected" },
-  { value: "continuous", label: "Continuous", description: "Record 24/7 without interruption" },
+  {
+    value: "motion",
+    label: "Motion-triggered",
+    description: "Record only when motion is detected",
+  },
+  {
+    value: "continuous",
+    label: "Continuous",
+    description: "Record 24/7 without interruption",
+  },
   { value: "off", label: "Off", description: "No automatic recording" },
 ] as const;
 
@@ -224,7 +232,9 @@ function RecordingSettingsPanel() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/config/keys/MOTION_TAIL_MS`, { headers: getAuthHeaders() })
+    fetch(`${API_URL}/api/v1/config/keys/MOTION_TAIL_MS`, {
+      headers: getAuthHeaders(),
+    })
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data?.value != null) {
@@ -242,7 +252,10 @@ function RecordingSettingsPanel() {
       const res = await fetch(`${API_URL}/api/v1/config/keys/MOTION_TAIL_MS`, {
         method: "PUT",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ value: String(motionTailSec * 1000), scope: "global" }),
+        body: JSON.stringify({
+          value: String(motionTailSec * 1000),
+          scope: "global",
+        }),
       });
       const json = await res.json();
       if (!json.success) {
@@ -260,12 +273,17 @@ function RecordingSettingsPanel() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-xl font-bold text-zinc-50 mb-6">Recording Settings</h2>
+      <h2 className="text-xl font-bold text-zinc-50 mb-6">
+        Recording Settings
+      </h2>
       <div className="space-y-4">
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-          <h3 className="text-sm font-semibold text-zinc-200 mb-1">Motion Recording Tail</h3>
+          <h3 className="text-sm font-semibold text-zinc-200 mb-1">
+            Motion Recording Tail
+          </h3>
           <p className="text-xs text-zinc-500 mb-4">
-            How long to keep recording after the last motion frame before stopping.
+            How long to keep recording after the last motion frame before
+            stopping.
           </p>
           <div className="flex items-center gap-3 mb-1">
             <input
@@ -277,13 +295,17 @@ function RecordingSettingsPanel() {
               onChange={(e) => setMotionTailSec(Number(e.target.value))}
               className="flex-1 h-1.5 rounded-full appearance-none bg-zinc-700 accent-blue-500 cursor-pointer disabled:opacity-50"
             />
-            <span className="text-sm font-mono text-zinc-300 w-14 text-right">{motionTailSec}s</span>
+            <span className="text-sm font-mono text-zinc-300 w-14 text-right">
+              {motionTailSec}s
+            </span>
           </div>
           <div className="flex justify-between text-[10px] text-zinc-600 mb-4">
             <span>1s</span>
             <span>60s</span>
           </div>
-          {saveError && <p className="text-xs text-red-400 mb-3">{saveError}</p>}
+          {saveError && (
+            <p className="text-xs text-red-400 mb-3">{saveError}</p>
+          )}
           <button
             onClick={handleSave}
             disabled={saving || loading}
@@ -295,17 +317,29 @@ function RecordingSettingsPanel() {
         </div>
 
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-1">Storage & Quality</h3>
+          <h3 className="text-sm font-semibold text-zinc-400 mb-1">
+            Storage & Quality
+          </h3>
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Retention Period</label>
-            <select disabled className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              Retention Period
+            </label>
+            <select
+              disabled
+              className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60"
+            >
               <option>30 days</option>
             </select>
             <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Storage Limit</label>
-            <select disabled className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+              Storage Limit
+            </label>
+            <select
+              disabled
+              className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60"
+            >
               <option>Unlimited</option>
             </select>
             <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
@@ -320,7 +354,9 @@ function RecordingSettingsPanel() {
 /*  Desktop App Settings Panel                                         */
 /* ------------------------------------------------------------------ */
 function DesktopSettingsPanel() {
-  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(null);
+  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
+    null,
+  );
   const [toggling, setToggling] = useState(false);
   const [testSent, setTestSent] = useState(false);
 
@@ -339,7 +375,10 @@ function DesktopSettingsPanel() {
   };
 
   const handleTestNotification = async () => {
-    await showNativeNotification("OSP Test", "Native notifications are working.");
+    await showNativeNotification(
+      "OSP Test",
+      "Native notifications are working.",
+    );
     setTestSent(true);
     setTimeout(() => setTestSent(false), 3000);
   };
@@ -391,7 +430,9 @@ function DesktopSettingsPanel() {
         <div className="flex items-start gap-3">
           <Check className="h-4 w-4 text-green-400 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-sm text-zinc-300">Tray tooltip with live camera count</p>
+            <p className="text-sm text-zinc-300">
+              Tray tooltip with live camera count
+            </p>
             <p className="text-xs text-zinc-500">
               Hover the tray icon to see online cameras and unread alerts.
             </p>
@@ -402,7 +443,9 @@ function DesktopSettingsPanel() {
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-zinc-100">Native Notifications</p>
+            <p className="text-sm font-medium text-zinc-100">
+              Native Notifications
+            </p>
             <p className="text-xs text-zinc-500 mt-0.5">
               Event alerts sent as OS-level notifications.
             </p>
@@ -412,9 +455,13 @@ function DesktopSettingsPanel() {
             className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
           >
             {testSent ? (
-              <><Check className="h-3.5 w-3.5 text-green-400" /> Sent</>
+              <>
+                <Check className="h-3.5 w-3.5 text-green-400" /> Sent
+              </>
             ) : (
-              <><Bell className="h-3.5 w-3.5" /> Test</>
+              <>
+                <Bell className="h-3.5 w-3.5" /> Test
+              </>
             )}
           </button>
         </div>
@@ -443,13 +490,18 @@ function ConfirmDeleteModal({
             <AlertCircle className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-zinc-50">Delete Camera</h3>
-            <p className="text-sm text-zinc-500">This action cannot be undone.</p>
+            <h3 className="text-lg font-semibold text-zinc-50">
+              Delete Camera
+            </h3>
+            <p className="text-sm text-zinc-500">
+              This action cannot be undone.
+            </p>
           </div>
         </div>
         <p className="text-sm text-zinc-400 mb-6">
-          Are you sure you want to delete <span className="font-medium text-zinc-200">{cameraName}</span>?
-          All associated recordings and events will be permanently removed.
+          Are you sure you want to delete{" "}
+          <span className="font-medium text-zinc-200">{cameraName}</span>? All
+          associated recordings and events will be permanently removed.
         </p>
         <div className="flex justify-end gap-2">
           <button
@@ -478,8 +530,16 @@ const SEVERITY_OPTIONS: readonly {
   label: string;
   desc: string;
 }[] = [
-  { value: "all", label: "All Severities", desc: "Low, medium, high, and critical" },
-  { value: "high", label: "High & Critical", desc: "Only high and critical events" },
+  {
+    value: "all",
+    label: "All Severities",
+    desc: "Low, medium, high, and critical",
+  },
+  {
+    value: "high",
+    label: "High & Critical",
+    desc: "Only high and critical events",
+  },
   { value: "critical", label: "Critical Only", desc: "Only critical events" },
 ];
 
@@ -495,26 +555,37 @@ function NotificationsTab() {
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data?.settings) {
-          const notif = (json.data.settings as Record<string, unknown>)["notification_preferences"] as
-            | Record<string, unknown>
-            | undefined;
+          const notif = (json.data.settings as Record<string, unknown>)[
+            "notification_preferences"
+          ] as Record<string, unknown> | undefined;
           if (notif) {
             prefs.setPrefs({
-              pushEnabled: (notif["pushEnabled"] as boolean | undefined) ?? prefs.pushEnabled,
-              emailEnabled: (notif["emailEnabled"] as boolean | undefined) ?? prefs.emailEnabled,
+              pushEnabled:
+                (notif["pushEnabled"] as boolean | undefined) ??
+                prefs.pushEnabled,
+              emailEnabled:
+                (notif["emailEnabled"] as boolean | undefined) ??
+                prefs.emailEnabled,
               severityThreshold:
-                (notif["severityThreshold"] as NotificationPrefs["severityThreshold"] | undefined) ??
-                prefs.severityThreshold,
-              quietHoursEnabled: (notif["quietHoursEnabled"] as boolean | undefined) ?? prefs.quietHoursEnabled,
-              quietHoursStart: (notif["quietHoursStart"] as string | undefined) ?? prefs.quietHoursStart,
-              quietHoursEnd: (notif["quietHoursEnd"] as string | undefined) ?? prefs.quietHoursEnd,
+                (notif["severityThreshold"] as
+                  | NotificationPrefs["severityThreshold"]
+                  | undefined) ?? prefs.severityThreshold,
+              quietHoursEnabled:
+                (notif["quietHoursEnabled"] as boolean | undefined) ??
+                prefs.quietHoursEnabled,
+              quietHoursStart:
+                (notif["quietHoursStart"] as string | undefined) ??
+                prefs.quietHoursStart,
+              quietHoursEnd:
+                (notif["quietHoursEnd"] as string | undefined) ??
+                prefs.quietHoursEnd,
             });
           }
         }
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount
 
   const handlePushToggle = async () => {
@@ -571,8 +642,12 @@ function NotificationsTab() {
           <div className="flex items-center gap-3">
             <Bell className="h-4 w-4 text-zinc-400" />
             <div>
-              <p className="text-sm font-medium text-zinc-200">Push Notifications</p>
-              <p className="text-xs text-zinc-500">Receive browser alerts for events</p>
+              <p className="text-sm font-medium text-zinc-200">
+                Push Notifications
+              </p>
+              <p className="text-xs text-zinc-500">
+                Receive browser alerts for events
+              </p>
             </div>
           </div>
           <button
@@ -598,7 +673,9 @@ function NotificationsTab() {
             <AlertCircle className="h-4 w-4 text-zinc-400" />
             <div>
               <p className="text-sm font-medium text-zinc-200">Email Alerts</p>
-              <p className="text-xs text-zinc-500">Get email alerts for events</p>
+              <p className="text-xs text-zinc-500">
+                Get email alerts for events
+              </p>
             </div>
           </div>
           <button
@@ -622,14 +699,19 @@ function NotificationsTab() {
 
         {/* Severity Threshold */}
         <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-1.5">Severity Threshold</label>
+          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+            Severity Threshold
+          </label>
           <p className="text-xs text-zinc-500 mb-2">
             Only receive notifications for events at or above this severity
           </p>
           <select
             value={prefs.severityThreshold}
             onChange={(e) =>
-              prefs.setPref("severityThreshold", e.target.value as NotificationPrefs["severityThreshold"])
+              prefs.setPref(
+                "severityThreshold",
+                e.target.value as NotificationPrefs["severityThreshold"],
+              )
             }
             className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
           >
@@ -650,12 +732,16 @@ function NotificationsTab() {
               <Clock className="h-4 w-4 text-zinc-400" />
               <div>
                 <p className="text-sm font-medium text-zinc-200">Quiet Hours</p>
-                <p className="text-xs text-zinc-500">Suppress notifications during this time range</p>
+                <p className="text-xs text-zinc-500">
+                  Suppress notifications during this time range
+                </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => prefs.setPref("quietHoursEnabled", !prefs.quietHoursEnabled)}
+              onClick={() =>
+                prefs.setPref("quietHoursEnabled", !prefs.quietHoursEnabled)
+              }
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 cursor-pointer ${
                 prefs.quietHoursEnabled ? "bg-green-500" : "bg-zinc-700"
               }`}
@@ -673,11 +759,15 @@ function NotificationsTab() {
           {prefs.quietHoursEnabled && (
             <div className="flex items-center gap-3 pl-7">
               <div>
-                <label className="block text-xs text-zinc-500 mb-1">Start</label>
+                <label className="block text-xs text-zinc-500 mb-1">
+                  Start
+                </label>
                 <input
                   type="time"
                   value={prefs.quietHoursStart}
-                  onChange={(e) => prefs.setPref("quietHoursStart", e.target.value)}
+                  onChange={(e) =>
+                    prefs.setPref("quietHoursStart", e.target.value)
+                  }
                   className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -687,7 +777,9 @@ function NotificationsTab() {
                 <input
                   type="time"
                   value={prefs.quietHoursEnd}
-                  onChange={(e) => prefs.setPref("quietHoursEnd", e.target.value)}
+                  onChange={(e) =>
+                    prefs.setPref("quietHoursEnd", e.target.value)
+                  }
                   className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -716,9 +808,18 @@ function NotificationsTab() {
 /* ------------------------------------------------------------------ */
 /*  Billing tab                                                        */
 /* ------------------------------------------------------------------ */
-function UsageBar({ used, limit, label }: { used: number; limit: number; label: string }) {
+function UsageBar({
+  used,
+  limit,
+  label,
+}: {
+  used: number;
+  limit: number;
+  label: string;
+}) {
   const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
-  const color = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+  const color =
+    pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
@@ -728,7 +829,10 @@ function UsageBar({ used, limit, label }: { used: number; limit: number; label: 
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full rounded-full transition-all ${color}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -739,7 +843,9 @@ function BillingTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/tenants/current/usage`, { headers: getAuthHeaders() })
+    fetch(`${API_URL}/api/v1/tenants/current/usage`, {
+      headers: getAuthHeaders(),
+    })
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data) setUsage(json.data as UsageStats);
@@ -759,7 +865,10 @@ function BillingTab() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2].map((i) => (
-            <div key={i} className="h-32 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse" />
+            <div
+              key={i}
+              className="h-32 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse"
+            />
           ))}
         </div>
       ) : (
@@ -768,8 +877,12 @@ function BillingTab() {
           <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <p className="text-sm font-medium text-zinc-400">Current Plan</p>
-                <p className="text-2xl font-bold text-blue-400 mt-0.5">{planLabel}</p>
+                <p className="text-sm font-medium text-zinc-400">
+                  Current Plan
+                </p>
+                <p className="text-2xl font-bold text-blue-400 mt-0.5">
+                  {planLabel}
+                </p>
               </div>
               <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20">
                 Active
@@ -804,14 +917,19 @@ function BillingTab() {
           {/* Usage stats */}
           {usage && (
             <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-              <p className="text-sm font-semibold text-zinc-300 mb-4">Usage Summary</p>
+              <p className="text-sm font-semibold text-zinc-300 mb-4">
+                Usage Summary
+              </p>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
                   <p className="text-xs text-zinc-500">Cameras</p>
                   <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
                     {usage.cameras.used}
                     {usage.cameras.limit > 0 && (
-                      <span className="text-xs text-zinc-500 font-normal"> / {usage.cameras.limit}</span>
+                      <span className="text-xs text-zinc-500 font-normal">
+                        {" "}
+                        / {usage.cameras.limit}
+                      </span>
                     )}
                   </p>
                 </div>
@@ -820,7 +938,10 @@ function BillingTab() {
                   <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
                     {usage.users.used}
                     {usage.users.limit > 0 && (
-                      <span className="text-xs text-zinc-500 font-normal"> / {usage.users.limit}</span>
+                      <span className="text-xs text-zinc-500 font-normal">
+                        {" "}
+                        / {usage.users.limit}
+                      </span>
                     )}
                   </p>
                 </div>
@@ -871,7 +992,9 @@ function ApiKeysTab() {
   const fetchKeys = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/api-keys`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_URL}/api/v1/api-keys`, {
+        headers: getAuthHeaders(),
+      });
       const json = await res.json();
       if (json.success && json.data) setKeys(json.data as ApiKey[]);
     } catch {
@@ -962,7 +1085,9 @@ function ApiKeysTab() {
         <div className="mb-4 rounded-lg border border-green-500/30 bg-green-500/5 p-4">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
-              <p className="text-sm font-medium text-green-400">API key created</p>
+              <p className="text-sm font-medium text-green-400">
+                API key created
+              </p>
               <p className="text-xs text-zinc-500 mt-0.5">
                 Copy this key now — it won&apos;t be shown again.
               </p>
@@ -982,7 +1107,11 @@ function ApiKeysTab() {
               onClick={() => setNewKeyVisible((v) => !v)}
               className="p-1.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
             >
-              {newKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {newKeyVisible ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
             <button
               onClick={() => handleCopy(newKey, "new")}
@@ -1011,7 +1140,9 @@ function ApiKeysTab() {
           <div className="py-12 text-center text-zinc-500">
             <Key className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">No API keys yet.</p>
-            <p className="text-xs text-zinc-600 mt-1">Create a key to integrate with the OSP API.</p>
+            <p className="text-xs text-zinc-600 mt-1">
+              Create a key to integrate with the OSP API.
+            </p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -1026,8 +1157,13 @@ function ApiKeysTab() {
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
               {keys.map((key) => (
-                <tr key={key.id} className="hover:bg-zinc-800/30 transition-colors">
-                  <td className="px-4 py-3 font-medium text-zinc-50">{key.name}</td>
+                <tr
+                  key={key.id}
+                  className="hover:bg-zinc-800/30 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-zinc-50">
+                    {key.name}
+                  </td>
                   <td className="px-4 py-3">
                     <code className="text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
                       osp_{key.key_prefix}…
@@ -1067,7 +1203,8 @@ function ApiKeysTab() {
       </div>
 
       <p className="mt-3 text-xs text-zinc-600">
-        API keys grant admin-level access. Keep them secret and rotate regularly.
+        API keys grant admin-level access. Keep them secret and rotate
+        regularly.
       </p>
 
       {/* Create modal */}
@@ -1075,9 +1212,14 @@ function ApiKeysTab() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-zinc-50">Create API Key</h3>
+              <h3 className="text-lg font-semibold text-zinc-50">
+                Create API Key
+              </h3>
               <button
-                onClick={() => { setShowCreate(false); setCreateName(""); }}
+                onClick={() => {
+                  setShowCreate(false);
+                  setCreateName("");
+                }}
                 className="p-1 text-zinc-500 hover:text-zinc-300 cursor-pointer"
               >
                 <X className="h-5 w-5" />
@@ -1085,12 +1227,16 @@ function ApiKeysTab() {
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Key Name</label>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  Key Name
+                </label>
                 <input
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleCreate();
+                  }}
                   autoFocus
                   placeholder="e.g. CI/CD Pipeline, Dashboard Integration"
                   className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1098,7 +1244,10 @@ function ApiKeysTab() {
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <button
-                  onClick={() => { setShowCreate(false); setCreateName(""); }}
+                  onClick={() => {
+                    setShowCreate(false);
+                    setCreateName("");
+                  }}
                   className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
                 >
                   Cancel
@@ -1133,16 +1282,22 @@ interface SsoConfig {
   default_role: string;
 }
 
-const SSO_PROVIDERS: { provider: SsoProvider; label: string; description: string }[] = [
+const SSO_PROVIDERS: {
+  provider: SsoProvider;
+  label: string;
+  description: string;
+}[] = [
   {
     provider: "google",
     label: "Google / Google Workspace",
-    description: "Let users sign in with their Google or Google Workspace account.",
+    description:
+      "Let users sign in with their Google or Google Workspace account.",
   },
   {
     provider: "azure",
     label: "Microsoft / Azure AD",
-    description: "Integrate with Microsoft Entra ID (formerly Azure AD) or Active Directory.",
+    description:
+      "Integrate with Microsoft Entra ID (formerly Azure AD) or Active Directory.",
   },
   {
     provider: "github",
@@ -1165,24 +1320,51 @@ const CONFIG_SECTIONS: readonly {
   {
     label: "App / Frontend",
     keys: [
-      { key: "NEXT_PUBLIC_API_URL", description: "Gateway base URL used by the web app" },
+      {
+        key: "NEXT_PUBLIC_API_URL",
+        description: "Gateway base URL used by the web app",
+      },
       { key: "GATEWAY_PORT", description: "Gateway HTTP port" },
       { key: "WS_PORT", description: "WebSocket server port" },
-      { key: "GATEWAY_CORS_ORIGINS", description: "Allowed CORS origins (comma-separated)" },
-      { key: "RATE_LIMIT_FAIL_OPEN", description: "If true, allow requests when rate-limit backend is down" },
-      { key: "API_TOKEN", description: "Internal service-to-service bearer token", sensitive: true },
+      {
+        key: "GATEWAY_CORS_ORIGINS",
+        description: "Allowed CORS origins (comma-separated)",
+      },
+      {
+        key: "RATE_LIMIT_FAIL_OPEN",
+        description: "If true, allow requests when rate-limit backend is down",
+      },
+      {
+        key: "API_TOKEN",
+        description: "Internal service-to-service bearer token",
+        sensitive: true,
+      },
     ],
   },
   {
     label: "Redis",
-    keys: [{ key: "REDIS_URL", description: "Redis connection URL", sensitive: true }],
+    keys: [
+      {
+        key: "REDIS_URL",
+        description: "Redis connection URL",
+        sensitive: true,
+      },
+    ],
   },
   {
     label: "Cloudflare R2 / S3 Storage",
     keys: [
       { key: "R2_ACCOUNT_ID", description: "R2 account ID" },
-      { key: "R2_ACCESS_KEY_ID", description: "R2 access key ID", sensitive: true },
-      { key: "R2_SECRET_ACCESS_KEY", description: "R2 secret access key", sensitive: true },
+      {
+        key: "R2_ACCESS_KEY_ID",
+        description: "R2 access key ID",
+        sensitive: true,
+      },
+      {
+        key: "R2_SECRET_ACCESS_KEY",
+        description: "R2 secret access key",
+        sensitive: true,
+      },
       { key: "R2_BUCKET_NAME", description: "R2 bucket name" },
       { key: "R2_ENDPOINT", description: "R2 endpoint URL" },
     ],
@@ -1193,7 +1375,10 @@ const CONFIG_SECTIONS: readonly {
       { key: "INGEST_GRPC_PORT", description: "Camera ingest gRPC port" },
       { key: "VIDEO_GRPC_PORT", description: "Video pipeline gRPC port" },
       { key: "EVENT_GRPC_PORT", description: "Event engine gRPC port" },
-      { key: "EXTENSION_GRPC_PORT", description: "Extension runtime gRPC port" },
+      {
+        key: "EXTENSION_GRPC_PORT",
+        description: "Extension runtime gRPC port",
+      },
     ],
   },
   {
@@ -1207,9 +1392,16 @@ const CONFIG_SECTIONS: readonly {
   {
     label: "TURN / ICE Server (WebRTC)",
     keys: [
-      { key: "TURN_SERVER_URL", description: "TURN server URL, e.g. turn:localhost:3478" },
+      {
+        key: "TURN_SERVER_URL",
+        description: "TURN server URL, e.g. turn:localhost:3478",
+      },
       { key: "TURN_SERVER_USERNAME", description: "TURN server username" },
-      { key: "TURN_SERVER_CREDENTIAL", description: "TURN server credential/password", sensitive: true },
+      {
+        key: "TURN_SERVER_CREDENTIAL",
+        description: "TURN server credential/password",
+        sensitive: true,
+      },
     ],
   },
   {
@@ -1217,70 +1409,140 @@ const CONFIG_SECTIONS: readonly {
     keys: [
       { key: "CLICKHOUSE_URL", description: "ClickHouse HTTP URL" },
       { key: "CLICKHOUSE_USER", description: "ClickHouse username" },
-      { key: "CLICKHOUSE_PASSWORD", description: "ClickHouse password", sensitive: true },
+      {
+        key: "CLICKHOUSE_PASSWORD",
+        description: "ClickHouse password",
+        sensitive: true,
+      },
       { key: "CLICKHOUSE_DATABASE", description: "ClickHouse database name" },
     ],
   },
   {
     label: "Recordings",
     keys: [
-      { key: "RECORDINGS_DIR", description: "Local directory for event clips and thumbnails" },
+      {
+        key: "RECORDINGS_DIR",
+        description: "Local directory for event clips and thumbnails",
+      },
     ],
   },
   {
     label: "Encryption",
-    keys: [{ key: "OSP_ENCRYPTION_KEY", description: "64-char hex AES-256 key for encrypting camera credentials", sensitive: true }],
+    keys: [
+      {
+        key: "OSP_ENCRYPTION_KEY",
+        description:
+          "64-char hex AES-256 key for encrypting camera credentials",
+        sensitive: true,
+      },
+    ],
   },
   {
     label: "AI Detection",
     keys: [
-      { key: "AI_PROVIDER", description: "AI provider: none | openai | custom" },
-      { key: "OPENAI_API_KEY", description: "OpenAI API key (used when AI_PROVIDER=openai)", sensitive: true },
+      {
+        key: "AI_PROVIDER",
+        description: "AI provider: none | openai | custom",
+      },
+      {
+        key: "OPENAI_API_KEY",
+        description: "OpenAI API key (used when AI_PROVIDER=openai)",
+        sensitive: true,
+      },
     ],
   },
   {
     label: "Extensions",
     keys: [
-      { key: "EXTENSION_SANDBOX_DIR", description: "Directory for sandboxed extension bundles" },
-      { key: "EXTENSION_ALLOW_INLINE_SOURCE", description: "Allow extensions with inline JS source (dev only)" },
+      {
+        key: "EXTENSION_SANDBOX_DIR",
+        description: "Directory for sandboxed extension bundles",
+      },
+      {
+        key: "EXTENSION_ALLOW_INLINE_SOURCE",
+        description: "Allow extensions with inline JS source (dev only)",
+      },
     ],
   },
   {
     label: "Motion Detection Tuning",
     keys: [
-      { key: "MOTION_SAMPLE_INTERVAL_MS", description: "How often to sample frames for motion (ms)" },
-      { key: "MOTION_COOLDOWN_MS", description: "Cooldown between motion events per camera (ms)" },
+      {
+        key: "MOTION_SAMPLE_INTERVAL_MS",
+        description: "How often to sample frames for motion (ms)",
+      },
+      {
+        key: "MOTION_COOLDOWN_MS",
+        description: "Cooldown between motion events per camera (ms)",
+      },
     ],
   },
   {
     label: "Push Notifications",
     keys: [
-      { key: "APNS_KEY_ID", description: "Apple Push Notification Service key ID" },
+      {
+        key: "APNS_KEY_ID",
+        description: "Apple Push Notification Service key ID",
+      },
       { key: "APNS_TEAM_ID", description: "Apple developer team ID" },
-      { key: "FCM_SERVER_KEY", description: "Firebase Cloud Messaging server key", sensitive: true },
+      {
+        key: "FCM_SERVER_KEY",
+        description: "Firebase Cloud Messaging server key",
+        sensitive: true,
+      },
     ],
   },
   {
     label: "Email (SendGrid)",
     keys: [
-      { key: "SENDGRID_API_KEY", description: "SendGrid API key (SG.xxx)", sensitive: true },
-      { key: "EMAIL_FROM", description: "From address for all outbound email, e.g. OSP Alerts <alerts@osp.dev>" },
+      {
+        key: "SENDGRID_API_KEY",
+        description: "SendGrid API key (SG.xxx)",
+        sensitive: true,
+      },
+      {
+        key: "EMAIL_FROM",
+        description:
+          "From address for all outbound email, e.g. OSP Alerts <alerts@osp.dev>",
+      },
     ],
   },
   {
     label: "Dual-write (Cloud mirrors)",
     keys: [
-      { key: "SUPABASE_CLOUD_URL", description: "Cloud Supabase URL (kept in sync when running local DB)" },
-      { key: "SUPABASE_CLOUD_SERVICE_ROLE_KEY", description: "Cloud Supabase service role key", sensitive: true },
-      { key: "DATABASE_CLOUD_URL", description: "Cloud Postgres direct URL for Go services", sensitive: true },
+      {
+        key: "SUPABASE_CLOUD_URL",
+        description: "Cloud Supabase URL (kept in sync when running local DB)",
+      },
+      {
+        key: "SUPABASE_CLOUD_SERVICE_ROLE_KEY",
+        description: "Cloud Supabase service role key",
+        sensitive: true,
+      },
+      {
+        key: "DATABASE_CLOUD_URL",
+        description: "Cloud Postgres direct URL for Go services",
+        sensitive: true,
+      },
     ],
   },
   {
     label: "Sentry Error Monitoring",
     keys: [
-      { key: "SENTRY_DSN", description: "Sentry DSN (server-side)", sensitive: true },
-      { key: "NEXT_PUBLIC_SENTRY_DSN", description: "Sentry DSN (browser/public, safe to expose)" },
-      { key: "SENTRY_AUTH_TOKEN", description: "Sentry auth token for source map uploads", sensitive: true },
+      {
+        key: "SENTRY_DSN",
+        description: "Sentry DSN (server-side)",
+        sensitive: true,
+      },
+      {
+        key: "NEXT_PUBLIC_SENTRY_DSN",
+        description: "Sentry DSN (browser/public, safe to expose)",
+      },
+      {
+        key: "SENTRY_AUTH_TOKEN",
+        description: "Sentry auth token for source map uploads",
+        sensitive: true,
+      },
       { key: "SENTRY_ORG", description: "Sentry organisation slug" },
       { key: "SENTRY_PROJECT", description: "Sentry project slug" },
     ],
@@ -1289,8 +1551,16 @@ const CONFIG_SECTIONS: readonly {
     label: "License Plate Recognition (LPR)",
     keys: [
       { key: "LPR_PROVIDER", description: "LPR provider (platerecognizer)" },
-      { key: "LPR_API_KEY", description: "PlateRecognizer API token", sensitive: true },
-      { key: "LPR_REGIONS", description: "Optional region hint, e.g. us,gb,ca (leave blank for global)" },
+      {
+        key: "LPR_API_KEY",
+        description: "PlateRecognizer API token",
+        sensitive: true,
+      },
+      {
+        key: "LPR_REGIONS",
+        description:
+          "Optional region hint, e.g. us,gb,ca (leave blank for global)",
+      },
     ],
   },
 ];
@@ -1306,7 +1576,9 @@ function ConfigTab() {
   const loadKeys = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/config/keys`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_URL}/api/v1/config/keys`, {
+        headers: getAuthHeaders(),
+      });
       if (res.ok) {
         const j = (await res.json()) as { data: { keys: string[] } };
         setDbKeys(new Set(j.data.keys ?? []));
@@ -1316,10 +1588,14 @@ function ConfigTab() {
     }
   }, []);
 
-  useEffect(() => { void loadKeys(); }, [loadKeys]);
+  useEffect(() => {
+    void loadKeys();
+  }, [loadKeys]);
 
   const startEdit = async (key: string) => {
-    const res = await fetch(`${API_URL}/api/v1/config/keys/${key}`, { headers: getAuthHeaders() });
+    const res = await fetch(`${API_URL}/api/v1/config/keys/${key}`, {
+      headers: getAuthHeaders(),
+    });
     const j = (await res.json()) as { data: { value: string | null } };
     setEditValue(j.data.value ?? "");
     setEditing(key);
@@ -1333,7 +1609,10 @@ function ConfigTab() {
         headers: getAuthHeaders(),
         body: JSON.stringify({ value: editValue, scope: "global" }),
       });
-      if (!res.ok) { showToast("Failed to save", "error"); return; }
+      if (!res.ok) {
+        showToast("Failed to save", "error");
+        return;
+      }
       showToast(`${key} saved`, "success");
       setEditing(null);
       setDbKeys((prev) => new Set([...prev, key]));
@@ -1355,18 +1634,32 @@ function ConfigTab() {
       <div className="mb-6">
         <h2 className="text-xl font-bold text-zinc-50">Config &amp; Secrets</h2>
         <p className="text-sm text-zinc-400 mt-1">
-          DB values override process.env at runtime. Bootstrap keys (SUPABASE_URL, service role key, DATABASE_URL) must remain in .env and are not shown here.
+          DB values override process.env at runtime. Bootstrap keys
+          (SUPABASE_URL, service role key, DATABASE_URL) must remain in .env and
+          are not shown here.
         </p>
       </div>
 
       {loading ? (
-        <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-24 bg-zinc-900 rounded-lg animate-pulse" />)}</div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="h-24 bg-zinc-900 rounded-lg animate-pulse"
+            />
+          ))}
+        </div>
       ) : (
         <div className="space-y-6">
           {CONFIG_SECTIONS.map((section) => (
-            <div key={section.label} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+            <div
+              key={section.label}
+              className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden"
+            >
               <div className="px-4 py-2.5 border-b border-zinc-800 bg-zinc-800/40">
-                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{section.label}</h3>
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                  {section.label}
+                </h3>
               </div>
               <div className="divide-y divide-zinc-800/50">
                 {section.keys.map(({ key, description, sensitive }) => {
@@ -1374,22 +1667,35 @@ function ConfigTab() {
                   const isEditing = editing === key;
                   const isRevealed = revealed.has(key);
                   return (
-                    <div key={key} className="px-4 py-3 flex items-center gap-3">
+                    <div
+                      key={key}
+                      className="px-4 py-3 flex items-center gap-3"
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <code className="text-xs font-mono text-zinc-200">{key}</code>
+                          <code className="text-xs font-mono text-zinc-200">
+                            {key}
+                          </code>
                           {inDb ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">DB</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              DB
+                            </span>
                           ) : (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-700/50 text-zinc-500 border border-zinc-700">env</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-700/50 text-zinc-500 border border-zinc-700">
+                              env
+                            </span>
                           )}
                         </div>
-                        <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {description}
+                        </p>
                         {isEditing && (
                           <div className="mt-2 flex items-center gap-2">
                             <div className="relative flex-1">
                               <input
-                                type={sensitive && !isRevealed ? "password" : "text"}
+                                type={
+                                  sensitive && !isRevealed ? "password" : "text"
+                                }
                                 value={editValue}
                                 onChange={(e) => setEditValue(e.target.value)}
                                 autoFocus
@@ -1402,7 +1708,11 @@ function ConfigTab() {
                                   onClick={() => toggleReveal(key)}
                                   className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
                                 >
-                                  {isRevealed ? <EyeOff size={12} /> : <Eye size={12} />}
+                                  {isRevealed ? (
+                                    <EyeOff size={12} />
+                                  ) : (
+                                    <Eye size={12} />
+                                  )}
                                 </button>
                               )}
                             </div>
@@ -1411,10 +1721,17 @@ function ConfigTab() {
                               disabled={saving === key}
                               className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
                             >
-                              {saving === key ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                              {saving === key ? (
+                                <Loader2 size={11} className="animate-spin" />
+                              ) : (
+                                <Check size={11} />
+                              )}
                               Save
                             </button>
-                            <button onClick={() => setEditing(null)} className="px-2 py-1.5 text-xs text-zinc-500 hover:text-zinc-300">
+                            <button
+                              onClick={() => setEditing(null)}
+                              className="px-2 py-1.5 text-xs text-zinc-500 hover:text-zinc-300"
+                            >
                               Cancel
                             </button>
                           </div>
@@ -1453,7 +1770,10 @@ interface WatchlistEntry {
 }
 
 function LprTab() {
-  const [status, setStatus] = useState<{ configured: boolean; provider: string } | null>(null);
+  const [status, setStatus] = useState<{
+    configured: boolean;
+    provider: string;
+  } | null>(null);
   const [entries, setEntries] = useState<WatchlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -1470,7 +1790,9 @@ function LprTab() {
         fetch(`${API_URL}/api/v1/lpr/watchlist`, { headers: getAuthHeaders() }),
       ]);
       if (statusRes.ok) {
-        const s = (await statusRes.json()) as { data: { configured: boolean; provider: string } };
+        const s = (await statusRes.json()) as {
+          data: { configured: boolean; provider: string };
+        };
         setStatus(s.data);
       }
       if (listRes.ok) {
@@ -1482,7 +1804,9 @@ function LprTab() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const handleAdd = async () => {
     if (!newPlate.trim()) return;
@@ -1491,12 +1815,25 @@ function LprTab() {
       const res = await fetch(`${API_URL}/api/v1/lpr/watchlist`, {
         method: "POST",
         headers: getAuthHeaders(),
-        body: JSON.stringify({ plate: newPlate.trim(), label: newLabel.trim(), alertOnDetect: newAlert }),
+        body: JSON.stringify({
+          plate: newPlate.trim(),
+          label: newLabel.trim(),
+          alertOnDetect: newAlert,
+        }),
       });
-      if (res.status === 409) { showToast("Plate already on watchlist", "error"); return; }
-      if (!res.ok) { showToast("Failed to add plate", "error"); return; }
+      if (res.status === 409) {
+        showToast("Plate already on watchlist", "error");
+        return;
+      }
+      if (!res.ok) {
+        showToast("Failed to add plate", "error");
+        return;
+      }
       showToast("Plate added", "success");
-      setNewPlate(""); setNewLabel(""); setNewAlert(true); setShowAdd(false);
+      setNewPlate("");
+      setNewLabel("");
+      setNewAlert(true);
+      setShowAdd(false);
       void load();
     } finally {
       setAdding(false);
@@ -1525,8 +1862,13 @@ function LprTab() {
     <div className="max-w-3xl">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-zinc-50">License Plate Recognition</h2>
-          <p className="text-sm text-zinc-400 mt-1">Manage your plate watchlist. Matched plates trigger high-severity alerts.</p>
+          <h2 className="text-xl font-bold text-zinc-50">
+            License Plate Recognition
+          </h2>
+          <p className="text-sm text-zinc-400 mt-1">
+            Manage your plate watchlist. Matched plates trigger high-severity
+            alerts.
+          </p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
@@ -1538,7 +1880,9 @@ function LprTab() {
 
       {/* Status banner */}
       {status && (
-        <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 mb-6 text-sm ${status.configured ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" : "border-amber-500/30 bg-amber-500/5 text-amber-400"}`}>
+        <div
+          className={`flex items-center gap-3 rounded-lg border px-4 py-3 mb-6 text-sm ${status.configured ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" : "border-amber-500/30 bg-amber-500/5 text-amber-400"}`}
+        >
           <AlertCircle size={15} />
           {status.configured
             ? `LPR active · Provider: ${status.provider}`
@@ -1549,10 +1893,14 @@ function LprTab() {
       {/* Add form */}
       {showAdd && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4 space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-200">New watchlist entry</h3>
+          <h3 className="text-sm font-semibold text-zinc-200">
+            New watchlist entry
+          </h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">Plate number *</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">
+                Plate number *
+              </label>
               <input
                 type="text"
                 value={newPlate}
@@ -1562,7 +1910,9 @@ function LprTab() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">Label (optional)</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">
+                Label (optional)
+              </label>
               <input
                 type="text"
                 value={newLabel}
@@ -1573,17 +1923,31 @@ function LprTab() {
             </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={newAlert} onChange={(e) => setNewAlert(e.target.checked)} className="accent-blue-500 w-4 h-4" />
+            <input
+              type="checkbox"
+              checked={newAlert}
+              onChange={(e) => setNewAlert(e.target.checked)}
+              className="accent-blue-500 w-4 h-4"
+            />
             <span className="text-sm text-zinc-300">Alert on detect</span>
           </label>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+            <button
+              onClick={() => setShowAdd(false)}
+              className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Cancel
+            </button>
             <button
               onClick={handleAdd}
               disabled={adding || !newPlate.trim()}
               className="flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {adding ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              {adding ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Check size={13} />
+              )}
               Add
             </button>
           </div>
@@ -1593,39 +1957,70 @@ function LprTab() {
       {/* Watchlist table */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
         {loading ? (
-          <table className="w-full text-sm"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={4} />)}</tbody></table>
+          <table className="w-full text-sm">
+            <tbody>
+              {[1, 2, 3].map((i) => (
+                <TableRowSkeleton key={i} cols={4} />
+              ))}
+            </tbody>
+          </table>
         ) : entries.length === 0 ? (
-          <div className="py-12 text-center text-zinc-500 text-sm">No plates on watchlist yet.</div>
+          <div className="py-12 text-center text-zinc-500 text-sm">
+            No plates on watchlist yet.
+          </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-800 text-left">
-                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Plate</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Label</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Alert</th>
-                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Added</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Plate
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Label
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Alert
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">
+                  Added
+                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {entries.map((e) => (
-                <tr key={e.id} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30 transition-colors">
+                <tr
+                  key={e.id}
+                  className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30 transition-colors"
+                >
                   <td className="px-4 py-3">
-                    <span className="font-mono font-semibold text-zinc-100 tracking-wider bg-zinc-800 px-2 py-0.5 rounded">{e.plate}</span>
+                    <span className="font-mono font-semibold text-zinc-100 tracking-wider bg-zinc-800 px-2 py-0.5 rounded">
+                      {e.plate}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-zinc-400">{e.label || <span className="text-zinc-600 italic">—</span>}</td>
+                  <td className="px-4 py-3 text-zinc-400">
+                    {e.label || <span className="text-zinc-600 italic">—</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => handleToggleAlert(e)}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${e.alert_on_detect ? "bg-blue-600" : "bg-zinc-700"}`}
                       title={e.alert_on_detect ? "Alerts on" : "Alerts off"}
                     >
-                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${e.alert_on_detect ? "translate-x-4" : "translate-x-1"}`} />
+                      <span
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${e.alert_on_detect ? "translate-x-4" : "translate-x-1"}`}
+                      />
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-zinc-500 text-xs">{new Date(e.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-zinc-500 text-xs">
+                    {new Date(e.created_at).toLocaleDateString()}
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDelete(e.id)} className="text-zinc-600 hover:text-red-400 transition-colors" title="Remove">
+                    <button
+                      onClick={() => handleDelete(e.id)}
+                      className="text-zinc-600 hover:text-red-400 transition-colors"
+                      title="Remove"
+                    >
                       <Trash2 size={14} />
                     </button>
                   </td>
@@ -1718,7 +2113,8 @@ function EdgeAgentsTab() {
         <div>
           <h3 className="text-base font-semibold text-zinc-100">Edge Agents</h3>
           <p className="mt-0.5 text-sm text-zinc-400">
-            On-premise binaries that buffer events locally and sync to the cloud.
+            On-premise binaries that buffer events locally and sync to the
+            cloud.
           </p>
         </div>
         <button
@@ -1727,17 +2123,21 @@ function EdgeAgentsTab() {
           disabled={refreshing}
           className="flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+          />
           Refresh
         </button>
       </div>
 
       {/* Setup instructions */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <h4 className="mb-2 text-sm font-medium text-zinc-200">Deploy an Edge Agent</h4>
+        <h4 className="mb-2 text-sm font-medium text-zinc-200">
+          Deploy an Edge Agent
+        </h4>
         <p className="mb-3 text-xs text-zinc-400">
-          Run one binary per site. It connects to a local go2rtc, detects motion offline, and
-          syncs events here automatically.
+          Run one binary per site. It connects to a local go2rtc, detects motion
+          offline, and syncs events here automatically.
         </p>
         <pre className="rounded-md bg-zinc-950 p-3 text-xs text-zinc-300 overflow-x-auto">{`# Docker
 docker run -d --name osp-edge \\
@@ -1759,9 +2159,12 @@ docker run -d --name osp-edge \\
       ) : agents.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-800 py-14 text-center">
           <Server className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
-          <p className="text-sm font-medium text-zinc-400">No edge agents registered</p>
+          <p className="text-sm font-medium text-zinc-400">
+            No edge agents registered
+          </p>
           <p className="mt-1 text-xs text-zinc-600">
-            Deploy the edge agent binary at a remote site — it will appear here automatically.
+            Deploy the edge agent binary at a remote site — it will appear here
+            automatically.
           </p>
         </div>
       ) : (
@@ -1782,20 +2185,29 @@ docker run -d --name osp-edge \\
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-zinc-100">{agent.name}</span>
+                      <span className="text-sm font-medium text-zinc-100">
+                        {agent.name}
+                      </span>
                       <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
-                        <span className={`h-1.5 w-1.5 rounded-full ${statusDot(agent.status)}`} />
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${statusDot(agent.status)}`}
+                        />
                         {agent.status}
                       </span>
                       {agent.version && (
-                        <span className="text-[10px] text-zinc-600">v{agent.version}</span>
+                        <span className="text-[10px] text-zinc-600">
+                          v{agent.version}
+                        </span>
                       )}
                     </div>
                     {agent.location && (
-                      <p className="mt-0.5 text-xs text-zinc-500">{agent.location}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        {agent.location}
+                      </p>
                     )}
                     <p className="mt-0.5 text-[11px] text-zinc-600">
-                      ID: {agent.agent_id} · Last seen: {relativeTime(agent.last_seen_at)}
+                      ID: {agent.agent_id} · Last seen:{" "}
+                      {relativeTime(agent.last_seen_at)}
                     </p>
                   </div>
                 </div>
@@ -1812,17 +2224,23 @@ docker run -d --name osp-edge \\
               {/* Stats row */}
               <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-800 pt-3">
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-zinc-100">{agent.cameras_active}</p>
+                  <p className="text-lg font-semibold text-zinc-100">
+                    {agent.cameras_active}
+                  </p>
                   <p className="text-[10px] text-zinc-500">Cameras</p>
                 </div>
                 <div className="text-center">
-                  <p className={`text-lg font-semibold ${agent.pending_events > 0 ? "text-amber-400" : "text-zinc-100"}`}>
+                  <p
+                    className={`text-lg font-semibold ${agent.pending_events > 0 ? "text-amber-400" : "text-zinc-100"}`}
+                  >
                     {agent.pending_events}
                   </p>
                   <p className="text-[10px] text-zinc-500">Pending sync</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-semibold text-zinc-100">{agent.synced_events}</p>
+                  <p className="text-lg font-semibold text-zinc-100">
+                    {agent.synced_events}
+                  </p>
                   <p className="text-[10px] text-zinc-500">Synced</p>
                 </div>
               </div>
@@ -1926,11 +2344,16 @@ function SsoTab() {
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="text-base font-semibold text-zinc-100">SSO / Identity Providers</h3>
+        <h3 className="text-base font-semibold text-zinc-100">
+          SSO / Identity Providers
+        </h3>
         <p className="mt-1 text-sm text-zinc-400">
-          Allow users to sign in with Google, Microsoft, or GitHub.
-          Requires the corresponding OAuth app to be enabled in your Supabase project under{" "}
-          <span className="font-medium text-zinc-300">Authentication → Providers</span>.
+          Allow users to sign in with Google, Microsoft, or GitHub. Requires the
+          corresponding OAuth app to be enabled in your Supabase project under{" "}
+          <span className="font-medium text-zinc-300">
+            Authentication → Providers
+          </span>
+          .
         </p>
       </div>
 
@@ -1947,14 +2370,18 @@ function SsoTab() {
               <div className="flex items-center gap-4 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-200">{label}</span>
+                    <span className="text-sm font-medium text-zinc-200">
+                      {label}
+                    </span>
                     {isEnabled && (
                       <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-xs text-green-400">
                         Enabled
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-zinc-500 mt-0.5 truncate">{description}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                    {description}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -2000,7 +2427,9 @@ function SsoTab() {
                       Allowed email domains
                     </label>
                     <p className="text-xs text-zinc-500 mb-2">
-                      Leave empty to allow any email. Add domains (e.g. <code className="text-zinc-400">acme.com</code>) to restrict sign-in to those organisations.
+                      Leave empty to allow any email. Add domains (e.g.{" "}
+                      <code className="text-zinc-400">acme.com</code>) to
+                      restrict sign-in to those organisations.
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {domains.map((d) => (
@@ -2026,9 +2455,14 @@ function SsoTab() {
                         placeholder="acme.com"
                         value={domainInput[provider]}
                         onChange={(e) =>
-                          setDomainInput((prev) => ({ ...prev, [provider]: e.target.value }))
+                          setDomainInput((prev) => ({
+                            ...prev,
+                            [provider]: e.target.value,
+                          }))
                         }
-                        onKeyDown={(e) => e.key === "Enter" && addDomain(provider)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && addDomain(provider)
+                        }
                         className="flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none focus:ring-1 focus:ring-blue-500"
                       />
                       <button
@@ -2044,22 +2478,33 @@ function SsoTab() {
                   {/* Auto-provision */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium text-zinc-200">Auto-provision users</p>
+                      <p className="text-sm font-medium text-zinc-200">
+                        Auto-provision users
+                      </p>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Automatically create an account on first SSO login. Disable to require a manual invite.
+                        Automatically create an account on first SSO login.
+                        Disable to require a manual invite.
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => save(provider, { auto_provision: !(cfg?.auto_provision ?? true) })}
+                      onClick={() =>
+                        save(provider, {
+                          auto_provision: !(cfg?.auto_provision ?? true),
+                        })
+                      }
                       disabled={saving === provider}
                       className={`relative mt-0.5 h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 disabled:opacity-50 ${
-                        (cfg?.auto_provision ?? true) ? "bg-blue-500" : "bg-zinc-700"
+                        (cfg?.auto_provision ?? true)
+                          ? "bg-blue-500"
+                          : "bg-zinc-700"
                       }`}
                     >
                       <span
                         className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                          (cfg?.auto_provision ?? true) ? "translate-x-4" : "translate-x-0.5"
+                          (cfg?.auto_provision ?? true)
+                            ? "translate-x-4"
+                            : "translate-x-0.5"
                         }`}
                       />
                     </button>
@@ -2072,7 +2517,9 @@ function SsoTab() {
                     </label>
                     <select
                       value={cfg?.default_role ?? "viewer"}
-                      onChange={(e) => save(provider, { default_role: e.target.value })}
+                      onChange={(e) =>
+                        save(provider, { default_role: e.target.value })
+                      }
                       disabled={saving === provider}
                       className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                     >
@@ -2090,15 +2537,35 @@ function SsoTab() {
 
       {/* Setup instructions */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <h4 className="text-sm font-medium text-zinc-300 mb-2">Setup instructions</h4>
+        <h4 className="text-sm font-medium text-zinc-300 mb-2">
+          Setup instructions
+        </h4>
         <ol className="space-y-1.5 text-xs text-zinc-400 list-decimal list-inside">
           <li>
             Go to your{" "}
-            <span className="font-medium text-zinc-300">Supabase dashboard → Authentication → Providers</span>.
+            <span className="font-medium text-zinc-300">
+              Supabase dashboard → Authentication → Providers
+            </span>
+            .
           </li>
-          <li>Enable the desired provider (Google, Azure, GitHub) and paste your OAuth app credentials.</li>
-          <li>Set the authorized redirect URI to <code className="text-zinc-300">{typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/auth/callback</code>.</li>
-          <li>Enable and configure the provider above, then users can sign in with it.</li>
+          <li>
+            Enable the desired provider (Google, Azure, GitHub) and paste your
+            OAuth app credentials.
+          </li>
+          <li>
+            Set the authorized redirect URI to{" "}
+            <code className="text-zinc-300">
+              {typeof window !== "undefined"
+                ? window.location.origin
+                : "https://your-domain.com"}
+              /auth/callback
+            </code>
+            .
+          </li>
+          <li>
+            Enable and configure the provider above, then users can sign in with
+            it.
+          </li>
         </ol>
       </div>
     </div>
@@ -2132,7 +2599,11 @@ function SettingsPageInner() {
   const [loading, setLoading] = useState(true);
 
   // Dirty tracking for save button
-  const initialTenantRef = useRef({ name: "", timezone: "UTC", mode: "motion" });
+  const initialTenantRef = useRef({
+    name: "",
+    timezone: "UTC",
+    mode: "motion",
+  });
   const isDirty =
     tenantName !== initialTenantRef.current.name ||
     timezone !== initialTenantRef.current.timezone ||
@@ -2158,9 +2629,15 @@ function SettingsPageInner() {
   const cameraToDelete = cameras.find((c) => c.id === deletingCameraId);
 
   // Extensions state
-  const [extTab, setExtTab] = useState<"installed" | "marketplace">("marketplace");
-  const [marketplaceExts, setMarketplaceExts] = useState<readonly MarketplaceExtension[]>([]);
-  const [installedExts, setInstalledExts] = useState<readonly InstalledExtension[]>([]);
+  const [extTab, setExtTab] = useState<"installed" | "marketplace">(
+    "marketplace",
+  );
+  const [marketplaceExts, setMarketplaceExts] = useState<
+    readonly MarketplaceExtension[]
+  >([]);
+  const [installedExts, setInstalledExts] = useState<
+    readonly InstalledExtension[]
+  >([]);
   const [extensionsLoading, setExtensionsLoading] = useState(false);
   const [installingExtId, setInstallingExtId] = useState<string | null>(null);
 
@@ -2178,11 +2655,9 @@ function SettingsPageInner() {
           const settings = (raw.settings ?? {}) as Record<string, unknown>;
           const name = (raw.name as string) ?? "";
           const tz = (settings.timezone as string) ?? "UTC";
-          const mode = (
-            (settings.default_recording_mode as string) ??
+          const mode = ((settings.default_recording_mode as string) ??
             (settings.defaultRecordingMode as string) ??
-            "motion"
-          ) as "motion" | "continuous" | "off";
+            "motion") as "motion" | "continuous" | "off";
           setTenantName(name);
           setTimezone(tz);
           setDefaultRecordingMode(mode);
@@ -2288,10 +2763,16 @@ function SettingsPageInner() {
           fetchInstalled();
           fetchMarketplace();
         } else {
-          showToast(json.error?.message ?? "Failed to install extension", "error");
+          showToast(
+            json.error?.message ?? "Failed to install extension",
+            "error",
+          );
         }
       } catch (err) {
-        showToast(err instanceof Error ? err.message : "Network error", "error");
+        showToast(
+          err instanceof Error ? err.message : "Network error",
+          "error",
+        );
       } finally {
         setInstallingExtId(null);
       }
@@ -2403,27 +2884,29 @@ function SettingsPageInner() {
       {/* ── Left nav ──────────────────────────────────────────── */}
       <div className="w-56 shrink-0 bg-zinc-950 border-r border-zinc-800 py-4">
         <nav className="space-y-0.5 px-2">
-          {NAV_ITEMS.filter((item) => item.key !== "desktop" || isTauri()).map((item) => {
-            const Icon = item.icon;
-            const active = activeTab === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => setActiveTab(item.key)}
-                className={`relative w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors duration-150 cursor-pointer ${
-                  active
-                    ? "bg-zinc-900 text-zinc-50"
-                    : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300"
-                }`}
-              >
-                {active && (
-                  <span className="absolute left-0 inset-y-1 w-0.5 rounded-full bg-blue-500" />
-                )}
-                <Icon className="h-4 w-4 shrink-0" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          {NAV_ITEMS.filter((item) => item.key !== "desktop" || isTauri()).map(
+            (item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key)}
+                  className={`relative w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors duration-150 cursor-pointer ${
+                    active
+                      ? "bg-zinc-900 text-zinc-50"
+                      : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute left-0 inset-y-1 w-0.5 rounded-full bg-blue-500" />
+                  )}
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            },
+          )}
         </nav>
       </div>
 
@@ -2432,12 +2915,17 @@ function SettingsPageInner() {
         {/* ── Tenant tab ─────────────────────────────────────── */}
         {activeTab === "tenant" && (
           <div className="max-w-2xl">
-            <h2 className="text-xl font-bold text-zinc-50 mb-6">Organization</h2>
+            <h2 className="text-xl font-bold text-zinc-50 mb-6">
+              Organization
+            </h2>
 
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-zinc-900 rounded-lg animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-16 bg-zinc-900 rounded-lg animate-pulse"
+                  />
                 ))}
               </div>
             ) : (
@@ -2527,7 +3015,9 @@ function SettingsPageInner() {
 
                 <div className="flex items-center gap-3 pt-2 border-t border-zinc-800">
                   {isDirty && (
-                    <span className="text-xs text-amber-400">Unsaved changes</span>
+                    <span className="text-xs text-amber-400">
+                      Unsaved changes
+                    </span>
                   )}
                   <button
                     onClick={handleSaveGeneral}
@@ -2638,7 +3128,9 @@ function SettingsPageInner() {
                                   <p className="font-medium text-zinc-50">
                                     {user.displayName}
                                   </p>
-                                  <p className="text-xs text-zinc-500">{user.email}</p>
+                                  <p className="text-xs text-zinc-500">
+                                    {user.email}
+                                  </p>
                                 </div>
                               </div>
                             </td>
@@ -2655,7 +3147,9 @@ function SettingsPageInner() {
                             <td className="px-4 py-3">
                               <span className="font-mono text-xs text-zinc-500">
                                 {user.lastLoginAt
-                                  ? new Date(user.lastLoginAt).toLocaleDateString()
+                                  ? new Date(
+                                      user.lastLoginAt,
+                                    ).toLocaleDateString()
                                   : "Never"}
                               </span>
                             </td>
@@ -2678,7 +3172,9 @@ function SettingsPageInner() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-xl">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-zinc-50">Invite Team Member</h3>
+                    <h3 className="text-lg font-semibold text-zinc-50">
+                      Invite Team Member
+                    </h3>
                     <button
                       onClick={() => setShowInviteModal(false)}
                       className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
@@ -2700,10 +3196,14 @@ function SettingsPageInner() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Role</label>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                        Role
+                      </label>
                       <select
                         value={inviteRole}
-                        onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                        onChange={(e) =>
+                          setInviteRole(e.target.value as UserRole)
+                        }
                         className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="viewer">Viewer</option>
@@ -2795,11 +3295,17 @@ function SettingsPageInner() {
                             key={cam.id}
                             className="hover:bg-zinc-800/30 transition-colors duration-150"
                           >
-                            <td className="px-4 py-3 font-medium text-zinc-50">{cam.name}</td>
+                            <td className="px-4 py-3 font-medium text-zinc-50">
+                              {cam.name}
+                            </td>
                             <td className="px-4 py-3">
                               <span className="inline-flex items-center gap-1.5">
-                                <span className={`h-2 w-2 rounded-full ${statusStyle.dot}`} />
-                                <span className={`text-xs capitalize ${statusStyle.text}`}>
+                                <span
+                                  className={`h-2 w-2 rounded-full ${statusStyle.dot}`}
+                                />
+                                <span
+                                  className={`text-xs capitalize ${statusStyle.text}`}
+                                >
                                   {cam.status}
                                 </span>
                               </span>
@@ -2817,12 +3323,15 @@ function SettingsPageInner() {
                             <td className="px-4 py-3">
                               <span className="font-mono text-xs text-zinc-500">
                                 {cam.lastSeenAt
-                                  ? new Date(cam.lastSeenAt).toLocaleString(undefined, {
-                                      month: "short",
-                                      day: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
+                                  ? new Date(cam.lastSeenAt).toLocaleString(
+                                      undefined,
+                                      {
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      },
+                                    )
                                   : "Never"}
                               </span>
                             </td>
@@ -2830,7 +3339,9 @@ function SettingsPageInner() {
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() =>
-                                    router.push(`/cameras/${cam.id}?tab=settings`)
+                                    router.push(
+                                      `/cameras/${cam.id}?tab=settings`,
+                                    )
                                   }
                                   className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
                                   title="Edit camera settings"
@@ -2911,18 +3422,25 @@ function SettingsPageInner() {
                             <Puzzle className="h-6 w-6 text-zinc-400" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-zinc-50 truncate">{ext.name}</p>
-                            <p className="text-xs text-zinc-500">{ext.author_name}</p>
+                            <p className="font-semibold text-zinc-50 truncate">
+                              {ext.name}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              {ext.author_name}
+                            </p>
                           </div>
                         </div>
-                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">{ext.description}</p>
+                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
+                          {ext.description}
+                        </p>
                         {ext.categories && ext.categories.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-3">
                             {ext.categories.map((cat) => (
                               <span
                                 key={cat}
                                 className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                  CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                                  CATEGORY_COLORS[cat] ??
+                                  "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
                                 }`}
                               >
                                 {cat}
@@ -2931,7 +3449,9 @@ function SettingsPageInner() {
                           </div>
                         )}
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">v{inst.installed_version}</span>
+                          <span className="text-xs text-zinc-500">
+                            v{inst.installed_version}
+                          </span>
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full ${
                               inst.enabled
@@ -2967,18 +3487,25 @@ function SettingsPageInner() {
                           <Puzzle className="h-6 w-6 text-zinc-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-zinc-50 truncate">{ext.name}</p>
-                          <p className="text-xs text-zinc-500">{ext.author_name}</p>
+                          <p className="font-semibold text-zinc-50 truncate">
+                            {ext.name}
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            {ext.author_name}
+                          </p>
                         </div>
                       </div>
-                      <p className="text-sm text-zinc-400 mb-2 line-clamp-2">{ext.description}</p>
+                      <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
+                        {ext.description}
+                      </p>
                       {ext.categories && ext.categories.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-3">
                           {ext.categories.map((cat) => (
                             <span
                               key={cat}
                               className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                                CATEGORY_COLORS[cat] ??
+                                "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
                               }`}
                             >
                               {cat}

@@ -17,7 +17,11 @@ export function requireAuth(minimumRole: UserRole = "viewer") {
     } else if (queryToken) {
       token = queryToken;
     } else {
-      throw new ApiError("AUTH_TOKEN_MISSING", "Authorization token required", 401);
+      throw new ApiError(
+        "AUTH_TOKEN_MISSING",
+        "Authorization token required",
+        401,
+      );
     }
     const supabase = getSupabase();
 
@@ -34,7 +38,11 @@ export function requireAuth(minimumRole: UserRole = "viewer") {
     const userRole = user.user_metadata?.["role"] as UserRole | undefined;
 
     if (!tenantId || !userRole) {
-      throw new ApiError("AUTH_TOKEN_INVALID", "Token missing tenant context", 401);
+      throw new ApiError(
+        "AUTH_TOKEN_INVALID",
+        "Token missing tenant context",
+        401,
+      );
     }
 
     if (!hasRole(userRole, minimumRole)) {

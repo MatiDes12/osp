@@ -14,14 +14,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function getAuthHeaders(): Record<string, string> {
   const token =
-    typeof window !== "undefined" ? localStorage.getItem("osp_access_token") : null;
+    typeof window !== "undefined"
+      ? localStorage.getItem("osp_access_token")
+      : null;
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
-async function apiFetch<T>(path: string, params: Record<string, string> = {}): Promise<T | null> {
+async function apiFetch<T>(
+  path: string,
+  params: Record<string, string> = {},
+): Promise<T | null> {
   const url = new URL(`${API_URL}${path}`);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined) url.searchParams.set(k, v);
@@ -36,7 +41,10 @@ async function apiFetch<T>(path: string, params: Record<string, string> = {}): P
 
 export type DatePreset = "24h" | "7d" | "30d" | "90d";
 
-export function presetToRange(preset: DatePreset): { from: string; to: string } {
+export function presetToRange(preset: DatePreset): {
+  from: string;
+  to: string;
+} {
   const now = new Date();
   const ms: Record<DatePreset, number> = {
     "24h": 24 * 60 * 60 * 1000,
@@ -80,7 +88,9 @@ export function useEventTimeSeries(opts: {
     setLoading(false);
   }, [opts.from, opts.to, opts.granularity, opts.cameraId, opts.type]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
   return { data, loading, refetch: fetch };
 }
 
@@ -107,11 +117,17 @@ export function useEventHeatmap(opts: {
     setLoading(false);
   }, [opts.from, opts.to, opts.cameraId, opts.type]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
   return { data, loading, refetch: fetch };
 }
 
-export function useEventBreakdown(opts: { from: string; to: string; cameraId?: string }) {
+export function useEventBreakdown(opts: {
+  from: string;
+  to: string;
+  cameraId?: string;
+}) {
   const [data, setData] = useState<AnalyticsEventTypeBreakdown[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -128,11 +144,17 @@ export function useEventBreakdown(opts: { from: string; to: string; cameraId?: s
     setLoading(false);
   }, [opts.from, opts.to, opts.cameraId]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
   return { data, loading, refetch: fetch };
 }
 
-export function useCameraActivity(opts: { from: string; to: string; limit?: number }) {
+export function useCameraActivity(opts: {
+  from: string;
+  to: string;
+  limit?: number;
+}) {
   const [data, setData] = useState<AnalyticsCameraActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -151,11 +173,17 @@ export function useCameraActivity(opts: { from: string; to: string; limit?: numb
     setLoading(false);
   }, [opts.from, opts.to, opts.limit]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
   return { data, loading, refetch: fetch };
 }
 
-export function useRecordingsSummary(opts: { from: string; to: string; cameraId?: string }) {
+export function useRecordingsSummary(opts: {
+  from: string;
+  to: string;
+  cameraId?: string;
+}) {
   const [data, setData] = useState<AnalyticsRecordingsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -172,6 +200,8 @@ export function useRecordingsSummary(opts: { from: string; to: string; cameraId?
     setLoading(false);
   }, [opts.from, opts.to, opts.cameraId]);
 
-  useEffect(() => { void fetch(); }, [fetch]);
+  useEffect(() => {
+    void fetch();
+  }, [fetch]);
   return { data, loading, refetch: fetch };
 }

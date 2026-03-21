@@ -1,6 +1,10 @@
 import type { OSPEvent, Recording } from "@osp/shared";
 
-function triggerDownload(content: string, filename: string, mimeType: string): void {
+function triggerDownload(
+  content: string,
+  filename: string,
+  mimeType: string,
+): void {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -25,7 +29,14 @@ function formatDate(): string {
 }
 
 export function exportEventsCSV(events: readonly OSPEvent[]): void {
-  const headers = ["Timestamp", "Camera", "Type", "Severity", "Zone", "Acknowledged"];
+  const headers = [
+    "Timestamp",
+    "Camera",
+    "Type",
+    "Severity",
+    "Zone",
+    "Acknowledged",
+  ];
   const rows = events.map((e) => [
     escapeCSV(e.detectedAt),
     escapeCSV(e.cameraName),
@@ -72,5 +83,9 @@ export function exportRecordingsCSV(recordings: readonly Recording[]): void {
   ]);
 
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-  triggerDownload(csv, `recordings-${formatDate()}.csv`, "text/csv;charset=utf-8;");
+  triggerDownload(
+    csv,
+    `recordings-${formatDate()}.csv`,
+    "text/csv;charset=utf-8;",
+  );
 }

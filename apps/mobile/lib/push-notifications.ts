@@ -44,13 +44,17 @@ function setupNotificationHandlers(
   onNotification?: (notification: Notifications.Notification) => void,
   onResponse?: (response: Notifications.NotificationResponse) => void,
 ) {
-  const notifSub = Notifications.addNotificationReceivedListener((notification) => {
-    onNotification?.(notification);
-  });
+  const notifSub = Notifications.addNotificationReceivedListener(
+    (notification) => {
+      onNotification?.(notification);
+    },
+  );
 
-  const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-    onResponse?.(response);
-  });
+  const responseSub = Notifications.addNotificationResponseReceivedListener(
+    (response) => {
+      onResponse?.(response);
+    },
+  );
 
   return () => {
     notifSub.remove();

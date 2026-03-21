@@ -17,65 +17,65 @@
 
 ### Dark Mode (Primary)
 
-| Role | Hex | Tailwind | CSS Variable |
-|------|-----|----------|-------------|
-| Background | `#09090B` | `zinc-950` | `--bg-primary` |
-| Surface | `#18181B` | `zinc-900` | `--bg-surface` |
-| Surface Raised | `#27272A` | `zinc-800` | `--bg-raised` |
-| Border | `#3F3F46` | `zinc-700` | `--border-default` |
-| Border Subtle | `#27272A` | `zinc-800` | `--border-subtle` |
-| Text Primary | `#FAFAFA` | `zinc-50` | `--text-primary` |
+| Role           | Hex       | Tailwind   | CSS Variable       |
+| -------------- | --------- | ---------- | ------------------ |
+| Background     | `#09090B` | `zinc-950` | `--bg-primary`     |
+| Surface        | `#18181B` | `zinc-900` | `--bg-surface`     |
+| Surface Raised | `#27272A` | `zinc-800` | `--bg-raised`      |
+| Border         | `#3F3F46` | `zinc-700` | `--border-default` |
+| Border Subtle  | `#27272A` | `zinc-800` | `--border-subtle`  |
+| Text Primary   | `#FAFAFA` | `zinc-50`  | `--text-primary`   |
 | Text Secondary | `#A1A1AA` | `zinc-400` | `--text-secondary` |
-| Text Muted | `#71717A` | `zinc-500` | `--text-muted` |
+| Text Muted     | `#71717A` | `zinc-500` | `--text-muted`     |
 
 ### Semantic Colors
 
-| Role | Hex | Usage |
-|------|-----|-------|
-| Blue (Primary) | `#3B82F6` | Active states, links, selected items |
-| Blue Dim | `#1E3A5F` | Blue tinted backgrounds |
-| Green (Online) | `#22C55E` | Camera online, recording active, healthy |
-| Red (Critical) | `#EF4444` | Camera offline, critical alerts, motion detected |
-| Amber (Warning) | `#F59E0B` | Warnings, degraded state, low storage |
-| Purple (AI) | `#A855F7` | AI detections, person/vehicle/animal tags |
-| Cyan (Info) | `#06B6D4` | Informational, metadata, timestamps |
+| Role            | Hex       | Usage                                            |
+| --------------- | --------- | ------------------------------------------------ |
+| Blue (Primary)  | `#3B82F6` | Active states, links, selected items             |
+| Blue Dim        | `#1E3A5F` | Blue tinted backgrounds                          |
+| Green (Online)  | `#22C55E` | Camera online, recording active, healthy         |
+| Red (Critical)  | `#EF4444` | Camera offline, critical alerts, motion detected |
+| Amber (Warning) | `#F59E0B` | Warnings, degraded state, low storage            |
+| Purple (AI)     | `#A855F7` | AI detections, person/vehicle/animal tags        |
+| Cyan (Info)     | `#06B6D4` | Informational, metadata, timestamps              |
 
 ### Status Indicator Colors
 
-| Status | Color | Pulse |
-|--------|-------|-------|
+| Status           | Color     | Pulse              |
+| ---------------- | --------- | ------------------ |
 | Live / Recording | `#22C55E` | Yes -- 2s infinite |
-| Offline | `#EF4444` | No |
-| Motion Detected | `#F59E0B` | Yes -- 1s x3 |
-| AI Detection | `#A855F7` | Yes -- 1.5s x2 |
-| Connecting | `#3B82F6` | Yes -- 1s infinite |
-| Idle / No Motion | `#71717A` | No |
+| Offline          | `#EF4444` | No                 |
+| Motion Detected  | `#F59E0B` | Yes -- 1s x3       |
+| AI Detection     | `#A855F7` | Yes -- 1.5s x2     |
+| Connecting       | `#3B82F6` | Yes -- 1s infinite |
+| Idle / No Motion | `#71717A` | No                 |
 
 ### Light Mode (Secondary)
 
-| Role | Hex | Tailwind |
-|------|-----|----------|
-| Background | `#FFFFFF` | `white` |
-| Surface | `#F4F4F5` | `zinc-100` |
-| Surface Raised | `#FFFFFF` | `white` |
-| Border | `#E4E4E7` | `zinc-200` |
-| Text Primary | `#09090B` | `zinc-950` |
+| Role           | Hex       | Tailwind   |
+| -------------- | --------- | ---------- |
+| Background     | `#FFFFFF` | `white`    |
+| Surface        | `#F4F4F5` | `zinc-100` |
+| Surface Raised | `#FFFFFF` | `white`    |
+| Border         | `#E4E4E7` | `zinc-200` |
+| Text Primary   | `#09090B` | `zinc-950` |
 | Text Secondary | `#52525B` | `zinc-600` |
 
 ---
 
 ## Typography
 
-| Element | Font | Weight | Size | Line Height |
-|---------|------|--------|------|-------------|
-| H1 | Inter | 700 | 30px / text-3xl | 1.2 |
-| H2 | Inter | 600 | 24px / text-2xl | 1.3 |
-| H3 | Inter | 600 | 20px / text-xl | 1.4 |
-| Body | Inter | 400 | 14px / text-sm | 1.5 |
-| Body Large | Inter | 400 | 16px / text-base | 1.5 |
-| Caption | Inter | 500 | 12px / text-xs | 1.4 |
-| Monospace | JetBrains Mono | 400 | 13px | 1.5 |
-| Timestamp | JetBrains Mono | 400 | 12px / text-xs | 1.4 |
+| Element    | Font           | Weight | Size             | Line Height |
+| ---------- | -------------- | ------ | ---------------- | ----------- |
+| H1         | Inter          | 700    | 30px / text-3xl  | 1.2         |
+| H2         | Inter          | 600    | 24px / text-2xl  | 1.3         |
+| H3         | Inter          | 600    | 20px / text-xl   | 1.4         |
+| Body       | Inter          | 400    | 14px / text-sm   | 1.5         |
+| Body Large | Inter          | 400    | 16px / text-base | 1.5         |
+| Caption    | Inter          | 500    | 12px / text-xs   | 1.4         |
+| Monospace  | JetBrains Mono | 400    | 13px             | 1.5         |
+| Timestamp  | JetBrains Mono | 400    | 12px / text-xs   | 1.4         |
 
 **Why Inter:** Default in shadcn/ui, excellent readability at small sizes, clean for data-dense interfaces. No additional font loading needed.
 
@@ -85,30 +85,30 @@
 
 ## Spacing Scale
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `gap-1` | 4px | Between icon and label |
-| `gap-2` | 8px | Between list items, tight groups |
-| `gap-3` | 12px | Card internal padding (compact) |
-| `gap-4` | 16px | Card padding, section gaps |
-| `gap-6` | 24px | Between cards, major sections |
-| `gap-8` | 32px | Page section margins |
-| `p-4` | 16px | Default card padding |
-| `p-6` | 24px | Large card / modal padding |
+| Token   | Value | Usage                            |
+| ------- | ----- | -------------------------------- |
+| `gap-1` | 4px   | Between icon and label           |
+| `gap-2` | 8px   | Between list items, tight groups |
+| `gap-3` | 12px  | Card internal padding (compact)  |
+| `gap-4` | 16px  | Card padding, section gaps       |
+| `gap-6` | 24px  | Between cards, major sections    |
+| `gap-8` | 32px  | Page section margins             |
+| `p-4`   | 16px  | Default card padding             |
+| `p-6`   | 24px  | Large card / modal padding       |
 
 ---
 
 ## Border Radius
 
-| Element | Value |
-|---------|-------|
-| Buttons | `rounded-md` (6px) |
-| Cards | `rounded-lg` (8px) |
-| Modals | `rounded-xl` (12px) |
-| Badges / Tags | `rounded-full` |
-| Video Feed | `rounded-lg` (8px) |
-| Avatars | `rounded-full` |
-| Inputs | `rounded-md` (6px) |
+| Element       | Value               |
+| ------------- | ------------------- |
+| Buttons       | `rounded-md` (6px)  |
+| Cards         | `rounded-lg` (8px)  |
+| Modals        | `rounded-xl` (12px) |
+| Badges / Tags | `rounded-full`      |
+| Video Feed    | `rounded-lg` (8px)  |
+| Avatars       | `rounded-full`      |
+| Inputs        | `rounded-md` (6px)  |
 
 ---
 
@@ -116,27 +116,27 @@
 
 Dark mode uses border emphasis instead of heavy shadows.
 
-| Level | Usage | Implementation |
-|-------|-------|---------------|
-| None | Most cards | `border border-zinc-800` |
-| Subtle | Raised cards | `border border-zinc-700 shadow-sm shadow-black/20` |
-| Elevated | Modals, dropdowns | `border border-zinc-700 shadow-lg shadow-black/40` |
-| Glow | Active/selected | `ring-1 ring-blue-500/50` |
-| Alert Glow | Critical alert | `ring-1 ring-red-500/50 shadow-red-500/20` |
+| Level      | Usage             | Implementation                                     |
+| ---------- | ----------------- | -------------------------------------------------- |
+| None       | Most cards        | `border border-zinc-800`                           |
+| Subtle     | Raised cards      | `border border-zinc-700 shadow-sm shadow-black/20` |
+| Elevated   | Modals, dropdowns | `border border-zinc-700 shadow-lg shadow-black/40` |
+| Glow       | Active/selected   | `ring-1 ring-blue-500/50`                          |
+| Alert Glow | Critical alert    | `ring-1 ring-red-500/50 shadow-red-500/20`         |
 
 ---
 
 ## Z-Index Scale
 
-| Layer | Value | Usage |
-|-------|-------|-------|
-| Base | `z-0` | Page content |
-| Sticky sidebar | `z-10` | Navigation sidebar |
-| Sticky header | `z-20` | Top nav bar |
-| Dropdown | `z-30` | Menus, popovers |
-| Modal overlay | `z-40` | Modal backdrop |
-| Modal | `z-50` | Modal content |
-| Toast | `z-[60]` | Alert notifications |
+| Layer             | Value    | Usage                   |
+| ----------------- | -------- | ----------------------- |
+| Base              | `z-0`    | Page content            |
+| Sticky sidebar    | `z-10`   | Navigation sidebar      |
+| Sticky header     | `z-20`   | Top nav bar             |
+| Dropdown          | `z-30`   | Menus, popovers         |
+| Modal overlay     | `z-40`   | Modal backdrop          |
+| Modal             | `z-50`   | Modal content           |
+| Toast             | `z-[60]` | Alert notifications     |
 | Camera fullscreen | `z-[70]` | Full-screen camera view |
 
 ---
@@ -164,12 +164,12 @@ Dark mode uses border emphasis instead of heavy shadows.
 
 ### Breakpoints
 
-| Name | Width | Layout |
-|------|-------|--------|
-| Mobile | < 768px | Single column, bottom nav, stacked cameras |
-| Tablet | 768px - 1023px | Collapsed sidebar, 2-column camera grid |
-| Desktop | 1024px - 1439px | Full sidebar, 2x2 or 3x2 camera grid |
-| Wide | 1440px+ | Full sidebar, 4x3 camera grid, side panels |
+| Name    | Width           | Layout                                     |
+| ------- | --------------- | ------------------------------------------ |
+| Mobile  | < 768px         | Single column, bottom nav, stacked cameras |
+| Tablet  | 768px - 1023px  | Collapsed sidebar, 2-column camera grid    |
+| Desktop | 1024px - 1439px | Full sidebar, 2x2 or 3x2 camera grid       |
+| Wide    | 1440px+         | Full sidebar, 4x3 camera grid, side panels |
 
 ---
 
@@ -248,34 +248,34 @@ Dark mode uses border emphasis instead of heavy shadows.
 
 ### Transitions
 
-| Element | Duration | Easing | Property |
-|---------|----------|--------|----------|
-| Button hover | 150ms | ease-out | background-color, border-color |
-| Card hover | 200ms | ease-out | ring, shadow |
-| Sidebar collapse | 200ms | ease-in-out | width |
-| Modal open | 200ms | ease-out | opacity, transform |
-| Modal close | 150ms | ease-in | opacity, transform |
-| Toast enter | 300ms | ease-out | transform(slideUp), opacity |
-| Toast exit | 200ms | ease-in | opacity |
+| Element          | Duration | Easing      | Property                       |
+| ---------------- | -------- | ----------- | ------------------------------ |
+| Button hover     | 150ms    | ease-out    | background-color, border-color |
+| Card hover       | 200ms    | ease-out    | ring, shadow                   |
+| Sidebar collapse | 200ms    | ease-in-out | width                          |
+| Modal open       | 200ms    | ease-out    | opacity, transform             |
+| Modal close      | 150ms    | ease-in     | opacity, transform             |
+| Toast enter      | 300ms    | ease-out    | transform(slideUp), opacity    |
+| Toast exit       | 200ms    | ease-in     | opacity                        |
 
 ### Loading States
 
-| Context | Pattern |
-|---------|---------|
-| Camera feed loading | Skeleton with pulse (aspect-video) |
-| Event list loading | 5 skeleton rows with varying widths |
-| Stats loading | Skeleton for number + progress bar |
-| Full page loading | Centered spinner with "Loading..." text |
-| Live reconnecting | Blue pulse border around feed + "Reconnecting..." overlay |
+| Context             | Pattern                                                   |
+| ------------------- | --------------------------------------------------------- |
+| Camera feed loading | Skeleton with pulse (aspect-video)                        |
+| Event list loading  | 5 skeleton rows with varying widths                       |
+| Stats loading       | Skeleton for number + progress bar                        |
+| Full page loading   | Centered spinner with "Loading..." text                   |
+| Live reconnecting   | Blue pulse border around feed + "Reconnecting..." overlay |
 
 ### Empty States
 
-| Context | Message | Action |
-|---------|---------|--------|
-| No cameras | "No cameras connected" | "Add Camera" button |
-| No events | "No events in this time range" | Adjust filters link |
-| No rules | "No alert rules configured" | "Create Rule" button |
-| Camera offline | "Camera is offline" with last-seen timestamp | "Retry Connection" |
+| Context        | Message                                      | Action               |
+| -------------- | -------------------------------------------- | -------------------- |
+| No cameras     | "No cameras connected"                       | "Add Camera" button  |
+| No events      | "No events in this time range"               | Adjust filters link  |
+| No rules       | "No alert rules configured"                  | "Create Rule" button |
+| Camera offline | "Camera is offline" with last-seen timestamp | "Retry Connection"   |
 
 ---
 
@@ -283,15 +283,15 @@ Dark mode uses border emphasis instead of heavy shadows.
 
 **Library:** Lucide React (consistent with shadcn/ui)
 
-| Context | Icons |
-|---------|-------|
-| Camera states | `Video`, `VideoOff`, `Wifi`, `WifiOff` |
-| Navigation | `LayoutDashboard`, `Camera`, `Bell`, `Settings`, `Shield` |
-| Alerts | `AlertTriangle`, `AlertCircle`, `CheckCircle`, `Info` |
-| Actions | `Play`, `Pause`, `SkipBack`, `SkipForward`, `Download`, `Share` |
-| AI tags | `User`, `Car`, `Dog`, `Package` |
-| PTZ | `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `ZoomIn`, `ZoomOut` |
-| Rules | `Workflow`, `Zap`, `Clock`, `MapPin` |
+| Context       | Icons                                                                  |
+| ------------- | ---------------------------------------------------------------------- |
+| Camera states | `Video`, `VideoOff`, `Wifi`, `WifiOff`                                 |
+| Navigation    | `LayoutDashboard`, `Camera`, `Bell`, `Settings`, `Shield`              |
+| Alerts        | `AlertTriangle`, `AlertCircle`, `CheckCircle`, `Info`                  |
+| Actions       | `Play`, `Pause`, `SkipBack`, `SkipForward`, `Download`, `Share`        |
+| AI tags       | `User`, `Car`, `Dog`, `Package`                                        |
+| PTZ           | `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `ZoomIn`, `ZoomOut` |
+| Rules         | `Workflow`, `Zap`, `Clock`, `MapPin`                                   |
 
 Size: 16px for inline, 20px for buttons, 24px for navigation, 32px for empty states.
 
@@ -302,22 +302,38 @@ Size: 16px for inline, 20px for buttons, 24px for navigation, 32px for empty sta
 ```css
 /* Status pulse -- live indicator */
 @keyframes pulse-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
-.animate-pulse-live { animation: pulse-live 2s ease-in-out infinite; }
+.animate-pulse-live {
+  animation: pulse-live 2s ease-in-out infinite;
+}
 
 /* Alert attention -- motion detected */
 @keyframes pulse-alert {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
 }
-.animate-pulse-alert { animation: pulse-alert 1s ease-out 3; }
+.animate-pulse-alert {
+  animation: pulse-alert 1s ease-out 3;
+}
 
 /* Respect reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-live,
-  .animate-pulse-alert { animation: none; }
+  .animate-pulse-alert {
+    animation: none;
+  }
 }
 ```
 

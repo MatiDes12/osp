@@ -1,7 +1,10 @@
 import type { ApiClient } from "./client.js";
 import type { ApiResponse } from "../types/api.js";
 import type { AlertRule } from "../types/rule.js";
-import type { CreateRuleInput, UpdateRuleInput } from "../schemas/rule.schema.js";
+import type {
+  CreateRuleInput,
+  UpdateRuleInput,
+} from "../schemas/rule.schema.js";
 
 export interface RuleTestResult {
   steps: { label: string; passed: boolean }[];

@@ -43,6 +43,7 @@ pnpm --filter @osp/desktop dev      # opens native window pointing to :3001
 ```
 
 Or from `apps/desktop/`:
+
 ```bash
 pnpm dev
 ```
@@ -55,6 +56,7 @@ pnpm --filter @osp/desktop build
 ```
 
 Output installers are placed in `src-tauri/target/release/bundle/`:
+
 - `.dmg` (macOS)
 - `.msi` / `.exe` (Windows)
 - `.deb` / `.AppImage` (Linux)
@@ -80,13 +82,13 @@ apps/desktop/
 
 ### Tauri commands (called from the web frontend via `invoke`)
 
-| Command | Args | Description |
-|---|---|---|
-| `update_tray_status` | `cameras_online`, `cameras_total`, `alerts_unread` | Updates tray tooltip |
-| `show_os_notification` | `title`, `body` | Shows a native OS notification |
-| `toggle_autostart` | — | Toggles auto-start; returns new state |
-| `get_autostart_enabled` | — | Returns current auto-start state |
-| `show_main_window` | — | Shows and focuses the main window |
+| Command                 | Args                                               | Description                           |
+| ----------------------- | -------------------------------------------------- | ------------------------------------- |
+| `update_tray_status`    | `cameras_online`, `cameras_total`, `alerts_unread` | Updates tray tooltip                  |
+| `show_os_notification`  | `title`, `body`                                    | Shows a native OS notification        |
+| `toggle_autostart`      | —                                                  | Toggles auto-start; returns new state |
+| `get_autostart_enabled` | —                                                  | Returns current auto-start state      |
+| `show_main_window`      | —                                                  | Shows and focuses the main window     |
 
 ### Web app integration
 

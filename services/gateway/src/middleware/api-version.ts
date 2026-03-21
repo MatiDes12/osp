@@ -34,4 +34,3 @@ export function apiVersion(): MiddlewareHandler {
     // Otherwise nothing extra is added.
   };
 }
-

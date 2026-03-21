@@ -42,10 +42,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function isPointInPolygon(
-  point: Point,
-  polygon: readonly Point[],
-): boolean {
+function isPointInPolygon(point: Point, polygon: readonly Point[]): boolean {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const pi = polygon[i]!;
@@ -228,118 +225,118 @@ export function ZoneDrawer({
     if (!ctx) return;
 
     const frameId = requestAnimationFrame(() => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw existing zones
-    for (const zone of zones) {
-      const points = zone.polygonCoordinates;
-      if (points.length < 3) continue;
+      // Draw existing zones
+      for (const zone of zones) {
+        const points = zone.polygonCoordinates;
+        if (points.length < 3) continue;
 
-      const isHovered = hoveredZoneId === zone.id;
-      const isSelected = selectedZoneId === zone.id;
-      const fillAlpha = isHovered || isSelected ? 0.35 : 0.2;
-      const strokeAlpha = isHovered || isSelected ? 0.9 : 0.6;
+        const isHovered = hoveredZoneId === zone.id;
+        const isSelected = selectedZoneId === zone.id;
+        const fillAlpha = isHovered || isSelected ? 0.35 : 0.2;
+        const strokeAlpha = isHovered || isSelected ? 0.9 : 0.6;
 
-      ctx.beginPath();
-      const first = toPixel(points[0]!);
-      ctx.moveTo(first.px, first.py);
-      for (let i = 1; i < points.length; i++) {
-        const p = toPixel(points[i]!);
-        ctx.lineTo(p.px, p.py);
-      }
-      ctx.closePath();
-
-      ctx.fillStyle = hexToRgba(zone.colorHex, fillAlpha);
-      ctx.fill();
-
-      ctx.strokeStyle = hexToRgba(zone.colorHex, strokeAlpha);
-      ctx.lineWidth = isSelected ? 2.5 : 1.5;
-      ctx.stroke();
-
-      // Zone name label at centroid
-      const centroid = getPolygonCentroid(points);
-      const cp = toPixel(centroid);
-      ctx.font = "bold 11px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      const textMetrics = ctx.measureText(zone.name);
-      const padding = 4;
-      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-      ctx.fillRect(
-        cp.px - textMetrics.width / 2 - padding,
-        cp.py - 7 - padding,
-        textMetrics.width + padding * 2,
-        14 + padding * 2,
-      );
-
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(zone.name, cp.px, cp.py);
-    }
-
-    // Draw current polygon being drawn
-    if (isDrawing && currentPoints.length > 0) {
-      ctx.beginPath();
-      const first = toPixel(currentPoints[0]!);
-      ctx.moveTo(first.px, first.py);
-      for (let i = 1; i < currentPoints.length; i++) {
-        const p = toPixel(currentPoints[i]!);
-        ctx.lineTo(p.px, p.py);
-      }
-
-      // Line to mouse position
-      if (mousePos) {
-        const mp = toPixel(mousePos);
-        ctx.lineTo(mp.px, mp.py);
-      }
-
-      ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Semi-transparent fill preview
-      if (currentPoints.length >= 3) {
         ctx.beginPath();
-        const f = toPixel(currentPoints[0]!);
-        ctx.moveTo(f.px, f.py);
+        const first = toPixel(points[0]!);
+        ctx.moveTo(first.px, first.py);
+        for (let i = 1; i < points.length; i++) {
+          const p = toPixel(points[i]!);
+          ctx.lineTo(p.px, p.py);
+        }
+        ctx.closePath();
+
+        ctx.fillStyle = hexToRgba(zone.colorHex, fillAlpha);
+        ctx.fill();
+
+        ctx.strokeStyle = hexToRgba(zone.colorHex, strokeAlpha);
+        ctx.lineWidth = isSelected ? 2.5 : 1.5;
+        ctx.stroke();
+
+        // Zone name label at centroid
+        const centroid = getPolygonCentroid(points);
+        const cp = toPixel(centroid);
+        ctx.font = "bold 11px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        const textMetrics = ctx.measureText(zone.name);
+        const padding = 4;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(
+          cp.px - textMetrics.width / 2 - padding,
+          cp.py - 7 - padding,
+          textMetrics.width + padding * 2,
+          14 + padding * 2,
+        );
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(zone.name, cp.px, cp.py);
+      }
+
+      // Draw current polygon being drawn
+      if (isDrawing && currentPoints.length > 0) {
+        ctx.beginPath();
+        const first = toPixel(currentPoints[0]!);
+        ctx.moveTo(first.px, first.py);
         for (let i = 1; i < currentPoints.length; i++) {
           const p = toPixel(currentPoints[i]!);
           ctx.lineTo(p.px, p.py);
         }
-        ctx.closePath();
-        ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
-        ctx.fill();
-      }
 
-      // Draw vertices
-      for (const pt of currentPoints) {
-        const p = toPixel(pt);
-        ctx.beginPath();
-        ctx.arc(p.px, p.py, VERTEX_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(59, 130, 246, 0.9)";
-        ctx.fill();
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
+        // Line to mouse position
+        if (mousePos) {
+          const mp = toPixel(mousePos);
+          ctx.lineTo(mp.px, mp.py);
+        }
+
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.lineWidth = 2;
         ctx.stroke();
-      }
 
-      // Highlight first vertex when close enough to close
-      if (mousePos && currentPoints.length >= 3) {
-        const firstPx = toPixel(currentPoints[0]!);
-        const mousePx = toPixel(mousePos);
-        const dist = Math.hypot(
-          mousePx.px - firstPx.px,
-          mousePx.py - firstPx.py,
-        );
-        if (dist < CLOSE_THRESHOLD) {
+        // Semi-transparent fill preview
+        if (currentPoints.length >= 3) {
           ctx.beginPath();
-          ctx.arc(firstPx.px, firstPx.py, VERTEX_RADIUS + 3, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
-          ctx.lineWidth = 2;
+          const f = toPixel(currentPoints[0]!);
+          ctx.moveTo(f.px, f.py);
+          for (let i = 1; i < currentPoints.length; i++) {
+            const p = toPixel(currentPoints[i]!);
+            ctx.lineTo(p.px, p.py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
+          ctx.fill();
+        }
+
+        // Draw vertices
+        for (const pt of currentPoints) {
+          const p = toPixel(pt);
+          ctx.beginPath();
+          ctx.arc(p.px, p.py, VERTEX_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(59, 130, 246, 0.9)";
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
           ctx.stroke();
         }
+
+        // Highlight first vertex when close enough to close
+        if (mousePos && currentPoints.length >= 3) {
+          const firstPx = toPixel(currentPoints[0]!);
+          const mousePx = toPixel(mousePos);
+          const dist = Math.hypot(
+            mousePx.px - firstPx.px,
+            mousePx.py - firstPx.py,
+          );
+          if (dist < CLOSE_THRESHOLD) {
+            ctx.beginPath();
+            ctx.arc(firstPx.px, firstPx.py, VERTEX_RADIUS + 3, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
       }
-    }
     }); // end requestAnimationFrame
 
     return () => cancelAnimationFrame(frameId);
@@ -367,48 +364,50 @@ export function ZoneDrawer({
       />
 
       {/* Selected zone controls */}
-      {selectedZoneId && !isDrawing && (() => {
-        const zone = zones.find((z) => z.id === selectedZoneId);
-        if (!zone) return null;
-        const centroid = getPolygonCentroid(zone.polygonCoordinates);
-        const cp = {
-          px: centroid.x * videoWidth,
-          py: centroid.y * videoHeight,
-        };
-        return (
-          <div
-            className="absolute z-20 flex items-center gap-2 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-700 shadow-lg"
-            style={{
-              left: `${(cp.px / videoWidth) * 100}%`,
-              top: `${(cp.py / videoHeight) * 100 + 4}%`,
-              transform: "translate(-50%, 0)",
-            }}
-          >
-            <span className="text-xs text-zinc-200 font-medium">
-              {zone.name}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onZoneDeleted(zone.id);
-                setSelectedZoneId(null);
+      {selectedZoneId &&
+        !isDrawing &&
+        (() => {
+          const zone = zones.find((z) => z.id === selectedZoneId);
+          if (!zone) return null;
+          const centroid = getPolygonCentroid(zone.polygonCoordinates);
+          const cp = {
+            px: centroid.x * videoWidth,
+            py: centroid.y * videoHeight,
+          };
+          return (
+            <div
+              className="absolute z-20 flex items-center gap-2 px-2 py-1 rounded-md bg-zinc-900/90 border border-zinc-700 shadow-lg"
+              style={{
+                left: `${(cp.px / videoWidth) * 100}%`,
+                top: `${(cp.py / videoHeight) * 100 + 4}%`,
+                transform: "translate(-50%, 0)",
               }}
-              className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
             >
-              Delete
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedZoneId(null);
-              }}
-              className="px-1.5 py-0.5 text-[10px] rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        );
-      })()}
+              <span className="text-xs text-zinc-200 font-medium">
+                {zone.name}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onZoneDeleted(zone.id);
+                  setSelectedZoneId(null);
+                }}
+                className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
+              >
+                Delete
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedZoneId(null);
+                }}
+                className="px-1.5 py-0.5 text-[10px] rounded bg-zinc-700 text-zinc-300 hover:bg-zinc-600 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          );
+        })()}
 
       {/* Drawing instructions */}
       {isDrawing && (

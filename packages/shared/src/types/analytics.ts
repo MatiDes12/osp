@@ -1,11 +1,11 @@
 export interface AnalyticsTimeSeriesPoint {
-  bucket: string;  // ISO datetime
+  bucket: string; // ISO datetime
   count: number;
 }
 
 export interface AnalyticsHeatmapCell {
-  hourOfDay: number;   // 0-23
-  dayOfWeek: number;   // 1=Mon … 7=Sun
+  hourOfDay: number; // 0-23
+  dayOfWeek: number; // 1=Mon … 7=Sun
   count: number;
 }
 

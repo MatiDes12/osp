@@ -32,6 +32,7 @@ userRoutes.patch("/push-token", requireAuth("viewer"), async (c) => {
     throw new ApiError("INTERNAL_ERROR", "Failed to save push token", 500);
   }
 
-  return c.json(createSuccessResponse({ saved: true, pushToken: input.pushToken }));
+  return c.json(
+    createSuccessResponse({ saved: true, pushToken: input.pushToken }),
+  );
 });
-

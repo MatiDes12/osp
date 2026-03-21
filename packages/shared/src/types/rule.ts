@@ -73,15 +73,7 @@ export interface WebhookDeliveryAttempt {
 export interface RuleSchedule {
   timezone: string;
   activePeriods: {
-    days: (
-      | "mon"
-      | "tue"
-      | "wed"
-      | "thu"
-      | "fri"
-      | "sat"
-      | "sun"
-    )[];
+    days: ("mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun")[];
     start: string;
     end: string;
   }[];

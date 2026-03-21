@@ -66,7 +66,8 @@ export function requestLogger(): MiddlewareHandler {
       logger.error(summary, data);
     } else if (status >= 400) {
       // Suppress 404s for common browser probes (favicon, sourcemaps).
-      if (status === 404 && (path.endsWith(".map") || path === "/favicon.ico")) return;
+      if (status === 404 && (path.endsWith(".map") || path === "/favicon.ico"))
+        return;
       logger.warn(summary, data);
     } else if (isQuiet) {
       logger.debug(summary, data);

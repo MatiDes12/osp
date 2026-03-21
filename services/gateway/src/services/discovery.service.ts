@@ -119,7 +119,10 @@ async function runProbesWithConcurrency(
  * Guess manufacturer from a simple RTSP OPTIONS probe (best-effort).
  * Returns the server header value, if any.
  */
-async function probeRtspServer(ip: string, port: number): Promise<string | undefined> {
+async function probeRtspServer(
+  ip: string,
+  port: number,
+): Promise<string | undefined> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let response = "";
@@ -160,10 +163,13 @@ async function probeRtspServer(ip: string, port: number): Promise<string | undef
 /**
  * Infer manufacturer from the RTSP Server header.
  */
-function guessManufacturer(serverHeader: string | undefined): string | undefined {
+function guessManufacturer(
+  serverHeader: string | undefined,
+): string | undefined {
   if (!serverHeader) return undefined;
   const lower = serverHeader.toLowerCase();
-  if (lower.includes("hikvision") || lower.includes("hikvis")) return "Hikvision";
+  if (lower.includes("hikvision") || lower.includes("hikvis"))
+    return "Hikvision";
   if (lower.includes("dahua") || lower.includes("dh-")) return "Dahua";
   if (lower.includes("reolink")) return "Reolink";
   if (lower.includes("amcrest")) return "Amcrest";
@@ -183,7 +189,9 @@ export class DiscoveryService {
    * temporary streams in go2rtc and checking if they acquire producers.
    */
   async discoverUSBCameras(): Promise<DiscoveredCamera[]> {
-    logger.info("Starting USB camera discovery", { maxIndex: MAX_USB_DEVICE_INDEX });
+    logger.info("Starting USB camera discovery", {
+      maxIndex: MAX_USB_DEVICE_INDEX,
+    });
     const cameras: DiscoveredCamera[] = [];
 
     for (let i = 0; i < MAX_USB_DEVICE_INDEX; i++) {
@@ -209,8 +217,7 @@ export class DiscoveryService {
         if (statusRes.ok) {
           const data = (await statusRes.json()) as Record<string, unknown>;
           const producers = data?.producers;
-          const hasProducers =
-            Array.isArray(producers) && producers.length > 0;
+          const hasProducers = Array.isArray(producers) && producers.length > 0;
 
           if (hasProducers) {
             cameras.push({
@@ -258,9 +265,7 @@ export class DiscoveryService {
 
     const usb = usbResult.status === "fulfilled" ? usbResult.value : [];
     const network =
-      networkResult.status === "fulfilled"
-        ? networkResult.value.cameras
-        : [];
+      networkResult.status === "fulfilled" ? networkResult.value.cameras : [];
 
     return {
       usb,
@@ -300,7 +305,10 @@ export class DiscoveryService {
     }
 
     // Run probes with bounded concurrency
-    const openPorts = await runProbesWithConcurrency(tasks, MAX_CONCURRENT_PROBES);
+    const openPorts = await runProbesWithConcurrency(
+      tasks,
+      MAX_CONCURRENT_PROBES,
+    );
 
     logger.info("Port scan complete", { found: openPorts.length, subnet });
 

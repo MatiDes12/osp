@@ -204,7 +204,9 @@ export const MOCK_RULES = [
     cameraIds: [],
     enabled: true,
     conditions: { operator: "AND", children: [] },
-    actions: [{ type: "webhook", config: { url: "https://hooks.slack.com/xxx" } }],
+    actions: [
+      { type: "webhook", config: { url: "https://hooks.slack.com/xxx" } },
+    ],
     lastTriggeredAt: new Date(Date.now() - 86_400_000).toISOString(),
     triggerCount24h: 1,
     createdAt: "2025-03-01T00:00:00Z",
@@ -384,7 +386,10 @@ export async function setupApiMocks(page: Page): Promise<void> {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true, data: { url: "http://localhost:1984/stream" } }),
+        body: JSON.stringify({
+          success: true,
+          data: { url: "http://localhost:1984/stream" },
+        }),
       });
     }
 
@@ -463,7 +468,10 @@ export async function setupApiMocks(page: Page): Promise<void> {
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true, data: { ...MOCK_EVENT_SUMMARY } }),
+        body: JSON.stringify({
+          success: true,
+          data: { ...MOCK_EVENT_SUMMARY },
+        }),
       });
     }
 

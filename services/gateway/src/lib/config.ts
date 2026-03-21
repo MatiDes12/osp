@@ -24,7 +24,9 @@ export async function loadConfig(): Promise<void> {
       .is("tenant_id", null);
 
     if (error) {
-      logger.warn("Config load failed, using env only", { error: String(error) });
+      logger.warn("Config load failed, using env only", {
+        error: String(error),
+      });
       loaded = true;
       return;
     }

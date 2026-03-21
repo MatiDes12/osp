@@ -24,10 +24,12 @@ export function initSentry(serviceName = "osp-gateway"): void {
   logger.info("Sentry initialized");
 }
 
-export function captureException(err: unknown, context?: Record<string, unknown>): void {
+export function captureException(
+  err: unknown,
+  context?: Record<string, unknown>,
+): void {
   if (!sentryEnabled) return;
   Sentry.captureException(err, {
     extra: context,
   });
 }
-

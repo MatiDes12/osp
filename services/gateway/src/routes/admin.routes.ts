@@ -21,12 +21,19 @@ adminRoutes.get("/stats", async (c) => {
   const supabase = getSupabase();
 
   const [tenantsRes, camerasRes, eventsRes, recordingsRes] = await Promise.all([
-    supabase.from("tenants").select("id, status, plan", { count: "exact", head: false }),
-    supabase.from("cameras").select("id, status", { count: "exact", head: false }),
+    supabase
+      .from("tenants")
+      .select("id, status, plan", { count: "exact", head: false }),
+    supabase
+      .from("cameras")
+      .select("id, status", { count: "exact", head: false }),
     supabase
       .from("events")
       .select("id", { count: "exact", head: true })
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+      .gte(
+        "created_at",
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      ),
     supabase.from("recordings").select("id", { count: "exact", head: true }),
   ]);
 
@@ -63,7 +70,10 @@ adminRoutes.get("/tenants", async (c) => {
   const search = c.req.query("search") ?? "";
   const status = c.req.query("status"); // active | suspended | all
   const page = Math.max(1, Number(c.req.query("page") ?? "1"));
-  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? "25")));
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(c.req.query("limit") ?? "25")),
+  );
   const offset = (page - 1) * limit;
 
   let query = supabase
@@ -82,7 +92,12 @@ adminRoutes.get("/tenants", async (c) => {
   const { data, error, count } = await query;
 
   if (error) {
-    throw new ApiError("TENANT_FETCH_FAILED", "Failed to fetch tenants", 500, error.message);
+    throw new ApiError(
+      "TENANT_FETCH_FAILED",
+      "Failed to fetch tenants",
+      500,
+      error.message,
+    );
   }
 
   return c.json({
@@ -160,7 +175,11 @@ adminRoutes.get("/tenants/:id/users", async (c) => {
 // Update tenant — suspend / unsuspend / change plan.
 adminRoutes.patch("/tenants/:id", async (c) => {
   const tenantId = c.req.param("id");
-  const body = await c.req.json<{ status?: string; plan?: string; name?: string }>();
+  const body = await c.req.json<{
+    status?: string;
+    plan?: string;
+    name?: string;
+  }>();
   const supabase = getSupabase();
 
   const allowed: Record<string, unknown> = {};
@@ -180,7 +199,12 @@ adminRoutes.patch("/tenants/:id", async (c) => {
     .single();
 
   if (error || !data) {
-    throw new ApiError("TENANT_UPDATE_FAILED", "Failed to update tenant", 500, error?.message);
+    throw new ApiError(
+      "TENANT_UPDATE_FAILED",
+      "Failed to update tenant",
+      500,
+      error?.message,
+    );
   }
 
   return c.json({ success: true, data });
@@ -196,7 +220,12 @@ adminRoutes.delete("/tenants/:id", async (c) => {
   const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
 
   if (error) {
-    throw new ApiError("TENANT_DELETE_FAILED", "Failed to delete tenant", 500, error.message);
+    throw new ApiError(
+      "TENANT_DELETE_FAILED",
+      "Failed to delete tenant",
+      500,
+      error.message,
+    );
   }
 
   return c.json({ success: true, data: { deleted: tenantId } });
@@ -208,7 +237,10 @@ adminRoutes.get("/users", async (c) => {
   const supabase = getSupabase();
 
   // Use the admin API to search user_metadata
-  const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 });
+  const { data, error } = await supabase.auth.admin.listUsers({
+    page: 1,
+    perPage: 200,
+  });
 
   if (error) {
     throw new ApiError("USER_FETCH_FAILED", "Failed to fetch users", 500);

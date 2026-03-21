@@ -114,9 +114,7 @@ export function AudioControls({
   );
 
   return (
-    <div
-      className={`flex items-center gap-2 ${className ?? ""}`}
-    >
+    <div className={`flex items-center gap-2 ${className ?? ""}`}>
       {/* Mic toggle (two-way audio) */}
       {twoWayAudioSupported && (
         <div className="relative">

@@ -26,7 +26,10 @@ const GRID_COLUMNS: Record<GridLayout, string> = {
   16: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
 };
 
-const LAYOUT_OPTIONS: readonly { readonly value: GridLayout; readonly label: string }[] = [
+const LAYOUT_OPTIONS: readonly {
+  readonly value: GridLayout;
+  readonly label: string;
+}[] = [
   { value: 1, label: "1x1" },
   { value: 4, label: "2x2" },
   { value: 9, label: "3x3" },
@@ -121,7 +124,9 @@ export const CameraGrid = memo(function CameraGrid({
             selected={selectedIds?.has(camera.id) ?? false}
             onToggleSelect={onToggleSelect}
             tags={cameraTagsMap?.get(camera.id) ?? EMPTY_TAGS}
-            isActivelyRecording={activeRecordingCameraIds?.has(camera.id) ?? false}
+            isActivelyRecording={
+              activeRecordingCameraIds?.has(camera.id) ?? false
+            }
           />
         ))}
       </div>

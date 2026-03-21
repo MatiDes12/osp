@@ -1,11 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type {
-  Recording,
-  TimelineResponse,
-  ApiResponse,
-} from "@osp/shared";
+import type { Recording, TimelineResponse, ApiResponse } from "@osp/shared";
 import { transformRecordings } from "@/lib/transforms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -21,9 +17,7 @@ function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
-function toSearchParams(
-  params?: Record<string, unknown>,
-): string {
+function toSearchParams(params?: Record<string, unknown>): string {
   if (!params) return "";
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -51,9 +45,7 @@ interface UseRecordingsReturn {
   readonly refetch: () => Promise<void>;
 }
 
-export function useRecordings(
-  filters?: RecordingFilters,
-): UseRecordingsReturn {
+export function useRecordings(filters?: RecordingFilters): UseRecordingsReturn {
   const [recordings, setRecordings] = useState<readonly Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +60,9 @@ export function useRecordings(
       });
       const json = await response.json();
       if (json.success && json.data) {
-        setRecordings(transformRecordings(json.data as Record<string, unknown>[]));
+        setRecordings(
+          transformRecordings(json.data as Record<string, unknown>[]),
+        );
       } else {
         setError(json.error?.message ?? "Failed to fetch recordings");
       }

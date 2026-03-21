@@ -143,7 +143,6 @@ export function DesktopSetupWizard({ onComplete }: DesktopSetupWizardProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4">
       <div className="w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
-
         {/* ── Header ── */}
         <div className="flex items-center gap-3 px-7 pt-7 pb-5 border-b border-[var(--color-border)]">
           <div className="w-9 h-9 rounded-xl bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
@@ -164,8 +163,8 @@ export function DesktopSetupWizard({ onComplete }: DesktopSetupWizardProps) {
           <div className="px-7 py-6">
             <p className="text-sm text-[var(--color-muted)] mb-5">
               Before you can connect cameras, OSP needs to start a lightweight
-              local engine that handles RTSP streams and WebRTC. It runs in
-              the background automatically every time you open the app.
+              local engine that handles RTSP streams and WebRTC. It runs in the
+              background automatically every time you open the app.
             </p>
 
             <div className="grid grid-cols-3 gap-3 mb-6">

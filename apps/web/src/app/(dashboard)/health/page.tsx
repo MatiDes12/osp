@@ -70,7 +70,11 @@ function formatUptime(seconds: number): string {
 /*  Components                                                         */
 /* ------------------------------------------------------------------ */
 
-function StatusBadge({ status }: { readonly status: "up" | "down" | "not_configured" }) {
+function StatusBadge({
+  status,
+}: {
+  readonly status: "up" | "down" | "not_configured";
+}) {
   if (status === "up") {
     return (
       <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-400">
@@ -145,13 +149,11 @@ function ServiceCard({
 
       <div className="space-y-1 text-sm text-zinc-400">
         <p>
-          Latency:{" "}
-          <span className="text-zinc-200">{service.latency_ms}ms</span>
+          Latency: <span className="text-zinc-200">{service.latency_ms}ms</span>
         </p>
         {service.streams !== undefined && (
           <p>
-            Streams:{" "}
-            <span className="text-zinc-200">{service.streams}</span>
+            Streams: <span className="text-zinc-200">{service.streams}</span>
           </p>
         )}
         {service.connections !== undefined && (

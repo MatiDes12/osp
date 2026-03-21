@@ -36,9 +36,7 @@ test.describe("Events page", () => {
     await expect(sidebar.getByText("Event Type")).toBeVisible();
 
     // Main content heading
-    await expect(
-      page.getByRole("heading", { name: "Events" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Events" })).toBeVisible();
   });
 
   /* ------------------------------------------------------------------ */
@@ -54,9 +52,7 @@ test.describe("Events page", () => {
     await expect(page.getByText("vehicle").first()).toBeVisible();
     await expect(page.getByText("motion").first()).toBeVisible();
     // camera_offline renders as "camera offline"
-    await expect(
-      page.getByText(/camera.?offline/i).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/camera.?offline/i).first()).toBeVisible();
   });
 
   test("results count is displayed", async ({ page }) => {
@@ -80,9 +76,9 @@ test.describe("Events page", () => {
   test("clicking '7 Days' preset button in sidebar updates filter", async ({
     page,
   }) => {
-    await expect(
-      page.locator("aside").getByText("Filters"),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("aside").getByText("Filters")).toBeVisible({
+      timeout: 10_000,
+    });
 
     await page.locator("aside").getByText("7 Days").click();
 
@@ -111,9 +107,9 @@ test.describe("Events page", () => {
     await severitySection.getByRole("checkbox").first().check();
 
     // Camera-offline event (critical severity) must still be visible
-    await expect(
-      page.getByText(/camera.?offline/i).first(),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText(/camera.?offline/i).first()).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   /* ------------------------------------------------------------------ */
@@ -144,9 +140,7 @@ test.describe("Events page", () => {
     });
 
     // Event checkboxes sit inside the main scrollable list (not the sidebar)
-    const eventCheckboxes = page
-      .locator("main")
-      .getByRole("checkbox");
+    const eventCheckboxes = page.locator("main").getByRole("checkbox");
     await eventCheckboxes.first().check();
 
     // Bulk action bar should appear
@@ -171,8 +165,8 @@ test.describe("Events page", () => {
 
     // The Export button may render with a Download icon but the accessible
     // name or visible text should contain "Export"
-    await expect(
-      page.getByRole("button", { name: /export/i }),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: /export/i })).toBeVisible({
+      timeout: 5_000,
+    });
   });
 });

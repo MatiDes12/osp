@@ -53,16 +53,17 @@ export class CameraHealthChecker {
   private readonly previousFrames = new Map<string, RgbaFrame>();
   private readonly lastMotionAt = new Map<string, number>();
   // Per-camera motion recording state
-  private readonly motionRecordingIds = new Map<string, string>();           // cameraId → active recordingId
-  private readonly motionStopTimers = new Map<string, ReturnType<typeof setTimeout>>(); // cameraId → stop timer
+  private readonly motionRecordingIds = new Map<string, string>(); // cameraId → active recordingId
+  private readonly motionStopTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >(); // cameraId → stop timer
   private readonly motionTailMs: number;
   private motionDetectionInFlight = false;
 
   constructor(checkIntervalMs = 30_000) {
     this.go2rtcUrl =
-      get("GO2RTC_API_URL") ??
-      get("GO2RTC_URL") ??
-      "http://localhost:1984";
+      get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
     this.checkIntervalMs = checkIntervalMs;
     this.motionIntervalMs = Number.parseInt(
       get("MOTION_SAMPLE_INTERVAL_MS") ?? "1000",
@@ -73,10 +74,7 @@ export class CameraHealthChecker {
       10,
     );
     // How long to keep recording after the last motion frame (default 10 s)
-    this.motionTailMs = Number.parseInt(
-      get("MOTION_TAIL_MS") ?? "10000",
-      10,
-    );
+    this.motionTailMs = Number.parseInt(get("MOTION_TAIL_MS") ?? "10000", 10);
   }
 
   start(): void {
@@ -157,7 +155,9 @@ export class CameraHealthChecker {
 
       if (error || !cameras) {
         logger.warn("Startup stream sync failed to fetch cameras", {
-          error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
+          error:
+            (error as { message?: string } | null)?.message ??
+            JSON.stringify(error),
         });
         return;
       }
@@ -189,7 +189,8 @@ export class CameraHealthChecker {
     try {
       const supabase = getSupabase();
       const cutoff = new Date(
-        Date.now() - CameraHealthChecker.CLIP_RETENTION_DAYS * 24 * 60 * 60 * 1_000,
+        Date.now() -
+          CameraHealthChecker.CLIP_RETENTION_DAYS * 24 * 60 * 60 * 1_000,
       ).toISOString();
 
       // Fetch expired clips that still have a local file path
@@ -220,10 +221,7 @@ export class CameraHealthChecker {
       }
 
       if (ids.length > 0) {
-        await supabase
-          .from("events")
-          .update({ clip_path: null })
-          .in("id", ids);
+        await supabase.from("events").update({ clip_path: null }).in("id", ids);
       }
 
       if (deleted > 0) {
@@ -245,7 +243,9 @@ export class CameraHealthChecker {
 
     if (error || !cameras) {
       logger.warn("Failed to fetch cameras for health check", {
-        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
+        error:
+          (error as { message?: string } | null)?.message ??
+          JSON.stringify(error),
       });
       return [];
     }
@@ -283,14 +283,17 @@ export class CameraHealthChecker {
       .from("cameras")
       .update({
         status: newStatus,
-        last_seen_at: newStatus === "online" ? new Date().toISOString() : undefined,
+        last_seen_at:
+          newStatus === "online" ? new Date().toISOString() : undefined,
       })
       .eq("id", cameraId);
 
     if (error) {
       logger.warn("Failed to update camera status", {
         cameraId,
-        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
+        error:
+          (error as { message?: string } | null)?.message ??
+          JSON.stringify(error),
       });
       return false;
     }
@@ -304,7 +307,8 @@ export class CameraHealthChecker {
     newStatus: CameraStatus,
   ): Promise<void> {
     const supabase = getSupabase();
-    const eventType = newStatus === "online" ? "camera_online" : "camera_offline";
+    const eventType =
+      newStatus === "online" ? "camera_online" : "camera_offline";
     const severity = newStatus === "offline" ? "high" : "low";
     const now = new Date().toISOString();
     const intensity = newStatus === "offline" ? 80 : 20;
@@ -329,7 +333,9 @@ export class CameraHealthChecker {
     if (error || !created) {
       logger.warn("Failed to create health check event", {
         cameraId: camera.id,
-        error: (error as { message?: string } | null)?.message ?? JSON.stringify(error),
+        error:
+          (error as { message?: string } | null)?.message ??
+          JSON.stringify(error),
       });
       return;
     }
@@ -414,7 +420,10 @@ export class CameraHealthChecker {
           continue;
         }
 
-        await this.sampleCameraForMotion(row, zoneSensitivityMap.get(row.id) ?? []);
+        await this.sampleCameraForMotion(
+          row,
+          zoneSensitivityMap.get(row.id) ?? [],
+        );
       }
     } catch (err) {
       logger.warn("Motion detection cycle failed", {
@@ -459,7 +468,12 @@ export class CameraHealthChecker {
     if (!shouldTriggerMotion(diffRatio, effectiveSensitivity)) return;
 
     this.lastMotionAt.set(camera.id, now);
-    await this.createMotionEvent(camera, diffRatio, effectiveSensitivity, jpegBuffer);
+    await this.createMotionEvent(
+      camera,
+      diffRatio,
+      effectiveSensitivity,
+      jpegBuffer,
+    );
   }
 
   private async fetchFrame(
@@ -487,7 +501,11 @@ export class CameraHealthChecker {
         return null;
       }
       return {
-        rgba: { width: decoded.width, height: decoded.height, data: decoded.data },
+        rgba: {
+          width: decoded.width,
+          height: decoded.height,
+          data: decoded.data,
+        },
         jpegBuffer,
       };
     } catch (err) {
@@ -545,7 +563,9 @@ export class CameraHealthChecker {
     if (error || !created) {
       logger.warn("Failed to create motion event", {
         cameraId: camera.id,
-        error: (error as { message?: string; code?: string } | null)?.message ?? JSON.stringify(error),
+        error:
+          (error as { message?: string; code?: string } | null)?.message ??
+          JSON.stringify(error),
         code: (error as { code?: string } | null)?.code,
       });
       return;
@@ -602,19 +622,22 @@ export class CameraHealthChecker {
       if (!recordingId) return;
       this.motionRecordingIds.delete(cameraId);
       const recordingService = getRecordingService();
-      recordingService.stopRecording(recordingId).then(() => {
-        logger.info("Motion recording stopped (no motion in tail window)", {
-          cameraId,
-          recordingId,
-          tailMs: this.motionTailMs,
+      recordingService
+        .stopRecording(recordingId)
+        .then(() => {
+          logger.info("Motion recording stopped (no motion in tail window)", {
+            cameraId,
+            recordingId,
+            tailMs: this.motionTailMs,
+          });
+        })
+        .catch((err) => {
+          logger.warn("Failed to stop motion recording", {
+            cameraId,
+            recordingId,
+            error: String(err),
+          });
         });
-      }).catch((err) => {
-        logger.warn("Failed to stop motion recording", {
-          cameraId,
-          recordingId,
-          error: String(err),
-        });
-      });
     }, this.motionTailMs);
 
     this.motionStopTimers.set(cameraId, stopTimer);
@@ -624,15 +647,18 @@ export class CameraHealthChecker {
 
     // Start a new recording.
     const recordingService = getRecordingService();
-    recordingService.startRecording(cameraId, camera.tenant_id, "motion").then((recordingId) => {
-      this.motionRecordingIds.set(cameraId, recordingId);
-      logger.info("Motion recording started", { cameraId, recordingId });
-    }).catch((err) => {
-      logger.warn("Failed to start motion recording", {
-        cameraId,
-        error: String(err),
+    recordingService
+      .startRecording(cameraId, camera.tenant_id, "motion")
+      .then((recordingId) => {
+        this.motionRecordingIds.set(cameraId, recordingId);
+        logger.info("Motion recording started", { cameraId, recordingId });
+      })
+      .catch((err) => {
+        logger.warn("Failed to start motion recording", {
+          cameraId,
+          error: String(err),
+        });
       });
-    });
   }
 
   private extractCameraSensitivity(config: CameraRow["config"]): number {

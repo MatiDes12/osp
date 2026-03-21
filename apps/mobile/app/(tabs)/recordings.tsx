@@ -56,7 +56,9 @@ function formatTime(iso: string): string {
   });
 }
 
-function groupByDate(recordings: readonly Recording[]): readonly RecordingSection[] {
+function groupByDate(
+  recordings: readonly Recording[],
+): readonly RecordingSection[] {
   const groups: Record<string, Recording[]> = {};
 
   for (const recording of recordings) {
@@ -175,7 +177,10 @@ export default function RecordingsScreen() {
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineDot}>●</Text>
           <Text style={styles.offlineText}>
-            Offline{cachedAt ? ` — cached ${formatCacheAge(cachedAt)}` : " — no cached data"}
+            Offline
+            {cachedAt
+              ? ` — cached ${formatCacheAge(cachedAt)}`
+              : " — no cached data"}
           </Text>
         </View>
       )}

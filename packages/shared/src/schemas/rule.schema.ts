@@ -16,20 +16,12 @@ const ConditionOperatorSchema = z.enum([
 const ConditionLeafSchema = z.object({
   field: z.string().min(1).max(100),
   operator: ConditionOperatorSchema,
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.string()),
-  ]),
+  value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
 });
 
 type ConditionNodeInput = {
   operator: "AND" | "OR";
-  children: (
-    | z.infer<typeof ConditionLeafSchema>
-    | ConditionNodeInput
-  )[];
+  children: (z.infer<typeof ConditionLeafSchema> | ConditionNodeInput)[];
 };
 
 const ConditionNodeSchema: z.ZodType<ConditionNodeInput> = z.lazy(() =>
@@ -57,9 +49,7 @@ const RuleScheduleSchema = z.object({
   timezone: z.string().min(1),
   activePeriods: z.array(
     z.object({
-      days: z.array(
-        z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-      ),
+      days: z.array(z.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])),
       start: z.string().regex(/^\d{2}:\d{2}$/),
       end: z.string().regex(/^\d{2}:\d{2}$/),
     }),

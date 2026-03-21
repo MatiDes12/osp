@@ -19,7 +19,10 @@ recordingRoutes.get("/", requireAuth("viewer"), async (c) => {
   const supabase = getSupabase();
 
   const page = Number.parseInt(c.req.query("page") ?? "1", 10);
-  const limit = Math.min(Number.parseInt(c.req.query("limit") ?? "20", 10), 100);
+  const limit = Math.min(
+    Number.parseInt(c.req.query("limit") ?? "20", 10),
+    100,
+  );
   const cameraId = c.req.query("cameraId");
   const trigger = c.req.query("trigger");
   const status = c.req.query("status");
@@ -83,7 +86,11 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
   const date = c.req.query("date");
 
   if (!cameraId || !date) {
-    throw new ApiError("VALIDATION_ERROR", "cameraId and date are required", 400);
+    throw new ApiError(
+      "VALIDATION_ERROR",
+      "cameraId and date are required",
+      400,
+    );
   }
 
   const dayStart = `${date}T00:00:00.000Z`;
@@ -159,7 +166,10 @@ recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
 
   const recordingService = getRecordingService();
   const cameraId = recording.camera_id as string;
-  const playbackUrl = await recordingService.getPlaybackUrl(recordingId, tenantId);
+  const playbackUrl = await recordingService.getPlaybackUrl(
+    recordingId,
+    tenantId,
+  );
 
   // Look up camera name
   const cameraName = await getCameraName(cameraId);
@@ -195,8 +205,7 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
     recordingId,
     tenantId,
   );
-  const gatewayUrl =
-    get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
+  const gatewayUrl = get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
   const localFallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
 
   // If playbackUrl is a remote, pre-signed HLS URL (R2), redirect clients.
@@ -223,7 +232,11 @@ recordingRoutes.get("/:id/play", requireAuth("viewer"), async (c) => {
   try {
     assertSafePath(filePath);
   } catch {
-    throw new ApiError("RECORDING_FILE_NOT_FOUND", "Recording file not found", 404);
+    throw new ApiError(
+      "RECORDING_FILE_NOT_FOUND",
+      "Recording file not found",
+      404,
+    );
   }
   if (!existsSync(filePath)) {
     throw new ApiError(

@@ -7,9 +7,7 @@ describe("CreateRuleSchema", () => {
     triggerEvent: "motion" as const,
     conditions: {
       operator: "AND" as const,
-      children: [
-        { field: "confidence", operator: "gte" as const, value: 0.8 },
-      ],
+      children: [{ field: "confidence", operator: "gte" as const, value: 0.8 }],
     },
     actions: [
       {
@@ -67,9 +65,7 @@ describe("CreateRuleSchema", () => {
       ...validRule,
       conditions: {
         operator: "AND",
-        children: [
-          { field: "confidence", operator: "like", value: "test" },
-        ],
+        children: [{ field: "confidence", operator: "like", value: "test" }],
       },
     });
     expect(result.success).toBe(false);
@@ -80,9 +76,7 @@ describe("CreateRuleSchema", () => {
       ...validRule,
       conditions: {
         operator: "XOR",
-        children: [
-          { field: "confidence", operator: "eq", value: 1 },
-        ],
+        children: [{ field: "confidence", operator: "eq", value: 1 }],
       },
     });
     expect(result.success).toBe(false);
@@ -222,9 +216,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         schedule: {
           timezone: "",
-          activePeriods: [
-            { days: ["mon"], start: "09:00", end: "17:00" },
-          ],
+          activePeriods: [{ days: ["mon"], start: "09:00", end: "17:00" }],
         },
       });
       expect(result.success).toBe(false);
@@ -235,9 +227,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         schedule: {
           timezone: "UTC",
-          activePeriods: [
-            { days: ["mon"], start: "9am", end: "5pm" },
-          ],
+          activePeriods: [{ days: ["mon"], start: "9am", end: "5pm" }],
         },
       });
       expect(result.success).toBe(false);
@@ -248,9 +238,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         schedule: {
           timezone: "UTC",
-          activePeriods: [
-            { days: ["monday"], start: "09:00", end: "17:00" },
-          ],
+          activePeriods: [{ days: ["monday"], start: "09:00", end: "17:00" }],
         },
       });
       expect(result.success).toBe(false);
@@ -328,9 +316,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         conditions: {
           operator: "AND",
-          children: [
-            { field: "label", operator: "eq", value: "person" },
-          ],
+          children: [{ field: "label", operator: "eq", value: "person" }],
         },
       });
       expect(result.success).toBe(true);
@@ -341,9 +327,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         conditions: {
           operator: "AND",
-          children: [
-            { field: "score", operator: "gt", value: 42 },
-          ],
+          children: [{ field: "score", operator: "gt", value: 42 }],
         },
       });
       expect(result.success).toBe(true);
@@ -354,9 +338,7 @@ describe("CreateRuleSchema", () => {
         ...validRule,
         conditions: {
           operator: "AND",
-          children: [
-            { field: "isNew", operator: "eq", value: true },
-          ],
+          children: [{ field: "isNew", operator: "eq", value: true }],
         },
       });
       expect(result.success).toBe(true);

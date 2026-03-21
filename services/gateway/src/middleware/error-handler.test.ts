@@ -134,7 +134,9 @@ describe("errorHandler", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
       const app = createTestApp();
       app.get("/test", () => {
-        throw new Error("database connection string: postgres://user:pass@host");
+        throw new Error(
+          "database connection string: postgres://user:pass@host",
+        );
       });
 
       const res = await app.request("/test");

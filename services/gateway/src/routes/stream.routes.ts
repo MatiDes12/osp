@@ -121,10 +121,15 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
           { signal: AbortSignal.timeout(2000) },
         ).catch(() => null);
         if (check?.ok) {
-          const data = await check.json().catch(() => ({})) as Record<string, unknown>;
+          const data = (await check.json().catch(() => ({}))) as Record<
+            string,
+            unknown
+          >;
           const producers = data?.producers;
           if (Array.isArray(producers) && producers.length > 0) {
-            logger.info("Stream connected after auto-registration", { cameraId });
+            logger.info("Stream connected after auto-registration", {
+              cameraId,
+            });
             break;
           }
         }
@@ -288,9 +293,7 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
       .eq("tenant_id", tenantId);
   }
 
-  return c.json(
-    createSuccessResponse({ reconnected: true, cameraId }),
-  );
+  return c.json(createSuccessResponse({ reconnected: true, cameraId }));
 });
 
 // POST /api/v1/streams/test - Test a connection URI before adding a camera
@@ -316,7 +319,11 @@ streamRoutes.post("/test", requireAuth("viewer"), async (c) => {
     });
 
     if (!addRes.ok) {
-      throw new ApiError("CAMERA_CONNECTION_FAILED", "Failed to register stream in go2rtc", 502);
+      throw new ApiError(
+        "CAMERA_CONNECTION_FAILED",
+        "Failed to register stream in go2rtc",
+        502,
+      );
     }
 
     // Wait up to 5s for go2rtc to connect to the source
@@ -385,9 +392,12 @@ streamRoutes.post("/test", requireAuth("viewer"), async (c) => {
     );
   } finally {
     // Always clean up the test stream
-    fetch(`${go2rtcUrl}/api/streams?src=${encodeURIComponent(testStreamName)}`, {
-      method: "DELETE",
-    }).catch(() => {});
+    fetch(
+      `${go2rtcUrl}/api/streams?src=${encodeURIComponent(testStreamName)}`,
+      {
+        method: "DELETE",
+      },
+    ).catch(() => {});
   }
 });
 
@@ -456,7 +466,9 @@ streamRoutes.post("/discover", requireAuth("admin"), async (c) => {
 
   const discoveryService = new DiscoveryService();
 
-  const markAlreadyAdded = (cameras: import("@osp/shared").DiscoveredCamera[]) =>
+  const markAlreadyAdded = (
+    cameras: import("@osp/shared").DiscoveredCamera[],
+  ) =>
     cameras.map((cam) => {
       const isAdded =
         existingUris.has(cam.rtspUrl) ||

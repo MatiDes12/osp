@@ -9,7 +9,10 @@ interface MobileSidebarDrawerProps {
   readonly onClose: () => void;
 }
 
-export function MobileSidebarDrawer({ open, onClose }: MobileSidebarDrawerProps) {
+export function MobileSidebarDrawer({
+  open,
+  onClose,
+}: MobileSidebarDrawerProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

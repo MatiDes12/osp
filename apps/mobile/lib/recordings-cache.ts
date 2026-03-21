@@ -9,7 +9,9 @@ interface CacheMeta {
   cachedAt: string;
 }
 
-export async function saveRecordingsCache(recordings: readonly Recording[]): Promise<void> {
+export async function saveRecordingsCache(
+  recordings: readonly Recording[],
+): Promise<void> {
   try {
     const toStore = recordings.slice(0, MAX_CACHED);
     const meta: CacheMeta = { cachedAt: new Date().toISOString() };
@@ -32,7 +34,9 @@ export async function loadRecordingsCache(): Promise<{
       AsyncStorage.getItem(CACHE_META_KEY),
     ]);
     const recordings: Recording[] = raw ? (JSON.parse(raw) as Recording[]) : [];
-    const meta: CacheMeta | null = metaRaw ? (JSON.parse(metaRaw) as CacheMeta) : null;
+    const meta: CacheMeta | null = metaRaw
+      ? (JSON.parse(metaRaw) as CacheMeta)
+      : null;
     return { recordings, cachedAt: meta?.cachedAt ?? null };
   } catch {
     return { recordings: [], cachedAt: null };
