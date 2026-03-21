@@ -21,7 +21,7 @@ adminRoutes.get("/stats", async (c) => {
   const supabase = getSupabase();
 
   const [tenantsRes, camerasRes, eventsRes, recordingsRes] = await Promise.all([
-    supabase.from("tenants").select("id, status", { count: "exact", head: false }),
+    supabase.from("tenants").select("id, status, plan", { count: "exact", head: false }),
     supabase.from("cameras").select("id, status", { count: "exact", head: false }),
     supabase
       .from("events")

@@ -2,6 +2,10 @@
 -- Adds superadmin support: flag on user_metadata + helper functions for OSP company admins.
 -- Superadmins bypass tenant RLS and can view/manage all tenants.
 
+-- ─── Add status column to tenants (active | suspended) ──────────────────────
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active'
+  CHECK (status IN ('active', 'suspended'));
+
 -- ─── Grant superadmin to a user ──────────────────────────────────────────────
 -- Usage: SELECT grant_superadmin('user-uuid-here');
 CREATE OR REPLACE FUNCTION grant_superadmin(target_user_id uuid)
