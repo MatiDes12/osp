@@ -479,6 +479,27 @@ TURN_SERVER_USERNAME=user
 TURN_SERVER_CREDENTIAL=pass
 ```
 
+### SSO / Identity Providers
+
+OSP supports Google, Microsoft (Azure AD), and GitHub sign-in via Supabase OAuth.
+
+**To activate an OAuth provider:**
+
+1. Open **Supabase dashboard → Authentication → Providers**
+2. Enable the provider (Google / Azure AD / GitHub) and paste your OAuth app credentials:
+   - **Google**: Client ID + Client Secret from [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+   - **Microsoft**: Application (client) ID + Client Secret from [Azure portal](https://portal.azure.com/) → App registrations
+   - **GitHub**: Client ID + Client Secret from GitHub → Settings → Developer settings → OAuth Apps
+3. Set the **callback URL** in your OAuth app to:
+   ```
+   https://your-supabase-project.supabase.co/auth/v1/callback
+   ```
+4. Set `NEXT_PUBLIC_API_URL` in Vercel to your production gateway URL.
+5. Flip the toggle in **Settings → SSO / Identity** inside the OSP dashboard to enable each provider for your tenant.
+6. Optionally configure **allowed domains** (e.g. `company.com`) so only your organization's accounts can sign in.
+
+> **Note:** SAML 2.0 / enterprise IdP federation requires the Supabase Enterprise plan. The OAuth providers above work on all Supabase plans.
+
 ### Deploy with Kubernetes
 
 ```bash
