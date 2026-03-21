@@ -12,7 +12,7 @@ Core differentiator: extension layer for custom rules, AI models, and white-labe
 
 - **Web**: Next.js 15 (App Router) + Tailwind CSS + shadcn/ui
 - **Mobile**: React Native + Expo (iOS + Android)
-- **Desktop**: Tauri v2 (Phase 2)
+- **Desktop**: Tauri v2
 - **State**: Zustand (client) + TanStack Query (server)
 - **Real-time**: WebSocket (alerts) + WebRTC (live camera feeds)
 
@@ -27,7 +27,7 @@ Core differentiator: extension layer for custom rules, AI models, and white-labe
 - **Primary DB**: Supabase (PostgreSQL + Auth + Realtime + RLS)
 - **Cache**: Redis (Upstash)
 - **Object Storage**: Cloudflare R2 (video clips, snapshots)
-- **Analytics**: ClickHouse (Phase 2)
+- **Analytics**: ClickHouse
 
 ### Infrastructure
 
@@ -53,7 +53,8 @@ osp/
 │   ├── camera-ingest/    # Go — camera connection management
 │   ├── video-pipeline/   # Go — transcoding, recording, storage
 │   ├── event-engine/     # Go — rule evaluation, notifications
-│   └── extension-runtime/# Go — sandboxed extension execution
+│   ├── extension-runtime/# Go — sandboxed extension execution
+│   └── edge-agent/       # Go — on-prem edge agent, offline buffer
 ├── infra/
 │   ├── docker/
 │   ├── k8s/
@@ -153,5 +154,6 @@ pnpm format        # Format with Prettier
 
 ## Planning Reference
 
-See `PLANNING.md` for the full PRD, architecture, technical design, and standards.
-See `docs/` for additional architecture diagrams and API specs.
+See `docs/HANDOFF.md` for the full feature inventory and project status.
+See `docs/PRODUCTION-CHECKLIST.md` for pre-launch requirements.
+See `docs/RUNBOOK.md` for deployment and operational procedures.
