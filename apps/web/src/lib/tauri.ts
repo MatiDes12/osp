@@ -79,3 +79,13 @@ export async function getAutostartEnabled(): Promise<boolean> {
   }
 }
 
+/** Returns whether the local go2rtc sidecar is running and reachable. */
+export async function getGo2rtcStatus(): Promise<boolean> {
+  const invoke = getInvoke();
+  if (!invoke) return false;
+  try {
+    return await invoke<boolean>("get_go2rtc_status");
+  } catch {
+    return false;
+  }
+}

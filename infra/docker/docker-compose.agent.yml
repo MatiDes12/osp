@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSP Agent — runs on the client's local network
+#
+# This is all a client needs to install on their NAS/server/PC.
+# It connects to the OSP cloud gateway for auth, rules, and data.
+# go2rtc handles all local camera streams (RTSP/ONVIF/USB).
+#
+# Setup:
+#   1. Copy .env.agent.example to .env.agent and fill in your values
+#   2. docker compose -f docker-compose.agent.yml up -d
+#
+# Requirements: Docker + Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── go2rtc: camera stream proxy ──────────────────────────────────────────
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: osp-go2rtc
+    network_mode: host          # Required for ONVIF/mDNS camera discovery
+    restart: unless-stopped
+    volumes:
+      - ./go2rtc.agent.yaml:/config/go2rtc.yaml:ro
+      - go2rtc-data:/data
+    environment:
+      - TZ=${TZ:-UTC}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:1984/api/streams"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── OSP Agent: registers cameras with cloud gateway ──────────────────────
+  osp-agent:
+    image: ghcr.io/matides12/osp-camera-ingest:latest
+    container_name: osp-agent
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      go2rtc:
+        condition: service_healthy
+    environment:
+      - GATEWAY_URL=${GATEWAY_URL:-https://osp-gateway.fly.dev}
+      - TENANT_ID=${TENANT_ID}
+      - API_TOKEN=${API_TOKEN}
+      - GO2RTC_URL=http://localhost:1984
+      - GRPC_PORT=${GRPC_PORT:-50051}
+      - TZ=${TZ:-UTC}
+
+volumes:
+  go2rtc-data:

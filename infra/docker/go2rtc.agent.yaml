@@ -1,0 +1,17 @@
+# go2rtc config for OSP Agent
+# Cameras are registered dynamically by the OSP agent — no manual config needed.
+
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+  candidates:
+    - stun:stun.l.google.com:19302
+
+log:
+  level: info

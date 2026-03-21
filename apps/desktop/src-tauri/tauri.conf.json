@@ -7,7 +7,7 @@
     "beforeDevCommand": "",
     "devUrl": "http://localhost:3001/login",
     "beforeBuildCommand": "",
-    "frontendDist": "../"
+    "frontendDist": "https://osp-web-eight.vercel.app"
   },
   "app": {
     "windows": [
@@ -43,6 +43,9 @@
     ],
     "category": "Utility",
     "shortDescription": "Open Surveillance Platform desktop client",
-    "longDescription": "Monitor and manage your security cameras from the desktop with system tray integration, OS notifications, and auto-start support."
+    "longDescription": "Monitor and manage your security cameras from the desktop with system tray integration, OS notifications, and auto-start support.",
+    "externalBin": [
+      "binaries/go2rtc"
+    ]
   }
 }

@@ -9,6 +9,15 @@ import { CameraGrid } from "@/components/camera/CameraGrid";
 import { BulkActionBar } from "@/components/camera/BulkActionBar";
 import { AddCameraDialog } from "@/components/camera/AddCameraDialog";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import {
+  DesktopSetupWizard,
+  DESKTOP_SETUP_KEY,
+} from "@/components/onboarding/DesktopSetupWizard";
+import {
+  WebAgentSetupWizard,
+  WEB_SETUP_KEY,
+} from "@/components/onboarding/WebAgentSetupWizard";
+import { isTauri } from "@/lib/tauri";
 import { ActivityTicker } from "@/components/dashboard/ActivityTicker";
 import { PageError } from "@/components/PageError";
 import { MapPin, Tag, Check } from "lucide-react";
@@ -36,6 +45,8 @@ export default function CamerasPage() {
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [desktopSetupDone, setDesktopSetupDone] = useState(true); // true = don't show by default
+  const [webSetupDone, setWebSetupDone] = useState(true); // true = don't show by default
 
   // Selection state
   const [selectedCameraIds, setSelectedCameraIds] = useState<Set<string>>(new Set());
@@ -81,18 +92,24 @@ export default function CamerasPage() {
     return () => { cancelled = true; };
   }, [loading]);
 
-  // Check if onboarding is complete on mount
+  // Check setup / onboarding state on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const complete = localStorage.getItem("osp_onboarding_complete");
-      if (complete) {
-        setOnboardingDismissed(true);
-      }
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("osp_onboarding_complete")) {
+      setOnboardingDismissed(true);
+    }
+    // Desktop setup: show only in Tauri and only if not already done/skipped
+    if (isTauri()) {
+      setDesktopSetupDone(!!localStorage.getItem(DESKTOP_SETUP_KEY));
+    } else {
+      setWebSetupDone(!!localStorage.getItem(WEB_SETUP_KEY));
     }
   }, []);
 
+  const showDesktopSetup = !loading && isTauri() && !desktopSetupDone;
+  const showWebSetup = !loading && !isTauri() && !webSetupDone;
   const showOnboarding =
-    !loading && !onboardingDismissed && cameras.length === 0;
+    !loading && !showDesktopSetup && !showWebSetup && !onboardingDismissed && cameras.length === 0;
 
   // Fetch camera tag assignments — depends on stable camera IDs, not array reference
   useEffect(() => {
@@ -370,6 +387,26 @@ export default function CamerasPage() {
         onClose={() => setDialogOpen(false)}
         onSubmit={handleAddCamera}
       />
+
+      {/* Desktop one-time setup (Tauri only) */}
+      {showDesktopSetup && (
+        <DesktopSetupWizard
+          onComplete={() => {
+            setDesktopSetupDone(true);
+            setDialogOpen(true);
+          }}
+        />
+      )}
+
+      {/* Web agent setup (browser only) */}
+      {showWebSetup && (
+        <WebAgentSetupWizard
+          onComplete={() => {
+            setWebSetupDone(true);
+            setDialogOpen(true);
+          }}
+        />
+      )}
 
       {/* Onboarding wizard for first-time users */}
       {showOnboarding && (

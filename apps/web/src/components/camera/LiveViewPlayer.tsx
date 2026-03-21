@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { isTauri } from "@/lib/tauri";
 
 interface LiveViewPlayerProps {
   readonly cameraId: string;
@@ -291,13 +292,27 @@ export function LiveViewPlayer({
     setState("loading");
     setErrorMessage(null);
     try {
-      const response = await fetch(
-        `${API_URL}/api/v1/cameras/${cameraId}/stream`,
-        { headers: getAuthHeaders() },
-      );
-      if (!response.ok) throw new Error(`Failed to fetch stream info (${response.status})`);
-      const json = await response.json();
-      const info: StreamInfo = json.data ?? json;
+      let info: StreamInfo;
+
+      if (isTauri()) {
+        // Desktop: go2rtc runs locally as a sidecar — connect directly
+        const go2rtcBase = "http://localhost:1984";
+        info = {
+          whepUrl: `${go2rtcBase}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
+          token: "",
+          fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+          iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+        };
+      } else {
+        const response = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/stream`,
+          { headers: getAuthHeaders() },
+        );
+        if (!response.ok) throw new Error(`Failed to fetch stream info (${response.status})`);
+        const json = await response.json();
+        info = json.data ?? json;
+      }
+
       setStreamInfo(info);
       streamInfoRef.current = info;
       await connectWebRTC(info);
@@ -427,7 +442,9 @@ export function LiveViewPlayer({
 
   // HLS fallback mode
   if (state === "fallback") {
-    const go2rtcUrl = process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984";
+    const go2rtcUrl = isTauri()
+      ? "http://localhost:1984"
+      : (process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984");
     const mjpegUrl = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
     return (
       <div className={`relative ${className ?? ""}`}>

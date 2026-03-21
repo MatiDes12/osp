@@ -1,8 +1,14 @@
+use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WebviewWindow,
 };
+use tauri_plugin_shell::ShellExt;
+
+// ── go2rtc sidecar state ────────────────────────────────────────────────────
+
+struct Go2rtcProcess(Mutex<Option<tauri_plugin_shell::process::CommandChild>>);
 
 // ── Tauri commands ─────────────────────────────────────────────────────────────
 
@@ -79,6 +85,74 @@ fn show_main_window(app: tauri::AppHandle) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+// ── go2rtc sidecar management ──────────────────────────────────────────────────
+
+/// Writes a minimal go2rtc config to the app data dir and starts the sidecar.
+fn start_go2rtc(app: &tauri::App) {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .expect("failed to get app data dir");
+    std::fs::create_dir_all(&data_dir).ok();
+
+    let config_path = data_dir.join("go2rtc.yaml");
+    let config = r#"api:
+  listen: ":1984"
+  origin: "*"
+rtsp:
+  listen: ":8554"
+webrtc:
+  listen: ":8555"
+  candidates:
+    - stun:stun.l.google.com:19302
+log:
+  level: warn
+"#;
+    std::fs::write(&config_path, config).ok();
+
+    let config_str = config_path.to_string_lossy().to_string();
+
+    match app
+        .shell()
+        .sidecar("go2rtc")
+        .expect("go2rtc sidecar not found")
+        .args(["-config", &config_str])
+        .spawn()
+    {
+        Ok((_rx, child)) => {
+            app.manage(Go2rtcProcess(Mutex::new(Some(child))));
+            eprintln!("[OSP] go2rtc started");
+        }
+        Err(e) => {
+            eprintln!("[OSP] Failed to start go2rtc: {e}");
+            app.manage(Go2rtcProcess(Mutex::new(None)));
+        }
+    }
+}
+
+/// Kills go2rtc when the app quits.
+fn stop_go2rtc(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<Go2rtcProcess>() {
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(child) = guard.take() {
+                let _ = child.kill();
+                eprintln!("[OSP] go2rtc stopped");
+            }
+        }
+    }
+}
+
+// ── Tauri commands: go2rtc status ──────────────────────────────────────────
+
+/// Returns whether the local go2rtc instance is reachable.
+#[tauri::command]
+async fn get_go2rtc_status() -> bool {
+    reqwest::get("http://localhost:1984/api/streams")
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
 }
 
 // ── Tray setup ─────────────────────────────────────────────────────────────────
@@ -159,6 +233,9 @@ pub fn run() {
         .setup(|app| {
             build_tray(app)?;
 
+            // Start go2rtc sidecar for local camera streaming
+            start_go2rtc(app);
+
             // Minimize to tray on window close instead of quitting
             let window = app.get_webview_window("main").unwrap();
             let window_clone = window.clone();
@@ -171,13 +248,20 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|_window, _event| {})
         .invoke_handler(tauri::generate_handler![
             update_tray_status,
             show_os_notification,
             toggle_autostart,
             get_autostart_enabled,
             show_main_window,
+            get_go2rtc_status,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running OSP desktop application");
+        .build(tauri::generate_context!())
+        .expect("error while running OSP desktop application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                stop_go2rtc(app);
+            }
+        });
 }
