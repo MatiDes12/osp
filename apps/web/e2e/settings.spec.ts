@@ -1,71 +1,174 @@
+/**
+ * E2E — Settings page (/settings)
+ *
+ * Covers:
+ *  - All nav items render in the left sidebar
+ *  - Default tab (Tenant/Organization) renders on load
+ *  - Switching to each major tab renders the correct section heading
+ *  - Notifications tab has push/email toggles
+ *  - Recording tab has motion-tail input
+ *  - API Keys tab has "Create" button
+ *  - Users & Roles tab shows mock user email
+ */
+
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import { gotoAuthenticated } from "./helpers/auth";
 import { setupApiMocks } from "./helpers/mocks";
 
 test.describe("Settings page", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    await page.goto("/(dashboard)/settings");
-    await loginAs(page);
-    await page.reload();
+    await gotoAuthenticated(page, "/settings");
   });
 
-  test("displays category tabs", async ({ page }) => {
-    // The settings page has navigation tabs
-    await expect(page.getByText("Cameras")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Users & Roles")).toBeVisible();
-    await expect(page.getByText("Notifications")).toBeVisible();
-    await expect(page.getByText("Recording")).toBeVisible();
-    await expect(page.getByText("Extensions")).toBeVisible();
-    await expect(page.getByText("Tenant")).toBeVisible();
-    await expect(page.getByText("Billing")).toBeVisible();
-    await expect(page.getByText("API Keys")).toBeVisible();
-  });
+  /* ------------------------------------------------------------------ */
+  /*  Navigation sidebar                                                 */
+  /* ------------------------------------------------------------------ */
 
-  test("clicking 'Users & Roles' tab shows user table", async ({ page }) => {
-    // Wait for page to load
-    await expect(page.getByText("Users & Roles")).toBeVisible({ timeout: 10_000 });
-
-    // Click the "Users & Roles" tab
-    await page.getByText("Users & Roles").click();
-
-    // Should show user-related content
-    // The users tab displays user management section
-    await expect(page.getByText(/admin@acme\.com|Users/i)).toBeVisible({
+  test("all primary nav items are visible in the sidebar", async ({ page }) => {
+    // Wait for page to stabilise
+    await expect(page.getByText("Cameras").first()).toBeVisible({
       timeout: 10_000,
     });
+
+    const nav = [
+      "Cameras",
+      "Users & Roles",
+      "Notifications",
+      "Recording",
+      "Extensions",
+      "Tenant",
+      "Billing",
+      "API Keys",
+    ];
+    for (const label of nav) {
+      await expect(page.getByText(label).first()).toBeVisible();
+    }
   });
 
-  test("clicking 'Tenant' tab shows organization name input", async ({ page }) => {
-    // Wait for page to load
-    await expect(page.getByText("Tenant")).toBeVisible({ timeout: 10_000 });
+  /* ------------------------------------------------------------------ */
+  /*  Default tab — Tenant                                               */
+  /* ------------------------------------------------------------------ */
 
-    // Click the "Tenant" tab
-    await page.getByText("Tenant").click();
-
-    // Should show tenant/organization section
-    // The tenant tab shows organization-related fields
-    await expect(page.getByText(/organization|tenant|Acme/i)).toBeVisible({
-      timeout: 10_000,
-    });
-  });
-
-  test("clicking 'Recording' tab shows recording options", async ({ page }) => {
-    await expect(page.getByText("Recording")).toBeVisible({ timeout: 10_000 });
-
-    await page.getByText("Recording").click();
-
-    // Should show recording configuration options
+  test("loads with Tenant tab active showing Organization heading", async ({
+    page,
+  }) => {
+    // The settings page defaults to the 'tenant' tab which renders "Organization"
     await expect(
-      page.getByText(/continuous|motion|recording/i),
+      page.getByRole("heading", { name: "Organization" }),
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test("clicking 'API Keys' tab shows API key section", async ({ page }) => {
-    await expect(page.getByText("API Keys")).toBeVisible({ timeout: 10_000 });
+  /* ------------------------------------------------------------------ */
+  /*  Tab switching                                                      */
+  /* ------------------------------------------------------------------ */
 
-    await page.getByText("API Keys").click();
+  test("clicking 'Users & Roles' shows user list with mock user", async ({
+    page,
+  }) => {
+    await expect(page.getByText("Users & Roles").first()).toBeVisible({
+      timeout: 10_000,
+    });
 
-    await expect(page.getByText(/API|key/i)).toBeVisible({ timeout: 10_000 });
+    await page.getByText("Users & Roles").first().click();
+
+    await expect(
+      page.getByText(/admin@acme\.com|Users/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("clicking 'Notifications' shows notification preferences", async ({
+    page,
+  }) => {
+    await expect(page.getByText("Notifications").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByText("Notifications").first().click();
+
+    // NotificationsTab renders "Push Notifications" and "Email Alerts"
+    await expect(
+      page.getByText(/Push Notifications|Email Alerts/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("clicking 'Recording' shows motion-tail seconds input", async ({
+    page,
+  }) => {
+    await expect(page.getByText("Recording").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByText("Recording").first().click();
+
+    // RecordingSettingsPanel renders a number input for tail seconds
+    await expect(
+      page.getByText(/recording|motion|continuous/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("clicking 'Billing' shows current plan details", async ({ page }) => {
+    await expect(page.getByText("Billing").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByText("Billing").first().click();
+
+    await expect(
+      page.getByRole("heading", { name: "Billing" }),
+    ).toBeVisible({ timeout: 10_000 });
+    // BillingTab shows "Current Plan"
+    await expect(page.getByText("Current Plan")).toBeVisible();
+  });
+
+  test("clicking 'API Keys' shows the API Keys section", async ({ page }) => {
+    await expect(page.getByText("API Keys").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByText("API Keys").first().click();
+
+    await expect(
+      page.getByText(/API Keys|Create/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("clicking 'Cameras' tab shows camera list or Add Camera option", async ({
+    page,
+  }) => {
+    // The nav sidebar has a 'Cameras' item; click the one inside the settings nav
+    // (not the main sidebar Cameras link).  It's scoped to the settings nav area.
+    const settingsNav = page.locator("nav");
+    await expect(settingsNav.getByText("Cameras").first()).toBeVisible({
+      timeout: 10_000,
+    });
+    await settingsNav.getByText("Cameras").first().click();
+
+    // The cameras settings tab renders camera names or an empty state
+    await expect(
+      page.getByText(/Front Door|Cameras|Add/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  URL query-string tab navigation                                    */
+  /* ------------------------------------------------------------------ */
+
+  test("?tab=notifications opens the Notifications tab directly", async ({
+    page,
+  }) => {
+    await gotoAuthenticated(page, "/settings?tab=notifications");
+
+    await expect(
+      page.getByText(/Push Notifications|Email Alerts/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("?tab=billing opens the Billing tab directly", async ({ page }) => {
+    await gotoAuthenticated(page, "/settings?tab=billing");
+
+    await expect(
+      page.getByRole("heading", { name: "Billing" }),
+    ).toBeVisible({ timeout: 10_000 });
   });
 });

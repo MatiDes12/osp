@@ -1,96 +1,139 @@
+/**
+ * E2E — Rules engine (/rules)
+ *
+ * Covers:
+ *  - Rules list renders with mock data
+ *  - No selection shows placeholder text
+ *  - Clicking a rule opens the editor panel
+ *  - Editor panel shows trigger, conditions, actions blocks
+ *  - Editor has "Test Rule" and "Save" buttons
+ *  - Toggle switch enables/disables a rule
+ *  - Sort control buttons are visible
+ */
+
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import { gotoAuthenticated } from "./helpers/auth";
 import { setupApiMocks } from "./helpers/mocks";
 
 test.describe("Rules engine", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    await page.goto("/(dashboard)/rules");
-    await loginAs(page);
-    await page.reload();
+    await gotoAuthenticated(page, "/rules");
   });
 
-  test("displays rules list", async ({ page }) => {
-    await expect(page.getByText("Alert Rules")).toBeVisible({ timeout: 10_000 });
+  /* ------------------------------------------------------------------ */
+  /*  Rules list                                                         */
+  /* ------------------------------------------------------------------ */
 
-    // Mock rules
+  test("displays all rules from mock data", async ({ page }) => {
+    await expect(page.getByText("Alert Rules")).toBeVisible({
+      timeout: 10_000,
+    });
+
     await expect(page.getByText("Person at Front Door")).toBeVisible();
     await expect(page.getByText("Vehicle in Parking Lot")).toBeVisible();
     await expect(page.getByText("Camera Offline Alert")).toBeVisible();
   });
 
-  test("toggle rule enabled/disabled", async ({ page }) => {
-    // Wait for rules to load
+  test("shows 'Select a rule to edit' placeholder when no rule selected", async ({
+    page,
+  }) => {
+    await expect(
+      page.getByText("Select a rule to edit"),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Rule editor                                                        */
+  /* ------------------------------------------------------------------ */
+
+  test("clicking a rule opens the editor with trigger / conditions / actions", async ({
+    page,
+  }) => {
     await expect(page.getByText("Person at Front Door")).toBeVisible({
       timeout: 10_000,
     });
 
-    // Find the toggle switch for the first rule
-    // The toggles are role="switch" with aria-label containing the rule name
+    await page.getByText("Person at Front Door").click();
+
+    await expect(page.getByText("When this happens")).toBeVisible();
+    await expect(
+      page.getByText("If these conditions are met"),
+    ).toBeVisible();
+    await expect(page.getByText("Then do this")).toBeVisible();
+  });
+
+  test("rule editor shows Trigger Type label", async ({ page }) => {
+    await expect(page.getByText("Person at Front Door")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByText("Person at Front Door").click();
+
+    await expect(page.getByText("Trigger Type")).toBeVisible();
+  });
+
+  test("rule editor shows configured actions", async ({ page }) => {
+    await expect(page.getByText("Person at Front Door")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByText("Person at Front Door").click();
+
+    await expect(page.getByText("Push Notification")).toBeVisible();
+    await expect(page.getByText("Email")).toBeVisible();
+  });
+
+  test("rule editor shows 'Test Rule' and 'Save' buttons", async ({
+    page,
+  }) => {
+    await expect(page.getByText("Person at Front Door")).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByText("Person at Front Door").click();
+
+    await expect(
+      page.getByRole("button", { name: "Test Rule" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save" }),
+    ).toBeVisible();
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Toggle switch                                                      */
+  /* ------------------------------------------------------------------ */
+
+  test("rule toggle switch is interactive", async ({ page }) => {
+    await expect(page.getByText("Person at Front Door")).toBeVisible({
+      timeout: 10_000,
+    });
+
     const toggleSwitch = page.getByRole("switch", {
       name: /Person at Front Door/i,
     });
     await expect(toggleSwitch).toBeVisible();
 
-    // Click to toggle
+    // Click to toggle — mock returns success so no error is expected
     await toggleSwitch.click();
-
-    // The API mock returns success, so the UI should update
-    // (The switch should change state)
     await expect(toggleSwitch).toBeVisible();
   });
 
-  test("selecting a rule shows editor panel with trigger, conditions, actions", async ({
-    page,
-  }) => {
-    // Wait for rules to load
+  /* ------------------------------------------------------------------ */
+  /*  Sort controls                                                      */
+  /* ------------------------------------------------------------------ */
+
+  test("sort control buttons are visible", async ({ page }) => {
     await expect(page.getByText("Person at Front Door")).toBeVisible({
       timeout: 10_000,
     });
 
-    // Click a rule to select it
-    await page.getByText("Person at Front Door").click();
-
-    // Editor panel should show the three blocks
-    await expect(page.getByText("When this happens")).toBeVisible();
-    await expect(page.getByText("If these conditions are met")).toBeVisible();
-    await expect(page.getByText("Then do this")).toBeVisible();
-
-    // Trigger shows event type
-    await expect(page.getByText("Trigger Type")).toBeVisible();
-
-    // Actions block shows configured actions
-    await expect(page.getByText("Push Notification")).toBeVisible();
-    await expect(page.getByText("Email")).toBeVisible();
-  });
-
-  test("rule editor shows 'Test Rule' and 'Save' buttons", async ({ page }) => {
-    // Wait and select a rule
-    await expect(page.getByText("Person at Front Door")).toBeVisible({
-      timeout: 10_000,
-    });
-    await page.getByText("Person at Front Door").click();
-
-    await expect(page.getByRole("button", { name: "Test Rule" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save" })).toBeVisible();
-  });
-
-  test("no rule selected shows placeholder", async ({ page }) => {
-    await expect(page.getByText("Select a rule to edit")).toBeVisible({
-      timeout: 10_000,
-    });
-  });
-
-  test("sort controls are visible", async ({ page }) => {
-    await expect(page.getByText("Person at Front Door")).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // Sort buttons
-    await expect(page.getByRole("button", { name: "Name" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Name" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Last Triggered" }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Created" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Created" }),
+    ).toBeVisible();
   });
 });

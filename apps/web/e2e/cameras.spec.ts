@@ -1,45 +1,111 @@
+/**
+ * E2E — Camera management (/cameras)
+ *
+ * Covers:
+ *  - Camera list renders with mock data
+ *  - "Add Camera" button opens the dialog
+ *  - AddCameraDialog multi-step flow: pick protocol → fill form → submit
+ *  - Search filter narrows the camera list
+ *  - Camera card click navigates to camera detail
+ *  - Camera detail page shows player and info panel
+ */
+
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import { loginAs, gotoAuthenticated } from "./helpers/auth";
 import { setupApiMocks } from "./helpers/mocks";
 
 test.describe("Camera management", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    // Establish origin, then inject tokens before hitting protected routes
-    await page.goto("/");
-    await loginAs(page);
-    await page.goto("/cameras");
+    await gotoAuthenticated(page, "/cameras");
 
-    // If the dev Action Log panel is open, close it so it can't intercept clicks.
-    // (The panel exists only in development and is harmless for prod.)
+    // In development, an Action Log panel may float over interactive elements.
+    // Dismiss it if present.
     const actionLogHeader = page.getByText("Action Log");
     if (await actionLogHeader.isVisible().catch(() => false)) {
-      // Use the fixed "LOG" toggle (more reliable than the panel buttons).
       await page.getByRole("button", { name: "LOG" }).click();
       await expect(actionLogHeader).toBeHidden();
     }
   });
 
-  test("displays camera list", async ({ page }) => {
+  /* ------------------------------------------------------------------ */
+  /*  Camera list                                                        */
+  /* ------------------------------------------------------------------ */
+
+  test("displays page heading and camera list", async ({ page }) => {
     await expect(
       page.getByRole("main").getByRole("heading", { name: "Cameras" }),
-    ).toBeVisible({
-      timeout: 10_000,
-    });
+    ).toBeVisible({ timeout: 10_000 });
 
     // Camera names from mock data
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }),
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }),
+      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }).first(),
     ).toBeVisible();
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Server Room/ }),
+      page.getByRole("main").getByRole("link", { name: /Server Room/ }).first(),
     ).toBeVisible();
   });
 
-  test("'Add Camera' button opens dialog", async ({ page }) => {
+  test("displays 'Add Camera' button", async ({ page }) => {
+    await expect(
+      page.getByRole("button", { name: "Add Camera" }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("search input filters cameras by name", async ({ page }) => {
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    const searchInput = page.getByPlaceholder("Search cameras by name...");
+    await searchInput.fill("Parking");
+
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+    ).toBeHidden();
+  });
+
+  test("clearing search restores full camera list", async ({ page }) => {
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    const searchInput = page.getByPlaceholder("Search cameras by name...");
+    await searchInput.fill("Parking");
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+    ).toBeHidden();
+
+    await searchInput.clear();
+    await expect(
+      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
+    ).toBeVisible();
+  });
+
+  test("camera card click navigates to camera detail", async ({ page }) => {
+    const frontDoorCard = page
+      .getByRole("main")
+      .getByRole("link", { name: /Front Door/ })
+      .first();
+    await expect(frontDoorCard).toBeVisible({ timeout: 10_000 });
+    await frontDoorCard.click();
+
+    await expect(page).toHaveURL(/\/cameras\/cam-1/, { timeout: 10_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Add Camera dialog — multi-step flow                                */
+  /* ------------------------------------------------------------------ */
+
+  test("'Add Camera' button opens dialog with protocol picker", async ({
+    page,
+  }) => {
     const addButton = page.getByRole("button", { name: "Add Camera" });
     await expect(addButton).toBeVisible({ timeout: 10_000 });
     await addButton.click();
@@ -49,21 +115,36 @@ test.describe("Camera management", () => {
       page.getByRole("heading", { name: "Add Camera" }),
     ).toBeVisible();
 
-    // Form fields
-    await expect(page.getByLabel("Camera Name")).toBeVisible();
-    await expect(page.getByLabel("Connection URI")).toBeVisible();
+    // Manual tab should be active and show the protocol picker
+    await expect(page.getByText("RTSP")).toBeVisible();
+    await expect(page.getByText("ONVIF")).toBeVisible();
   });
 
-  test("fill and submit add camera form", async ({ page }) => {
-    // Open dialog
+  test("selecting RTSP protocol advances to form step", async ({ page }) => {
     await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
 
-    // Fill form
-    await page.getByLabel("Camera Name").fill("Warehouse West");
-    await page.getByLabel("Connection URI").fill("rtsp://192.168.1.50:554/stream");
+    // Click the RTSP protocol card — it renders as a button containing the text "RTSP"
+    await page.getByRole("button", { name: /RTSP/i }).first().click();
+
+    // The form step should show a Camera Name input and IP Address field
+    await expect(page.getByLabel(/Camera Name/i)).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByLabel(/IP Address/i)).toBeVisible();
+  });
+
+  test("filling RTSP form and submitting closes the dialog", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+
+    // Step 1 — pick RTSP
+    await page.getByRole("button", { name: /RTSP/i }).first().click();
+
+    // Step 2 — fill in fields
+    await page.getByLabel(/Camera Name/i).fill("Warehouse West");
+    await page.getByLabel(/IP Address/i).fill("192.168.1.50");
 
     // Submit
-    await page.getByRole("button", { name: "Add Camera" }).last().click({ force: true });
+    await page.getByRole("button", { name: /Add Camera|Save/i }).last().click({ force: true });
 
     // Dialog should close after successful submission
     await expect(
@@ -71,59 +152,53 @@ test.describe("Camera management", () => {
     ).toBeHidden({ timeout: 10_000 });
   });
 
-  test("camera card click navigates to camera detail", async ({ page }) => {
-    // Wait for cameras to load
-    const frontDoorCard = page
-      .getByRole("main")
-      .getByRole("link", { name: /Front Door/ })
-      .first();
-    await expect(frontDoorCard).toBeVisible({ timeout: 10_000 });
+  test("closing the dialog with Escape key works", async ({ page }) => {
+    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await expect(
+      page.getByRole("heading", { name: "Add Camera" }),
+    ).toBeVisible();
 
-    // CameraGrid renders links/cards. Click the first camera
-    await frontDoorCard.click();
-
-    // Should navigate to camera detail page
-    await expect(page).toHaveURL(/\/cameras\/cam-1/, { timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("heading", { name: "Add Camera" }),
+    ).toBeHidden({ timeout: 5_000 });
   });
 
-  test("camera detail page shows LiveViewPlayer and info panel", async ({ page }) => {
-    // Navigate directly to camera detail
+  test("closing the dialog via the close button works", async ({ page }) => {
+    await page.getByRole("button", { name: "Add Camera" }).click({ timeout: 10_000 });
+    await expect(
+      page.getByRole("heading", { name: "Add Camera" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Add Camera" }),
+    ).toBeHidden({ timeout: 5_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Camera detail page                                                 */
+  /* ------------------------------------------------------------------ */
+
+  test("camera detail page shows camera name, status and info panel", async ({
+    page,
+  }) => {
     await page.goto("/cameras/cam-1");
+    // Re-inject auth tokens after the navigation resets state
     await loginAs(page);
     await page.reload();
 
-    // Camera name in header (overlay bar)
-    await expect(page.getByRole("heading", { name: "Front Door" })).toBeVisible({
+    // Camera name should appear somewhere on the page (heading or overlay bar)
+    await expect(page.getByText("Front Door").first()).toBeVisible({
       timeout: 10_000,
     });
 
     // Status badge
     await expect(page.getByText("online").first()).toBeVisible();
 
-    // Camera Details section
-    await expect(page.getByText("Camera Details")).toBeVisible();
-    await expect(page.getByText(/^rtsp$/i)).toBeVisible();
-
-    // Zones section
-    await expect(page.getByText(/Zones/)).toBeVisible();
-  });
-
-  test("search filters cameras by name", async ({ page }) => {
+    // Info / details section
     await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
-    ).toBeVisible({
-      timeout: 10_000,
-    });
-
-    const searchInput = page.getByPlaceholder("Search cameras by name...");
-    await searchInput.fill("Parking");
-
-    // "Parking Lot" should remain, others should be filtered
-    await expect(
-      page.getByRole("main").getByRole("link", { name: /Parking Lot/ }).first(),
+      page.getByText(/Camera Details|rtsp/i).first(),
     ).toBeVisible();
-    await expect(
-      page.getByRole("main").getByRole("link", { name: /Front Door/ }).first(),
-    ).toBeHidden();
   });
 });

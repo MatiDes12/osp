@@ -16,6 +16,7 @@ export const MOCK_CAMERAS = [
     manufacturer: "Hikvision",
     model: "DS-2CD2143G0-I",
     firmwareVersion: "5.6.3",
+    locationId: null,
     location: { label: "Building A" },
     capabilities: { resolution: "2560x1440" },
     config: { recordingMode: "continuous" },
@@ -34,6 +35,7 @@ export const MOCK_CAMERAS = [
     manufacturer: "Dahua",
     model: "IPC-HDW5442T",
     firmwareVersion: "2.8.1",
+    locationId: null,
     location: { label: "Lot B" },
     capabilities: { resolution: "1920x1080" },
     config: { recordingMode: "motion" },
@@ -52,6 +54,7 @@ export const MOCK_CAMERAS = [
     manufacturer: "Axis",
     model: "P3245-V",
     firmwareVersion: "10.12.0",
+    locationId: null,
     location: { label: "Floor 2" },
     capabilities: { resolution: "1920x1080" },
     config: { recordingMode: "off" },
@@ -131,7 +134,9 @@ export const MOCK_EVENTS = [
 export const MOCK_EVENT_SUMMARY = {
   total: 4,
   unacknowledged: 3,
+  byType: { person: 1, vehicle: 1, motion: 1, camera_offline: 1 },
   bySeverity: { critical: 1, high: 1, medium: 1, low: 1 },
+  byCamera: { "cam-1": 2, "cam-2": 1, "cam-3": 1 },
 } as const;
 
 export const MOCK_ZONES = [
@@ -164,9 +169,7 @@ export const MOCK_RULES = [
     enabled: true,
     conditions: {
       operator: "AND",
-      children: [
-        { field: "confidence", operator: "gt", value: 0.8 },
-      ],
+      children: [{ field: "confidence", operator: "gt", value: 0.8 }],
     },
     actions: [
       { type: "push_notification", config: {} },
@@ -185,13 +188,8 @@ export const MOCK_RULES = [
     triggerEvent: "vehicle",
     cameraIds: ["cam-2"],
     enabled: false,
-    conditions: {
-      operator: "AND",
-      children: [],
-    },
-    actions: [
-      { type: "start_recording", config: {} },
-    ],
+    conditions: { operator: "AND", children: [] },
+    actions: [{ type: "start_recording", config: {} }],
     lastTriggeredAt: null,
     triggerCount24h: 0,
     createdAt: "2025-02-01T00:00:00Z",
@@ -205,13 +203,8 @@ export const MOCK_RULES = [
     triggerEvent: "camera_offline",
     cameraIds: [],
     enabled: true,
-    conditions: {
-      operator: "AND",
-      children: [],
-    },
-    actions: [
-      { type: "webhook", config: { url: "https://hooks.slack.com/xxx" } },
-    ],
+    conditions: { operator: "AND", children: [] },
+    actions: [{ type: "webhook", config: { url: "https://hooks.slack.com/xxx" } }],
     lastTriggeredAt: new Date(Date.now() - 86_400_000).toISOString(),
     triggerCount24h: 1,
     createdAt: "2025-03-01T00:00:00Z",
@@ -247,6 +240,7 @@ export const MOCK_TENANT = {
   name: "Acme Corp",
   slug: "acme-corp",
   plan: "pro",
+  status: "active",
   maxCameras: 16,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: new Date().toISOString(),
@@ -265,6 +259,17 @@ export const MOCK_RECORDINGS = [
   },
 ] as const;
 
+export const MOCK_ACTIVITY = [
+  {
+    id: "act-1",
+    cameraId: "cam-1",
+    cameraName: "Front Door",
+    type: "motion",
+    severity: "low",
+    detectedAt: new Date().toISOString(),
+  },
+] as const;
+
 /* ------------------------------------------------------------------ */
 /*  Route interceptor                                                  */
 /* ------------------------------------------------------------------ */
@@ -276,7 +281,7 @@ const API_BASE = "http://localhost:3000";
  * Call this early in each test that needs a mocked API backend.
  */
 export async function setupApiMocks(page: Page): Promise<void> {
-  // Auth endpoints
+  // ── Auth ────────────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/auth/login`, (route) =>
     route.fulfill({
       status: 200,
@@ -305,7 +310,35 @@ export async function setupApiMocks(page: Page): Promise<void> {
     }),
   );
 
-  // Cameras
+  // ── Tenants ─────────────────────────────────────────────────────────────
+  // Both /api/v1/tenant and /api/v1/tenants variants are used across pages
+  await page.route(`${API_BASE}/api/v1/tenant**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { ...MOCK_TENANT } }),
+    }),
+  );
+
+  await page.route(`${API_BASE}/api/v1/tenants/**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          plan: "pro",
+          cameras: { used: 3, limit: 16 },
+          users: { used: 2, limit: 10 },
+          storage: { usedBytes: 536_870_912, limitBytes: 107_374_182_400 },
+          extensions: { used: 1, limit: 5 },
+          recordings: { totalCount: 1, totalDurationHours: 1 },
+        },
+      }),
+    }),
+  );
+
+  // ── Cameras ─────────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/cameras`, (route) => {
     if (route.request().method() === "POST") {
       const newCamera = {
@@ -327,8 +360,8 @@ export async function setupApiMocks(page: Page): Promise<void> {
     });
   });
 
-  // Camera detail
-  await page.route(`${API_BASE}/api/v1/cameras/cam-*`, (route) => {
+  // Camera detail, zones, tags, stream
+  await page.route(`${API_BASE}/api/v1/cameras/**`, (route) => {
     const url = route.request().url();
 
     if (url.includes("/zones")) {
@@ -339,10 +372,48 @@ export async function setupApiMocks(page: Page): Promise<void> {
       });
     }
 
-    // Single camera
-    const idMatch = url.match(/cameras\/(cam-[^/]+)/);
+    if (url.includes("/tags")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    }
+
+    if (url.includes("/stream")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { url: "http://localhost:1984/stream" } }),
+      });
+    }
+
+    if (url.includes("/test")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: { reachable: true } }),
+      });
+    }
+
+    if (url.includes("/discover")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          data: { cameras: [], usb: [], network: [], scanDurationMs: 500 },
+        }),
+      });
+    }
+
+    // Single camera by ID
+    const idMatch = url.match(/cameras\/(cam-[^/?#]+)/);
     const cameraId = idMatch?.[1] ?? "cam-1";
-    const camera = MOCK_CAMERAS.find((c) => c.id === cameraId) ?? MOCK_CAMERAS[0];
+    const camera =
+      (MOCK_CAMERAS as readonly (typeof MOCK_CAMERAS)[number][]).find(
+        (c) => c.id === cameraId,
+      ) ?? MOCK_CAMERAS[0];
     return route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -350,11 +421,28 @@ export async function setupApiMocks(page: Page): Promise<void> {
     });
   });
 
-  // Events
+  // ── Locations ───────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/locations**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── Tags ────────────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/tags**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── Events ──────────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/events**`, (route) => {
     const url = route.request().url();
 
-    // Acknowledge endpoint
     if (url.includes("/acknowledge")) {
       return route.fulfill({
         status: 200,
@@ -363,7 +451,14 @@ export async function setupApiMocks(page: Page): Promise<void> {
       });
     }
 
-    // Summary endpoint
+    if (url.includes("/bulk-acknowledge")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true, data: null }),
+      });
+    }
+
     if (url.includes("/summary")) {
       return route.fulfill({
         status: 200,
@@ -372,15 +467,27 @@ export async function setupApiMocks(page: Page): Promise<void> {
       });
     }
 
-    // Event list
+    if (url.includes("/stream")) {
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: "",
+      });
+    }
+
+    // Event list with pagination meta
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ success: true, data: [...MOCK_EVENTS] }),
+      body: JSON.stringify({
+        success: true,
+        data: [...MOCK_EVENTS],
+        meta: { total: 4, page: 1, limit: 50, hasMore: false },
+      }),
     });
   });
 
-  // Rules
+  // ── Rules ───────────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/rules**`, (route) => {
     if (route.request().method() === "PATCH") {
       return route.fulfill({
@@ -396,7 +503,7 @@ export async function setupApiMocks(page: Page): Promise<void> {
     });
   });
 
-  // Users
+  // ── Users ────────────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/users**`, (route) =>
     route.fulfill({
       status: 200,
@@ -405,16 +512,7 @@ export async function setupApiMocks(page: Page): Promise<void> {
     }),
   );
 
-  // Tenant
-  await page.route(`${API_BASE}/api/v1/tenant**`, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ success: true, data: { ...MOCK_TENANT } }),
-    }),
-  );
-
-  // Recordings
+  // ── Recordings ───────────────────────────────────────────────────────────
   await page.route(`${API_BASE}/api/v1/recordings**`, (route) =>
     route.fulfill({
       status: 200,
@@ -423,12 +521,75 @@ export async function setupApiMocks(page: Page): Promise<void> {
     }),
   );
 
-  // SSE event stream - return empty response to prevent hanging
-  await page.route(`${API_BASE}/api/v1/events/stream**`, (route) =>
+  // ── Activity feed ────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/activity**`, (route) =>
     route.fulfill({
       status: 200,
-      contentType: "text/event-stream",
-      body: "",
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [...MOCK_ACTIVITY] }),
+    }),
+  );
+
+  // ── Extensions ───────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/extensions**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── Marketplace ──────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/marketplace**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── API Keys ─────────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/api-keys**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── Config / secrets ─────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/config**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { value: "10000" } }),
+    }),
+  );
+
+  // ── SSO providers ─────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/sso**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── LPR ──────────────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/lpr**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
+    }),
+  );
+
+  // ── Edge agents ──────────────────────────────────────────────────────────
+  await page.route(`${API_BASE}/api/v1/edge**`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: [] }),
     }),
   );
 }

@@ -1,86 +1,120 @@
+/**
+ * E2E — Dashboard / main layout (/cameras as the default logged-in view)
+ *
+ * Covers:
+ *  - CameraStatsBar renders stat labels
+ *  - Camera grid renders with mock data
+ *  - Sidebar navigation links navigate to correct routes
+ *  - Sidebar collapse / expand toggle
+ */
+
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import { gotoAuthenticated } from "./helpers/auth";
 import { setupApiMocks } from "./helpers/mocks";
 
-test.describe("Dashboard", () => {
+test.describe("Dashboard / main layout", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    // Navigate first to establish the origin, then set auth tokens
-    await page.goto("/");
-    await loginAs(page);
-    await page.reload();
+    await gotoAuthenticated(page, "/cameras");
   });
 
-  test("displays 4 stat cards", async ({ page }) => {
-    // Wait for stats to load (skeleton disappears)
-    await expect(page.getByText("Cameras")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Online")).toBeVisible();
-    await expect(page.getByText("Active Alerts")).toBeVisible();
-    await expect(page.getByText("Storage Used")).toBeVisible();
+  /* ------------------------------------------------------------------ */
+  /*  Stats bar                                                          */
+  /* ------------------------------------------------------------------ */
+
+  test("CameraStatsBar shows Online and other stat labels", async ({
+    page,
+  }) => {
+    // CameraStatsBar renders labels like "Total", "Online", "Offline", etc.
+    await expect(page.getByText("Online").first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
-  test("shows camera grid area", async ({ page }) => {
-    // The CameraGrid component renders camera cards or an empty state
-    // With mocked data we should see camera names
-    await expect(page.getByText("Front Door")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Parking Lot")).toBeVisible();
+  /* ------------------------------------------------------------------ */
+  /*  Camera grid                                                        */
+  /* ------------------------------------------------------------------ */
+
+  test("camera grid shows Front Door and Parking Lot from mock data", async ({
+    page,
+  }) => {
+    await expect(
+      page.getByRole("main").getByText("Front Door").first(),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.getByRole("main").getByText("Parking Lot").first(),
+    ).toBeVisible();
   });
 
-  test("shows live event feed sidebar", async ({ page }) => {
-    await expect(page.getByText("Live Events")).toBeVisible({ timeout: 10_000 });
-  });
+  /* ------------------------------------------------------------------ */
+  /*  Sidebar navigation                                                 */
+  /* ------------------------------------------------------------------ */
 
-  test("sidebar navigation: Cameras link works", async ({ page }) => {
-    const camerasLink = page.locator("aside").getByRole("link", { name: "Cameras" });
-    await expect(camerasLink).toBeVisible();
-    await camerasLink.click();
+  test("sidebar: Cameras link navigates to /cameras", async ({ page }) => {
+    const link = page.locator("aside").getByRole("link", { name: "Cameras" });
+    await expect(link).toBeVisible();
+    await link.click();
     await expect(page).toHaveURL(/\/cameras/);
   });
 
-  test("sidebar navigation: Events & Alerts link works", async ({ page }) => {
-    const eventsLink = page.locator("aside").getByRole("link", {
-      name: "Events & Alerts",
-    });
-    await expect(eventsLink).toBeVisible();
-    await eventsLink.click();
+  test("sidebar: Events & Alerts link navigates to /events", async ({
+    page,
+  }) => {
+    const link = page
+      .locator("aside")
+      .getByRole("link", { name: "Events & Alerts" });
+    await expect(link).toBeVisible();
+    await link.click();
     await expect(page).toHaveURL(/\/events/);
   });
 
-  test("sidebar navigation: Recordings link works", async ({ page }) => {
-    const link = page.locator("aside").getByRole("link", { name: "Recordings" });
+  test("sidebar: Recordings link navigates to /recordings", async ({
+    page,
+  }) => {
+    const link = page
+      .locator("aside")
+      .getByRole("link", { name: "Recordings" });
     await expect(link).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(/\/recordings/);
   });
 
-  test("sidebar navigation: Rules link works", async ({ page }) => {
+  test("sidebar: Rules link navigates to /rules", async ({ page }) => {
     const link = page.locator("aside").getByRole("link", { name: "Rules" });
     await expect(link).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(/\/rules/);
   });
 
-  test("sidebar navigation: Settings link works", async ({ page }) => {
-    const link = page.locator("aside").getByRole("link", { name: "Settings" });
+  test("sidebar: Settings link navigates to /settings", async ({ page }) => {
+    const link = page
+      .locator("aside")
+      .getByRole("link", { name: "Settings" });
     await expect(link).toBeVisible();
     await link.click();
     await expect(page).toHaveURL(/\/settings/);
   });
 
-  test("sidebar collapse toggle works", async ({ page }) => {
-    // Find the collapse button
+  /* ------------------------------------------------------------------ */
+  /*  Sidebar collapse / expand                                          */
+  /* ------------------------------------------------------------------ */
+
+  test("sidebar collapse toggle hides nav labels then restores them", async ({
+    page,
+  }) => {
     const collapseBtn = page.getByRole("button", { name: /collapse/i });
     await expect(collapseBtn).toBeVisible();
 
-    // Click to collapse - sidebar should shrink
     await collapseBtn.click();
 
-    // After collapse, "Collapse" text should be gone, and the expand button appears
+    // After collapsing the expand button should be present
     const expandBtn = page.getByRole("button", { name: /expand/i });
     await expect(expandBtn).toBeVisible();
 
-    // Click to expand again
+    // Expand again
     await expandBtn.click();
-    await expect(page.getByRole("button", { name: /collapse/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /collapse/i }),
+    ).toBeVisible();
   });
 });

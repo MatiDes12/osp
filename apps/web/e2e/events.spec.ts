@@ -1,105 +1,178 @@
+/**
+ * E2E — Events page (/events)
+ *
+ * Covers:
+ *  - Page renders with filter sidebar and event list
+ *  - Mock events are displayed
+ *  - Date preset filter buttons work
+ *  - Severity filter checkboxes work
+ *  - Single-event acknowledgement
+ *  - Bulk select and acknowledge
+ *  - Results count shown
+ *  - Export dropdown is accessible
+ */
+
 import { test, expect } from "@playwright/test";
-import { loginAs } from "./helpers/auth";
+import { gotoAuthenticated } from "./helpers/auth";
 import { setupApiMocks } from "./helpers/mocks";
 
 test.describe("Events page", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
-    await page.goto("/(dashboard)/events");
-    await loginAs(page);
-    await page.reload();
+    await gotoAuthenticated(page, "/events");
   });
 
-  test("displays filter sidebar and event list", async ({ page }) => {
-    // Filter sidebar heading
-    await expect(page.getByText("Filters")).toBeVisible({ timeout: 10_000 });
+  /* ------------------------------------------------------------------ */
+  /*  Page structure                                                     */
+  /* ------------------------------------------------------------------ */
 
-    // Severity filter section
-    await expect(page.getByText("Severity")).toBeVisible();
+  test("renders Filters sidebar and Events heading", async ({ page }) => {
+    // Filter sidebar is only visible on desktop (md breakpoint)
+    const sidebar = page.locator("aside");
+    await expect(sidebar.getByText("Filters")).toBeVisible({ timeout: 10_000 });
 
-    // Event type filter section
-    await expect(page.getByText("Event Type")).toBeVisible();
+    // Sidebar sections
+    await expect(sidebar.getByText("Severity")).toBeVisible();
+    await expect(sidebar.getByText("Event Type")).toBeVisible();
 
-    // Events heading
+    // Main content heading
     await expect(
       page.getByRole("heading", { name: "Events" }),
     ).toBeVisible();
   });
 
-  test("shows event list with mock data", async ({ page }) => {
-    // Wait for events to load
-    await expect(page.getByText("person")).toBeVisible({ timeout: 10_000 });
+  /* ------------------------------------------------------------------ */
+  /*  Event list content                                                 */
+  /* ------------------------------------------------------------------ */
 
-    // Check events from mock data appear
-    await expect(page.getByText("vehicle")).toBeVisible();
-    await expect(page.getByText("motion")).toBeVisible();
-    await expect(page.getByText("camera offline")).toBeVisible();
-  });
+  test("displays events from mock data", async ({ page }) => {
+    // Wait for at least one event type label to appear
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 10_000,
+    });
 
-  test("filter by severity checkbox", async ({ page }) => {
-    // Wait for events to load
-    await expect(page.getByText("person")).toBeVisible({ timeout: 10_000 });
-
-    // The severity filter section has checkboxes for Critical, Warning, Info, Low
-    const severitySection = page.locator("aside").locator("text=Severity").locator("..");
-
-    // Click "Critical" checkbox
-    const criticalCheckbox = severitySection.getByRole("checkbox").first();
-    await criticalCheckbox.check();
-
-    // After filtering, the events list should update
-    // (client-side filtering occurs; critical events should remain visible)
-    await expect(page.getByText("camera offline")).toBeVisible();
-  });
-
-  test("filter by date preset 'Today'", async ({ page }) => {
-    // Wait for page to load
-    await expect(page.getByText("Filters")).toBeVisible({ timeout: 10_000 });
-
-    // "Today" button should be active by default (it is the initial filter)
-    const todayButton = page.locator("aside").getByText("Today", { exact: true });
-    await expect(todayButton).toBeVisible();
-  });
-
-  test("acknowledge a single event", async ({ page }) => {
-    // Wait for events
-    await expect(page.getByText("person")).toBeVisible({ timeout: 10_000 });
-
-    // Find an unacknowledged event's acknowledge button
-    const ackButton = page.getByRole("button", { name: "Acknowledge event" }).first();
-    await ackButton.click();
-
-    // After acknowledging, the "Ack" badge should appear
-    await expect(page.getByText("Ack").first()).toBeVisible({ timeout: 5_000 });
-  });
-
-  test("bulk select and acknowledge events", async ({ page }) => {
-    // Wait for events to load
-    await expect(page.getByText("person")).toBeVisible({ timeout: 10_000 });
-
-    // Select multiple events using their checkboxes
-    // The checkboxes are in the main event list area (not the filter sidebar)
-    const eventCheckboxes = page
-      .locator("main")
-      .getByRole("checkbox");
-
-    // Check first two events
-    const firstCheckbox = eventCheckboxes.first();
-    await firstCheckbox.check();
-
-    // Bulk action bar should appear
-    await expect(page.getByText(/selected/)).toBeVisible();
-
-    // Click "Acknowledge All"
-    const ackAllButton = page.getByRole("button", { name: "Acknowledge All" });
-    await expect(ackAllButton).toBeVisible();
-    await ackAllButton.click();
-
-    // Selection should be cleared after bulk acknowledge
-    await expect(page.getByText(/selected/)).toBeHidden({ timeout: 5_000 });
+    await expect(page.getByText("vehicle").first()).toBeVisible();
+    await expect(page.getByText("motion").first()).toBeVisible();
+    // camera_offline renders as "camera offline"
+    await expect(
+      page.getByText(/camera.?offline/i).first(),
+    ).toBeVisible();
   });
 
   test("results count is displayed", async ({ page }) => {
-    await expect(page.getByText(/results/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/results?/i)).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Date preset filters                                                */
+  /* ------------------------------------------------------------------ */
+
+  test("'Today' date preset is active by default in sidebar", async ({
+    page,
+  }) => {
+    await expect(
+      page.locator("aside").getByText("Today", { exact: true }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("clicking '7 Days' preset button in sidebar updates filter", async ({
+    page,
+  }) => {
+    await expect(
+      page.locator("aside").getByText("Filters"),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await page.locator("aside").getByText("7 Days").click();
+
+    // Events list should still render (mock always returns same data)
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 5_000,
+    });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Severity filter                                                    */
+  /* ------------------------------------------------------------------ */
+
+  test("checking 'Critical' severity checkbox keeps critical events visible", async ({
+    page,
+  }) => {
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // The severity checkboxes live inside the aside
+    const severitySection = page
+      .locator("aside")
+      .locator("text=Severity")
+      .locator("..");
+    await severitySection.getByRole("checkbox").first().check();
+
+    // Camera-offline event (critical severity) must still be visible
+    await expect(
+      page.getByText(/camera.?offline/i).first(),
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Acknowledge                                                        */
+  /* ------------------------------------------------------------------ */
+
+  test("acknowledging a single event shows the acknowledged badge", async ({
+    page,
+  }) => {
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const ackButton = page
+      .getByRole("button", { name: "Acknowledge event" })
+      .first();
+    await ackButton.click();
+
+    // An "Ack" badge should appear after optimistic update
+    await expect(page.getByText("Ack").first()).toBeVisible({
+      timeout: 5_000,
+    });
+  });
+
+  test("bulk select and acknowledge clears selection", async ({ page }) => {
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Event checkboxes sit inside the main scrollable list (not the sidebar)
+    const eventCheckboxes = page
+      .locator("main")
+      .getByRole("checkbox");
+    await eventCheckboxes.first().check();
+
+    // Bulk action bar should appear
+    await expect(page.getByText(/selected/i)).toBeVisible();
+
+    const ackAllBtn = page.getByRole("button", { name: "Acknowledge All" });
+    await expect(ackAllBtn).toBeVisible();
+    await ackAllBtn.click();
+
+    // Selection bar should disappear after bulk acknowledge
+    await expect(page.getByText(/selected/i)).toBeHidden({ timeout: 5_000 });
+  });
+
+  /* ------------------------------------------------------------------ */
+  /*  Export                                                             */
+  /* ------------------------------------------------------------------ */
+
+  test("Export button is visible", async ({ page }) => {
+    await expect(page.getByText("person").first()).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // The Export button may render with a Download icon but the accessible
+    // name or visible text should contain "Export"
+    await expect(
+      page.getByRole("button", { name: /export/i }),
+    ).toBeVisible({ timeout: 5_000 });
   });
 });
