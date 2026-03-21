@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { User, Camera, ApiResponse, UserRole } from "@osp/shared";
 import { transformCameras, transformUsers } from "@/lib/transforms";
 import { showToast } from "@/stores/toast";
@@ -38,6 +38,9 @@ import {
   Bell,
   Clock,
   Monitor,
+  Copy,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -128,6 +131,24 @@ interface InstalledExtension {
   readonly extension: MarketplaceExtension;
 }
 
+interface ApiKey {
+  readonly id: string;
+  readonly name: string;
+  readonly key_prefix: string;
+  readonly last_used_at: string | null;
+  readonly expires_at: string | null;
+  readonly created_at: string;
+}
+
+interface UsageStats {
+  plan: string;
+  cameras: { used: number; limit: number };
+  users: { used: number; limit: number };
+  storage: { usedBytes: number; limitBytes: number };
+  extensions: { used: number; limit: number };
+  recordings: { totalCount: number; totalDurationHours: number };
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   alerts: "bg-red-500/10 text-red-400 border-red-500/20",
   integrations: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -137,6 +158,13 @@ const CATEGORY_COLORS: Record<string, string> = {
   reports: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
   storage: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
 };
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Skeleton loaders                                                   */
@@ -218,11 +246,10 @@ function RecordingSettingsPanel() {
     <div className="max-w-2xl">
       <h2 className="text-xl font-bold text-zinc-50 mb-6">Recording Settings</h2>
       <div className="space-y-4">
-        {/* Motion recording tail */}
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
           <h3 className="text-sm font-semibold text-zinc-200 mb-1">Motion Recording Tail</h3>
           <p className="text-xs text-zinc-500 mb-4">
-            How long to keep recording after the last motion frame before stopping. Applies to all cameras using motion-triggered recording.
+            How long to keep recording after the last motion frame before stopping.
           </p>
           <div className="flex items-center gap-3 mb-1">
             <input
@@ -251,7 +278,6 @@ function RecordingSettingsPanel() {
           </button>
         </div>
 
-        {/* Retention / quality stubs */}
         <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
           <h3 className="text-sm font-semibold text-zinc-400 mb-1">Storage & Quality</h3>
           <div>
@@ -311,7 +337,6 @@ function DesktopSettingsPanel() {
         </p>
       </div>
 
-      {/* Auto-start */}
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
         <div className="flex items-center justify-between">
           <div>
@@ -336,7 +361,6 @@ function DesktopSettingsPanel() {
         </div>
       </div>
 
-      {/* Window behaviour */}
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-3">
         <p className="text-sm font-medium text-zinc-100">Window Behaviour</p>
         <div className="flex items-start gap-3">
@@ -345,7 +369,6 @@ function DesktopSettingsPanel() {
             <p className="text-sm text-zinc-300">Minimize to tray on close</p>
             <p className="text-xs text-zinc-500">
               Clicking × hides the window. OSP keeps running in the system tray.
-              Right-click the tray icon and choose <span className="text-zinc-300">Quit OSP</span> to exit fully.
             </p>
           </div>
         </div>
@@ -354,19 +377,18 @@ function DesktopSettingsPanel() {
           <div>
             <p className="text-sm text-zinc-300">Tray tooltip with live camera count</p>
             <p className="text-xs text-zinc-500">
-              Hover the tray icon to see how many cameras are online and how many unread alerts you have.
+              Hover the tray icon to see online cameras and unread alerts.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Native notifications */}
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-zinc-100">Native Notifications</p>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Event alerts are sent as OS-level notifications instead of browser notifications.
+              Event alerts sent as OS-level notifications.
             </p>
           </div>
           <button
@@ -433,9 +455,8 @@ function ConfirmDeleteModal({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Notifications tab (extracted component)                            */
+/*  Notifications tab                                                  */
 /* ------------------------------------------------------------------ */
-
 const SEVERITY_OPTIONS: readonly {
   value: NotificationPrefs["severityThreshold"];
   label: string;
@@ -448,6 +469,37 @@ const SEVERITY_OPTIONS: readonly {
 
 function NotificationsTab() {
   const prefs = useNotificationPrefsStore();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  // Load prefs from backend on mount
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/tenants/current`, { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.settings) {
+          const notif = (json.data.settings as Record<string, unknown>)["notification_preferences"] as
+            | Record<string, unknown>
+            | undefined;
+          if (notif) {
+            prefs.setPrefs({
+              pushEnabled: (notif["pushEnabled"] as boolean | undefined) ?? prefs.pushEnabled,
+              emailEnabled: (notif["emailEnabled"] as boolean | undefined) ?? prefs.emailEnabled,
+              severityThreshold:
+                (notif["severityThreshold"] as NotificationPrefs["severityThreshold"] | undefined) ??
+                prefs.severityThreshold,
+              quietHoursEnabled: (notif["quietHoursEnabled"] as boolean | undefined) ?? prefs.quietHoursEnabled,
+              quietHoursStart: (notif["quietHoursStart"] as string | undefined) ?? prefs.quietHoursStart,
+              quietHoursEnd: (notif["quietHoursEnd"] as string | undefined) ?? prefs.quietHoursEnd,
+            });
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   const handlePushToggle = async () => {
     if (!prefs.pushEnabled) {
@@ -458,29 +510,53 @@ function NotificationsTab() {
       }
     }
     prefs.setPref("pushEnabled", !prefs.pushEnabled);
-    showToast(
-      !prefs.pushEnabled ? "Push notifications enabled" : "Push notifications disabled",
-      "info",
-    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/tenants/current`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          settings: {
+            notificationPreferences: {
+              pushEnabled: prefs.pushEnabled,
+              emailEnabled: prefs.emailEnabled,
+              severityThreshold: prefs.severityThreshold,
+              quietHoursEnabled: prefs.quietHoursEnabled,
+              quietHoursStart: prefs.quietHoursStart,
+              quietHoursEnd: prefs.quietHoursEnd,
+            },
+          },
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        showToast(json.error?.message ?? "Failed to save", "error");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } catch {
+      showToast("Network error", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-bold text-zinc-50 mb-6">Notifications</h2>
 
-      {/* ── Toggle switches ── */}
       <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
         {/* Push Notifications */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Bell className="h-4 w-4 text-zinc-400" />
             <div>
-              <p className="text-sm font-medium text-zinc-200">
-                Push Notifications
-              </p>
-              <p className="text-xs text-zinc-500">
-                Receive browser alerts for events
-              </p>
+              <p className="text-sm font-medium text-zinc-200">Push Notifications</p>
+              <p className="text-xs text-zinc-500">Receive browser alerts for events</p>
             </div>
           </div>
           <button
@@ -506,9 +582,7 @@ function NotificationsTab() {
             <AlertCircle className="h-4 w-4 text-zinc-400" />
             <div>
               <p className="text-sm font-medium text-zinc-200">Email Alerts</p>
-              <p className="text-xs text-zinc-500">
-                Get email alerts for events
-              </p>
+              <p className="text-xs text-zinc-500">Get email alerts for events</p>
             </div>
           </div>
           <button
@@ -532,25 +606,20 @@ function NotificationsTab() {
 
         {/* Severity Threshold */}
         <div>
-          <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-            Severity Threshold
-          </label>
+          <label className="block text-sm font-medium text-zinc-300 mb-1.5">Severity Threshold</label>
           <p className="text-xs text-zinc-500 mb-2">
             Only receive notifications for events at or above this severity
           </p>
           <select
             value={prefs.severityThreshold}
             onChange={(e) =>
-              prefs.setPref(
-                "severityThreshold",
-                e.target.value as NotificationPrefs["severityThreshold"],
-              )
+              prefs.setPref("severityThreshold", e.target.value as NotificationPrefs["severityThreshold"])
             }
             className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
           >
             {SEVERITY_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label} &mdash; {opt.desc}
+                {opt.label} — {opt.desc}
               </option>
             ))}
           </select>
@@ -564,19 +633,13 @@ function NotificationsTab() {
             <div className="flex items-center gap-3">
               <Clock className="h-4 w-4 text-zinc-400" />
               <div>
-                <p className="text-sm font-medium text-zinc-200">
-                  Quiet Hours
-                </p>
-                <p className="text-xs text-zinc-500">
-                  Suppress notifications during this time range
-                </p>
+                <p className="text-sm font-medium text-zinc-200">Quiet Hours</p>
+                <p className="text-xs text-zinc-500">Suppress notifications during this time range</p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() =>
-                prefs.setPref("quietHoursEnabled", !prefs.quietHoursEnabled)
-              }
+              onClick={() => prefs.setPref("quietHoursEnabled", !prefs.quietHoursEnabled)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 cursor-pointer ${
                 prefs.quietHoursEnabled ? "bg-green-500" : "bg-zinc-700"
               }`}
@@ -594,15 +657,11 @@ function NotificationsTab() {
           {prefs.quietHoursEnabled && (
             <div className="flex items-center gap-3 pl-7">
               <div>
-                <label className="block text-xs text-zinc-500 mb-1">
-                  Start
-                </label>
+                <label className="block text-xs text-zinc-500 mb-1">Start</label>
                 <input
                   type="time"
                   value={prefs.quietHoursStart}
-                  onChange={(e) =>
-                    prefs.setPref("quietHoursStart", e.target.value)
-                  }
+                  onChange={(e) => prefs.setPref("quietHoursStart", e.target.value)}
                   className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -612,22 +671,434 @@ function NotificationsTab() {
                 <input
                   type="time"
                   value={prefs.quietHoursEnd}
-                  onChange={(e) =>
-                    prefs.setPref("quietHoursEnd", e.target.value)
-                  }
+                  onChange={(e) => prefs.setPref("quietHoursEnd", e.target.value)}
                   className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
           )}
         </div>
+
+        <div className="h-px bg-zinc-800" />
+
+        <div className="flex items-center justify-between pt-1">
+          {saved && <span className="text-xs text-green-400">Saved!</span>}
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving || !loaded}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {saving ? "Saving..." : "Save Preferences"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Billing tab                                                        */
+/* ------------------------------------------------------------------ */
+function UsageBar({ used, limit, label }: { used: number; limit: number; label: string }) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const color = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-blue-500";
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-zinc-400">{label}</span>
+        <span className="text-zinc-300 font-mono">
+          {limit > 0 ? `${used} / ${limit}` : `${used}`}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function BillingTab() {
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/tenants/current/usage`, { headers: getAuthHeaders() })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data) setUsage(json.data as UsageStats);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const planLabel = usage?.plan
+    ? usage.plan.charAt(0).toUpperCase() + usage.plan.slice(1)
+    : "—";
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-xl font-bold text-zinc-50 mb-6">Billing</h2>
+
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-32 bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Plan */}
+          <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <p className="text-sm font-medium text-zinc-400">Current Plan</p>
+                <p className="text-2xl font-bold text-blue-400 mt-0.5">{planLabel}</p>
+              </div>
+              <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20">
+                Active
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {usage && (
+                <>
+                  <UsageBar
+                    label="Cameras"
+                    used={usage.cameras.used}
+                    limit={usage.cameras.limit}
+                  />
+                  <UsageBar
+                    label="Users"
+                    used={usage.users.used}
+                    limit={usage.users.limit}
+                  />
+                  {usage.storage.limitBytes > 0 && (
+                    <UsageBar
+                      label={`Storage (${formatBytes(usage.storage.usedBytes)} used)`}
+                      used={usage.storage.usedBytes}
+                      limit={usage.storage.limitBytes}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Usage stats */}
+          {usage && (
+            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+              <p className="text-sm font-semibold text-zinc-300 mb-4">Usage Summary</p>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-zinc-500">Cameras</p>
+                  <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
+                    {usage.cameras.used}
+                    {usage.cameras.limit > 0 && (
+                      <span className="text-xs text-zinc-500 font-normal"> / {usage.cameras.limit}</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Users</p>
+                  <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
+                    {usage.users.used}
+                    {usage.users.limit > 0 && (
+                      <span className="text-xs text-zinc-500 font-normal"> / {usage.users.limit}</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Storage Used</p>
+                  <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
+                    {formatBytes(usage.storage.usedBytes)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Recording Time</p>
+                  <p className="text-lg font-semibold text-zinc-50 font-mono mt-0.5">
+                    {usage.recordings.totalDurationHours}h
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              disabled
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60"
+            >
+              Manage Subscription
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  API Keys tab                                                       */
+/* ------------------------------------------------------------------ */
+function ApiKeysTab() {
+  const [keys, setKeys] = useState<readonly ApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [newKeyVisible, setNewKeyVisible] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  const fetchKeys = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/api-keys`, { headers: getAuthHeaders() });
+      const json = await res.json();
+      if (json.success && json.data) setKeys(json.data as ApiKey[]);
+    } catch {
+      // fail silently
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchKeys();
+  }, [fetchKeys]);
+
+  const handleCreate = async () => {
+    if (!createName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/api-keys`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ name: createName.trim() }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setNewKey(json.data.key as string);
+        setNewKeyVisible(true);
+        setCreateName("");
+        setShowCreate(false);
+        fetchKeys();
+      } else {
+        showToast(json.error?.message ?? "Failed to create key", "error");
+      }
+    } catch {
+      showToast("Network error", "error");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleRevoke = async (id: string) => {
+    setRevokingId(id);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/api-keys/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setKeys((prev) => prev.filter((k) => k.id !== id));
+        showToast("API key revoked", "success");
+      } else {
+        showToast(json.error?.message ?? "Failed to revoke key", "error");
+      }
+    } catch {
+      showToast("Network error", "error");
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  return (
+    <div className="max-w-2xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-zinc-50">API Keys</h2>
+          <p className="text-sm text-zinc-500 mt-1">
+            Manage API keys for programmatic access to the OSP API.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-600 transition-colors cursor-pointer"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Create Key
+        </button>
       </div>
 
-      {/* Note about dashboard */}
-      <p className="mt-4 text-xs text-zinc-500">
-        Note: Dashboard is optimized for dark mode. Theme preferences apply to
-        landing and auth pages.
+      {/* New key banner — shown once after creation */}
+      {newKey && (
+        <div className="mb-4 rounded-lg border border-green-500/30 bg-green-500/5 p-4">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div>
+              <p className="text-sm font-medium text-green-400">API key created</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Copy this key now — it won&apos;t be shown again.
+              </p>
+            </div>
+            <button
+              onClick={() => setNewKey(null)}
+              className="p-1 text-zinc-500 hover:text-zinc-300"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <code className="flex-1 rounded bg-zinc-950 px-3 py-2 text-xs font-mono text-zinc-200 truncate">
+              {newKeyVisible ? newKey : "osp_" + "•".repeat(32)}
+            </code>
+            <button
+              onClick={() => setNewKeyVisible((v) => !v)}
+              className="p-1.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            >
+              {newKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => handleCopy(newKey, "new")}
+              className="p-1.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            >
+              {copiedId === "new" ? (
+                <Check className="h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Keys list */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
+        {loading ? (
+          <table className="w-full text-sm">
+            <tbody>
+              <TableRowSkeleton cols={4} />
+              <TableRowSkeleton cols={4} />
+            </tbody>
+          </table>
+        ) : keys.length === 0 ? (
+          <div className="py-12 text-center text-zinc-500">
+            <Key className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">No API keys yet.</p>
+            <p className="text-xs text-zinc-600 mt-1">Create a key to integrate with the OSP API.</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-zinc-500 border-b border-zinc-800 bg-zinc-900/80">
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Prefix</th>
+                <th className="px-4 py-3 font-medium">Last Used</th>
+                <th className="px-4 py-3 font-medium">Created</th>
+                <th className="px-4 py-3 font-medium w-12" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/50">
+              {keys.map((key) => (
+                <tr key={key.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <td className="px-4 py-3 font-medium text-zinc-50">{key.name}</td>
+                  <td className="px-4 py-3">
+                    <code className="text-xs font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">
+                      osp_{key.key_prefix}…
+                    </code>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-zinc-500 font-mono">
+                      {key.last_used_at
+                        ? new Date(key.last_used_at).toLocaleDateString()
+                        : "Never"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="text-xs text-zinc-500 font-mono">
+                      {new Date(key.created_at).toLocaleDateString()}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => void handleRevoke(key.id)}
+                      disabled={revokingId === key.id}
+                      className="p-1 text-zinc-500 hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40"
+                      title="Revoke key"
+                    >
+                      {revokingId === key.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-zinc-600">
+        API keys grant admin-level access. Keep them secret and rotate regularly.
       </p>
+
+      {/* Create modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-sm p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-zinc-50">Create API Key</h3>
+              <button
+                onClick={() => { setShowCreate(false); setCreateName(""); }}
+                className="p-1 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">Key Name</label>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
+                  autoFocus
+                  placeholder="e.g. CI/CD Pipeline, Dashboard Integration"
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={() => { setShowCreate(false); setCreateName(""); }}
+                  className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleCreate()}
+                  disabled={!createName.trim() || creating}
+                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {creating ? "Creating..." : "Create Key"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -645,6 +1116,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialTab = (searchParams.get("tab") as SettingsTab) ?? "tenant";
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
@@ -704,7 +1176,11 @@ function SettingsPageInner() {
           const settings = (raw.settings ?? {}) as Record<string, unknown>;
           const name = (raw.name as string) ?? "";
           const tz = (settings.timezone as string) ?? "UTC";
-          const mode = ((settings.default_recording_mode as string) ?? (settings.defaultRecordingMode as string) ?? "motion") as "motion" | "continuous" | "off";
+          const mode = (
+            (settings.default_recording_mode as string) ??
+            (settings.defaultRecordingMode as string) ??
+            "motion"
+          ) as "motion" | "continuous" | "off";
           setTenantName(name);
           setTimezone(tz);
           setDefaultRecordingMode(mode);
@@ -795,28 +1271,31 @@ function SettingsPageInner() {
   }, []);
 
   // Install extension
-  const handleInstallExtension = useCallback(async (extensionId: string) => {
-    setInstallingExtId(extensionId);
-    try {
-      const response = await fetch(`${API_URL}/api/v1/extensions`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ extensionId }),
-      });
-      const json = await response.json();
-      if (json.success) {
-        showToast("Extension installed successfully", "success");
-        fetchInstalled();
-        fetchMarketplace();
-      } else {
-        showToast(json.error?.message ?? "Failed to install extension", "error");
+  const handleInstallExtension = useCallback(
+    async (extensionId: string) => {
+      setInstallingExtId(extensionId);
+      try {
+        const response = await fetch(`${API_URL}/api/v1/extensions`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ extensionId }),
+        });
+        const json = await response.json();
+        if (json.success) {
+          showToast("Extension installed successfully", "success");
+          fetchInstalled();
+          fetchMarketplace();
+        } else {
+          showToast(json.error?.message ?? "Failed to install extension", "error");
+        }
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Network error", "error");
+      } finally {
+        setInstallingExtId(null);
       }
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : "Network error", "error");
-    } finally {
-      setInstallingExtId(null);
-    }
-  }, [fetchInstalled, fetchMarketplace]);
+    },
+    [fetchInstalled, fetchMarketplace],
+  );
 
   useEffect(() => {
     if (activeTab === "users") fetchUsers();
@@ -860,11 +1339,14 @@ function SettingsPageInner() {
     if (!inviteEmail) return;
     setInviteSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/v1/tenants/current/users/invite`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/v1/tenants/current/users/invite`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        },
+      );
       const json = await response.json();
       if (json.success) {
         showToast("Invitation sent successfully", "success");
@@ -948,9 +1430,7 @@ function SettingsPageInner() {
         {/* ── Tenant tab ─────────────────────────────────────── */}
         {activeTab === "tenant" && (
           <div className="max-w-2xl">
-            <h2 className="text-xl font-bold text-zinc-50 mb-6">
-              Organization
-            </h2>
+            <h2 className="text-xl font-bold text-zinc-50 mb-6">Organization</h2>
 
             {loading ? (
               <div className="space-y-4">
@@ -960,7 +1440,6 @@ function SettingsPageInner() {
               </div>
             ) : (
               <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
-                {/* Tenant name */}
                 <div>
                   <label
                     htmlFor="tenant-name"
@@ -978,7 +1457,6 @@ function SettingsPageInner() {
                   />
                 </div>
 
-                {/* Timezone */}
                 <div>
                   <label
                     htmlFor="timezone"
@@ -1006,7 +1484,6 @@ function SettingsPageInner() {
                   </select>
                 </div>
 
-                {/* Default recording mode */}
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">
                     Default Recording Mode
@@ -1046,12 +1523,9 @@ function SettingsPageInner() {
                   </div>
                 </div>
 
-                {/* Save */}
                 <div className="flex items-center gap-3 pt-2 border-t border-zinc-800">
                   {isDirty && (
-                    <span className="text-xs text-amber-400">
-                      Unsaved changes
-                    </span>
+                    <span className="text-xs text-amber-400">Unsaved changes</span>
                   )}
                   <button
                     onClick={handleSaveGeneral}
@@ -1071,9 +1545,7 @@ function SettingsPageInner() {
           <div>
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-bold text-zinc-50">
-                  Team Members
-                </h2>
+                <h2 className="text-xl font-bold text-zinc-50">Team Members</h2>
                 <p className="text-sm text-zinc-500 mt-1">
                   Manage who has access to your organization.
                 </p>
@@ -1164,9 +1636,7 @@ function SettingsPageInner() {
                                   <p className="font-medium text-zinc-50">
                                     {user.displayName}
                                   </p>
-                                  <p className="text-xs text-zinc-500">
-                                    {user.email}
-                                  </p>
+                                  <p className="text-xs text-zinc-500">{user.email}</p>
                                 </div>
                               </div>
                             </td>
@@ -1183,9 +1653,7 @@ function SettingsPageInner() {
                             <td className="px-4 py-3">
                               <span className="font-mono text-xs text-zinc-500">
                                 {user.lastLoginAt
-                                  ? new Date(
-                                      user.lastLoginAt,
-                                    ).toLocaleDateString()
+                                  ? new Date(user.lastLoginAt).toLocaleDateString()
                                   : "Never"}
                               </span>
                             </td>
@@ -1208,9 +1676,7 @@ function SettingsPageInner() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-xl">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-zinc-50">
-                      Invite Team Member
-                    </h3>
+                    <h3 className="text-lg font-semibold text-zinc-50">Invite Team Member</h3>
                     <button
                       onClick={() => setShowInviteModal(false)}
                       className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
@@ -1232,14 +1698,10 @@ function SettingsPageInner() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-                        Role
-                      </label>
+                      <label className="block text-sm font-medium text-zinc-300 mb-1.5">Role</label>
                       <select
                         value={inviteRole}
-                        onChange={(e) =>
-                          setInviteRole(e.target.value as UserRole)
-                        }
+                        onChange={(e) => setInviteRole(e.target.value as UserRole)}
                         className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                       >
                         <option value="viewer">Viewer</option>
@@ -1274,7 +1736,10 @@ function SettingsPageInner() {
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-zinc-50">Cameras</h2>
-              <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-blue-600 cursor-pointer">
+              <button
+                onClick={() => router.push("/cameras/add")}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-blue-600 cursor-pointer"
+              >
                 <Plus className="h-3.5 w-3.5" />
                 Add Camera
               </button>
@@ -1328,17 +1793,11 @@ function SettingsPageInner() {
                             key={cam.id}
                             className="hover:bg-zinc-800/30 transition-colors duration-150"
                           >
-                            <td className="px-4 py-3 font-medium text-zinc-50">
-                              {cam.name}
-                            </td>
+                            <td className="px-4 py-3 font-medium text-zinc-50">{cam.name}</td>
                             <td className="px-4 py-3">
                               <span className="inline-flex items-center gap-1.5">
-                                <span
-                                  className={`h-2 w-2 rounded-full ${statusStyle.dot}`}
-                                />
-                                <span
-                                  className={`text-xs capitalize ${statusStyle.text}`}
-                                >
+                                <span className={`h-2 w-2 rounded-full ${statusStyle.dot}`} />
+                                <span className={`text-xs capitalize ${statusStyle.text}`}>
                                   {cam.status}
                                 </span>
                               </span>
@@ -1356,9 +1815,7 @@ function SettingsPageInner() {
                             <td className="px-4 py-3">
                               <span className="font-mono text-xs text-zinc-500">
                                 {cam.lastSeenAt
-                                  ? new Date(
-                                      cam.lastSeenAt,
-                                    ).toLocaleString(undefined, {
+                                  ? new Date(cam.lastSeenAt).toLocaleString(undefined, {
                                       month: "short",
                                       day: "numeric",
                                       hour: "2-digit",
@@ -1369,7 +1826,13 @@ function SettingsPageInner() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
-                                <button className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer">
+                                <button
+                                  onClick={() =>
+                                    router.push(`/cameras/${cam.id}?tab=settings`)
+                                  }
+                                  className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
+                                  title="Edit camera settings"
+                                >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
                                 <button
@@ -1446,15 +1909,11 @@ function SettingsPageInner() {
                             <Puzzle className="h-6 w-6 text-zinc-400" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-zinc-50 truncate">
-                              {ext.name}
-                            </p>
+                            <p className="font-semibold text-zinc-50 truncate">{ext.name}</p>
                             <p className="text-xs text-zinc-500">{ext.author_name}</p>
                           </div>
                         </div>
-                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
-                          {ext.description}
-                        </p>
+                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">{ext.description}</p>
                         {ext.categories && ext.categories.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-3">
                             {ext.categories.map((cat) => (
@@ -1470,14 +1929,14 @@ function SettingsPageInner() {
                           </div>
                         )}
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">
-                            v{inst.installed_version}
-                          </span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            inst.enabled
-                              ? "bg-green-500/10 text-green-400"
-                              : "bg-zinc-500/10 text-zinc-500"
-                          }`}>
+                          <span className="text-xs text-zinc-500">v{inst.installed_version}</span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              inst.enabled
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-zinc-500/10 text-zinc-500"
+                            }`}
+                          >
                             {inst.enabled ? "Active" : "Disabled"}
                           </span>
                         </div>
@@ -1486,79 +1945,73 @@ function SettingsPageInner() {
                   })}
                 </div>
               )
+            ) : marketplaceExts.length === 0 ? (
+              <div className="py-12 text-center text-zinc-500">
+                <Puzzle className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No extensions available.</p>
+              </div>
             ) : (
-              marketplaceExts.length === 0 ? (
-                <div className="py-12 text-center text-zinc-500">
-                  <Puzzle className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">No extensions available.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {marketplaceExts.map((ext) => {
-                    const isInstalled = installedExtIds.has(ext.id);
-                    const isInstalling = installingExtId === ext.id;
-                    return (
-                      <div
-                        key={ext.id}
-                        className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors duration-200"
-                      >
-                        <div className="flex items-start gap-3 mb-3">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
-                            <Puzzle className="h-6 w-6 text-zinc-400" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-zinc-50 truncate">
-                              {ext.name}
-                            </p>
-                            <p className="text-xs text-zinc-500">{ext.author_name}</p>
-                          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {marketplaceExts.map((ext) => {
+                  const isInstalled = installedExtIds.has(ext.id);
+                  const isInstalling = installingExtId === ext.id;
+                  return (
+                    <div
+                      key={ext.id}
+                      className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-colors duration-200"
+                    >
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
+                          <Puzzle className="h-6 w-6 text-zinc-400" />
                         </div>
-                        <p className="text-sm text-zinc-400 mb-2 line-clamp-2">
-                          {ext.description}
-                        </p>
-                        {ext.categories && ext.categories.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-3">
-                            {ext.categories.map((cat) => (
-                              <span
-                                key={cat}
-                                className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                  CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
-                                }`}
-                              >
-                                {cat}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-zinc-500">
-                            {ext.install_count.toLocaleString()} installs
-                          </span>
-                          {isInstalled ? (
-                            <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 px-3 py-1 text-xs text-green-400">
-                              <Check className="h-3 w-3" />
-                              Installed
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleInstallExtension(ext.id)}
-                              disabled={isInstalling}
-                              className="inline-flex items-center gap-1 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors duration-150 cursor-pointer disabled:opacity-50"
-                            >
-                              {isInstalling ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Download className="h-3 w-3" />
-                              )}
-                              {isInstalling ? "Installing..." : "Install"}
-                            </button>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-zinc-50 truncate">{ext.name}</p>
+                          <p className="text-xs text-zinc-500">{ext.author_name}</p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )
+                      <p className="text-sm text-zinc-400 mb-2 line-clamp-2">{ext.description}</p>
+                      {ext.categories && ext.categories.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {ext.categories.map((cat) => (
+                            <span
+                              key={cat}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                CATEGORY_COLORS[cat] ?? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                              }`}
+                            >
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-zinc-500">
+                          {ext.install_count.toLocaleString()} installs
+                        </span>
+                        {isInstalled ? (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 px-3 py-1 text-xs text-green-400">
+                            <Check className="h-3 w-3" />
+                            Installed
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleInstallExtension(ext.id)}
+                            disabled={isInstalling}
+                            className="inline-flex items-center gap-1 rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition-colors duration-150 cursor-pointer disabled:opacity-50"
+                          >
+                            {isInstalling ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Download className="h-3 w-3" />
+                            )}
+                            {isInstalling ? "Installing..." : "Install"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
@@ -1567,82 +2020,13 @@ function SettingsPageInner() {
         {activeTab === "notifications" && <NotificationsTab />}
 
         {/* ── Recording tab ──────────────────────────────────── */}
-        {activeTab === "recording" && (
-          <RecordingSettingsPanel />
-        )}
+        {activeTab === "recording" && <RecordingSettingsPanel />}
 
         {/* ── Billing tab ────────────────────────────────────── */}
-        {activeTab === "billing" && (
-          <div className="max-w-2xl">
-            <h2 className="text-xl font-bold text-zinc-50 mb-6">Billing</h2>
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm font-medium text-zinc-200">
-                    Current Plan
-                  </p>
-                  <p className="text-2xl font-bold text-blue-400 mt-1">Pro</p>
-                </div>
-                <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20">
-                  Active
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-4 py-4 border-t border-zinc-800">
-                <div>
-                  <p className="text-xs text-zinc-500">Cameras</p>
-                  <p className="text-lg font-semibold text-zinc-50 font-mono">
-                    5 / 25
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Storage Used</p>
-                  <p className="text-lg font-semibold text-zinc-50 font-mono">
-                    42 GB
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500">Next Billing</p>
-                  <p className="text-lg font-semibold text-zinc-50 font-mono">
-                    Apr 1
-                  </p>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-zinc-800">
-                <button className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors duration-150 cursor-pointer">
-                  Manage Subscription
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === "billing" && <BillingTab />}
 
         {/* ── API Keys tab ───────────────────────────────────── */}
-        {activeTab === "apikeys" && (
-          <div className="max-w-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-zinc-50">API Keys</h2>
-                <p className="text-sm text-zinc-500 mt-1">
-                  Manage API keys for programmatic access.
-                </p>
-              </div>
-              <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-blue-600 cursor-pointer">
-                <Plus className="h-3.5 w-3.5" />
-                Create Key
-              </button>
-            </div>
-
-            <div className="bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden">
-              <div className="py-12 text-center text-zinc-500">
-                <Key className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No API keys created yet.</p>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Create a key to integrate with the OSP API.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === "apikeys" && <ApiKeysTab />}
 
         {/* ── Desktop App tab ─────────────────────────────────── */}
         {activeTab === "desktop" && <DesktopSettingsPanel />}
