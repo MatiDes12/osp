@@ -383,10 +383,16 @@ pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 **To activate**: Enable the OAuth provider in Supabase dashboard (Authentication → Providers) with your OAuth app credentials. Set callback URL to `https://your-domain.com/auth/callback`. Then enable it in Settings → SSO.
 **Note**: SAML 2.0 (for stricter enterprise SSO without OAuth) requires Supabase Enterprise plan.
 
-#### TODO-18: License plate recognition (LPR)
-**Why**: Key enterprise feature for parking/access control
-**How**: Integrate OpenALPR or PlateMaker API as an extension
-**Effort**: 16-32 hours
+#### ✅ TODO-18: License plate recognition (LPR)
+**Status**: Done. PlateRecognizer HTTP API integrated.
+- `infra/supabase/migrations/00021_create_lpr.sql` — `lpr_watchlist` table with tenant RLS
+- `services/gateway/src/services/lpr.service.ts` — `analyzeFrameForPlates()` (PlateRecognizer HTTP API), `checkWatchlist()`, `isLprConfigured()`
+- `services/gateway/src/routes/lpr.routes.ts` — 5 endpoints: watchlist CRUD + `/detections`
+- `services/gateway/src/routes/event.routes.ts` — fire-and-forget LPR block on motion/vehicle events; creates `lpr.detected` and `lpr.alert` events
+- `services/gateway/src/app.ts` — mounted at `/api/v1/lpr`
+- `apps/web/src/app/(dashboard)/settings/page.tsx` — License Plates tab: full watchlist CRUD with alert toggle, plate badges, configured/unconfigured status banner
+- `apps/web/src/app/(dashboard)/events/page.tsx` — plate number badges on LPR events, readable type labels
+**To enable**: Set `LPR_PROVIDER=platerecognizer` and `LPR_API_KEY=<token>` in config_secrets or `.env`. Free tier: 2500 calls/month.
 
 #### ✅ TODO-19: Edge computing agent
 **Status**: Done. Lightweight Go binary for on-premise deployment with offline buffering + cloud sync.
