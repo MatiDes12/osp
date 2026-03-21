@@ -38,6 +38,7 @@ blob-report/
 # Go
 services/*/bin/
 services/*/tmp/
+services/*/server
 
 # Tauri
 apps/desktop/src-tauri/target/
