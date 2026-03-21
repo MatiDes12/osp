@@ -141,7 +141,7 @@ jobs:
     if: always()
     steps:
       - name: Slack notification
-        if: ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        if: ${{ vars.SLACK_ENABLED == 'true' }}
         uses: slackapi/slack-github-action@v2
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
