@@ -20,8 +20,13 @@ COPY packages/shared/ packages/shared/
 COPY packages/ui/ packages/ui/
 COPY apps/web/ apps/web/
 
-# Build
+# Build — placeholder public env vars so Next.js doesn't abort
+# Real values are injected at runtime via container environment
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=http://localhost:3000
+ENV NEXT_PUBLIC_WS_URL=ws://localhost:3002
+ENV NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder
 RUN pnpm --filter @osp/shared build
 RUN pnpm --filter @osp/web build
 

@@ -29,6 +29,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   transpilePackages: ["@osp/shared", "@osp/ui"],
   experimental: {},
   async headers() {
