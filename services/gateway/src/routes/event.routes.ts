@@ -18,6 +18,7 @@ import {
   getAIDetectionService,
   type DetectionResult,
 } from "../services/ai-detection.service.js";
+import { analyzeFrameForPlates, checkWatchlist, isLprConfigured } from "../services/lpr.service.js";
 import { trackEvent } from "../services/analytics.service.js";
 import {
   ListEventsSchema,
@@ -387,6 +388,74 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
       } catch (err) {
         ruleLogger.warn("Failed to save event clip", {
           eventId,
+          error: String(err),
+        });
+      }
+    })();
+  }
+
+  // --- LPR: analyse snapshot for license plates (fire-and-forget) ---
+  if (isLprConfigured() && ["motion", "vehicle"].includes(input.type)) {
+    const lprEventId = ospEvent.id;
+    const lprCameraId = input.cameraId;
+    (async () => {
+      try {
+        const go2rtcUrl = get("GO2RTC_API_URL") ?? "http://localhost:1984";
+        const snapshotUrl = `${go2rtcUrl}/api/frame.jpeg?src=${encodeURIComponent(lprCameraId)}`;
+        const snapRes = await fetch(snapshotUrl, { signal: AbortSignal.timeout(5_000) });
+        if (!snapRes.ok) return;
+
+        const arrayBuf = await snapRes.arrayBuffer();
+        const imageBuffer = Buffer.from(arrayBuf);
+        const lprResult = await analyzeFrameForPlates(imageBuffer);
+        if (lprResult.detections.length === 0) return;
+
+        const lprSupabase = getSupabase();
+
+        // Store a lpr.detected event
+        await lprSupabase.from("events").insert({
+          tenant_id: tenantId,
+          camera_id: lprCameraId,
+          type: "lpr.detected",
+          severity: "info",
+          metadata: {
+            plates: lprResult.detections,
+            provider: lprResult.provider,
+            processingMs: lprResult.processingMs,
+            triggeredByEventId: lprEventId,
+          },
+          detected_at: new Date().toISOString(),
+        });
+
+        // Check watchlist and create lpr.alert events for any hits
+        const hits = await checkWatchlist(tenantId, lprResult.detections, lprSupabase);
+        for (const hit of hits) {
+          const { data: alertEvent } = await lprSupabase.from("events").insert({
+            tenant_id: tenantId,
+            camera_id: lprCameraId,
+            type: "lpr.alert",
+            severity: "high",
+            metadata: {
+              plate: hit.plate,
+              label: hit.label,
+              watchlistId: hit.watchlistId,
+              triggeredByEventId: lprEventId,
+            },
+            detected_at: new Date().toISOString(),
+          }).select("id").single();
+
+          if (alertEvent) {
+            ruleLogger.info("LPR watchlist alert created", {
+              plate: hit.plate,
+              label: hit.label,
+              eventId: alertEvent.id as string,
+            });
+          }
+        }
+      } catch (err) {
+        ruleLogger.warn("LPR analysis failed", {
+          eventId: lprEventId,
+          cameraId: lprCameraId,
           error: String(err),
         });
       }

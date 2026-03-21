@@ -980,7 +980,7 @@ export default function EventsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-zinc-200 capitalize">
-                          {event.type.replace("_", " ")}
+                          {event.type === "lpr.detected" ? "Plate Detected" : event.type === "lpr.alert" ? "Plate Alert" : event.type.replace("_", " ")}
                         </span>
                         <span className="text-sm text-zinc-200 font-medium">
                           {event.cameraName ?? cameraNameMap.get(event.cameraId) ?? "Unknown"}
@@ -1002,6 +1002,33 @@ export default function EventsPage() {
                             AI
                           </span>
                         )}
+                        {(event.type === "lpr.detected" || event.type === "lpr.alert") && (() => {
+                          const meta = event.metadata as Record<string, unknown> | null;
+                          const plates = (meta?.plates as Array<{ plate: string }> | undefined) ?? [];
+                          const alertPlate = meta?.plate as string | undefined;
+                          const label = meta?.label as string | undefined;
+                          const isAlert = event.type === "lpr.alert";
+                          return (
+                            <>
+                              <span className={`inline-flex px-1.5 py-0.5 text-[10px] rounded-full ${isAlert ? "bg-red-500/15 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
+                                LPR
+                              </span>
+                              {isAlert && alertPlate && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 text-red-300 font-mono font-semibold border border-red-500/20">
+                                  {alertPlate}{label ? ` · ${label}` : ""}
+                                </span>
+                              )}
+                              {!isAlert && plates.slice(0, 2).map((p) => (
+                                <span key={p.plate} className="inline-flex px-1.5 py-0.5 text-[10px] rounded bg-zinc-800 text-zinc-300 font-mono font-semibold">
+                                  {p.plate}
+                                </span>
+                              ))}
+                              {!isAlert && plates.length > 2 && (
+                                <span className="text-[10px] text-zinc-500">+{plates.length - 2}</span>
+                              )}
+                            </>
+                          );
+                        })()}
                         {event.acknowledged && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-400">
                             <CheckCircle2 className="w-2.5 h-2.5" />

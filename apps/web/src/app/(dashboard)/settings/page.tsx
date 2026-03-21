@@ -45,6 +45,10 @@ import {
   Globe,
   ChevronDown,
   ChevronUp,
+  Server,
+  Wifi,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -73,7 +77,10 @@ type SettingsTab =
   | "billing"
   | "apikeys"
   | "desktop"
-  | "sso";
+  | "sso"
+  | "lpr"
+  | "edge"
+  | "config";
 
 const NAV_ITEMS: readonly {
   key: SettingsTab;
@@ -89,6 +96,9 @@ const NAV_ITEMS: readonly {
   { key: "billing", label: "Billing", icon: CreditCard },
   { key: "apikeys", label: "API Keys", icon: Key },
   { key: "sso", label: "SSO / Identity", icon: LogIn },
+  { key: "lpr", label: "License Plates", icon: AlertCircle },
+  { key: "edge", label: "Edge Agents", icon: Server },
+  { key: "config", label: "Config & Secrets", icon: Globe },
   { key: "desktop", label: "Desktop App", icon: Monitor },
 ];
 
@@ -1140,6 +1150,689 @@ const SSO_PROVIDERS: { provider: SsoProvider; label: string; description: string
     description: "Let developers sign in with their GitHub account.",
   },
 ];
+
+/* ------------------------------------------------------------------ */
+/*  Config & Secrets Tab                                               */
+/* ------------------------------------------------------------------ */
+
+// All known env var keys grouped by section.
+// SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / DATABASE_URL
+// are intentionally excluded — they must stay in process.env as bootstrap.
+const CONFIG_SECTIONS: readonly {
+  label: string;
+  keys: readonly { key: string; description: string; sensitive?: boolean }[];
+}[] = [
+  {
+    label: "App / Frontend",
+    keys: [
+      { key: "NEXT_PUBLIC_API_URL", description: "Gateway base URL used by the web app" },
+      { key: "GATEWAY_PORT", description: "Gateway HTTP port" },
+      { key: "WS_PORT", description: "WebSocket server port" },
+      { key: "GATEWAY_CORS_ORIGINS", description: "Allowed CORS origins (comma-separated)" },
+      { key: "RATE_LIMIT_FAIL_OPEN", description: "If true, allow requests when rate-limit backend is down" },
+      { key: "API_TOKEN", description: "Internal service-to-service bearer token", sensitive: true },
+    ],
+  },
+  {
+    label: "Redis",
+    keys: [{ key: "REDIS_URL", description: "Redis connection URL", sensitive: true }],
+  },
+  {
+    label: "Cloudflare R2 / S3 Storage",
+    keys: [
+      { key: "R2_ACCOUNT_ID", description: "R2 account ID" },
+      { key: "R2_ACCESS_KEY_ID", description: "R2 access key ID", sensitive: true },
+      { key: "R2_SECRET_ACCESS_KEY", description: "R2 secret access key", sensitive: true },
+      { key: "R2_BUCKET_NAME", description: "R2 bucket name" },
+      { key: "R2_ENDPOINT", description: "R2 endpoint URL" },
+    ],
+  },
+  {
+    label: "Go Services (gRPC ports)",
+    keys: [
+      { key: "INGEST_GRPC_PORT", description: "Camera ingest gRPC port" },
+      { key: "VIDEO_GRPC_PORT", description: "Video pipeline gRPC port" },
+      { key: "EVENT_GRPC_PORT", description: "Event engine gRPC port" },
+      { key: "EXTENSION_GRPC_PORT", description: "Extension runtime gRPC port" },
+    ],
+  },
+  {
+    label: "go2rtc",
+    keys: [
+      { key: "GO2RTC_API_URL", description: "go2rtc HTTP API base URL" },
+      { key: "GO2RTC_RTSP_PORT", description: "go2rtc RTSP port" },
+      { key: "GO2RTC_WEBRTC_PORT", description: "go2rtc WebRTC port" },
+    ],
+  },
+  {
+    label: "TURN / ICE Server (WebRTC)",
+    keys: [
+      { key: "TURN_SERVER_URL", description: "TURN server URL, e.g. turn:localhost:3478" },
+      { key: "TURN_SERVER_USERNAME", description: "TURN server username" },
+      { key: "TURN_SERVER_CREDENTIAL", description: "TURN server credential/password", sensitive: true },
+    ],
+  },
+  {
+    label: "ClickHouse Analytics",
+    keys: [
+      { key: "CLICKHOUSE_URL", description: "ClickHouse HTTP URL" },
+      { key: "CLICKHOUSE_USER", description: "ClickHouse username" },
+      { key: "CLICKHOUSE_PASSWORD", description: "ClickHouse password", sensitive: true },
+      { key: "CLICKHOUSE_DATABASE", description: "ClickHouse database name" },
+    ],
+  },
+  {
+    label: "Recordings",
+    keys: [
+      { key: "RECORDINGS_DIR", description: "Local directory for event clips and thumbnails" },
+    ],
+  },
+  {
+    label: "Encryption",
+    keys: [{ key: "OSP_ENCRYPTION_KEY", description: "64-char hex AES-256 key for encrypting camera credentials", sensitive: true }],
+  },
+  {
+    label: "AI Detection",
+    keys: [
+      { key: "AI_PROVIDER", description: "AI provider: none | openai | custom" },
+      { key: "OPENAI_API_KEY", description: "OpenAI API key (used when AI_PROVIDER=openai)", sensitive: true },
+    ],
+  },
+  {
+    label: "Extensions",
+    keys: [
+      { key: "EXTENSION_SANDBOX_DIR", description: "Directory for sandboxed extension bundles" },
+      { key: "EXTENSION_ALLOW_INLINE_SOURCE", description: "Allow extensions with inline JS source (dev only)" },
+    ],
+  },
+  {
+    label: "Motion Detection Tuning",
+    keys: [
+      { key: "MOTION_SAMPLE_INTERVAL_MS", description: "How often to sample frames for motion (ms)" },
+      { key: "MOTION_COOLDOWN_MS", description: "Cooldown between motion events per camera (ms)" },
+    ],
+  },
+  {
+    label: "Push Notifications",
+    keys: [
+      { key: "APNS_KEY_ID", description: "Apple Push Notification Service key ID" },
+      { key: "APNS_TEAM_ID", description: "Apple developer team ID" },
+      { key: "FCM_SERVER_KEY", description: "Firebase Cloud Messaging server key", sensitive: true },
+    ],
+  },
+  {
+    label: "Email (SendGrid)",
+    keys: [
+      { key: "SENDGRID_API_KEY", description: "SendGrid API key (SG.xxx)", sensitive: true },
+      { key: "EMAIL_FROM", description: "From address for all outbound email, e.g. OSP Alerts <alerts@osp.dev>" },
+    ],
+  },
+  {
+    label: "Dual-write (Cloud mirrors)",
+    keys: [
+      { key: "SUPABASE_CLOUD_URL", description: "Cloud Supabase URL (kept in sync when running local DB)" },
+      { key: "SUPABASE_CLOUD_SERVICE_ROLE_KEY", description: "Cloud Supabase service role key", sensitive: true },
+      { key: "DATABASE_CLOUD_URL", description: "Cloud Postgres direct URL for Go services", sensitive: true },
+    ],
+  },
+  {
+    label: "Sentry Error Monitoring",
+    keys: [
+      { key: "SENTRY_DSN", description: "Sentry DSN (server-side)", sensitive: true },
+      { key: "NEXT_PUBLIC_SENTRY_DSN", description: "Sentry DSN (browser/public, safe to expose)" },
+      { key: "SENTRY_AUTH_TOKEN", description: "Sentry auth token for source map uploads", sensitive: true },
+      { key: "SENTRY_ORG", description: "Sentry organisation slug" },
+      { key: "SENTRY_PROJECT", description: "Sentry project slug" },
+    ],
+  },
+  {
+    label: "License Plate Recognition (LPR)",
+    keys: [
+      { key: "LPR_PROVIDER", description: "LPR provider (platerecognizer)" },
+      { key: "LPR_API_KEY", description: "PlateRecognizer API token", sensitive: true },
+      { key: "LPR_REGIONS", description: "Optional region hint, e.g. us,gb,ca (leave blank for global)" },
+    ],
+  },
+];
+
+function ConfigTab() {
+  const [dbKeys, setDbKeys] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  const loadKeys = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/config/keys`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const j = (await res.json()) as { data: { keys: string[] } };
+        setDbKeys(new Set(j.data.keys ?? []));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadKeys(); }, [loadKeys]);
+
+  const startEdit = async (key: string) => {
+    const res = await fetch(`${API_URL}/api/v1/config/keys/${key}`, { headers: getAuthHeaders() });
+    const j = (await res.json()) as { data: { value: string | null } };
+    setEditValue(j.data.value ?? "");
+    setEditing(key);
+  };
+
+  const saveEdit = async (key: string) => {
+    setSaving(key);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/config/keys/${key}`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ value: editValue, scope: "global" }),
+      });
+      if (!res.ok) { showToast("Failed to save", "error"); return; }
+      showToast(`${key} saved`, "success");
+      setEditing(null);
+      setDbKeys((prev) => new Set([...prev, key]));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const toggleReveal = (key: string) => {
+    setRevealed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  return (
+    <div className="max-w-3xl">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-zinc-50">Config &amp; Secrets</h2>
+        <p className="text-sm text-zinc-400 mt-1">
+          DB values override process.env at runtime. Bootstrap keys (SUPABASE_URL, service role key, DATABASE_URL) must remain in .env and are not shown here.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-24 bg-zinc-900 rounded-lg animate-pulse" />)}</div>
+      ) : (
+        <div className="space-y-6">
+          {CONFIG_SECTIONS.map((section) => (
+            <div key={section.label} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-zinc-800 bg-zinc-800/40">
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{section.label}</h3>
+              </div>
+              <div className="divide-y divide-zinc-800/50">
+                {section.keys.map(({ key, description, sensitive }) => {
+                  const inDb = dbKeys.has(key);
+                  const isEditing = editing === key;
+                  const isRevealed = revealed.has(key);
+                  return (
+                    <div key={key} className="px-4 py-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <code className="text-xs font-mono text-zinc-200">{key}</code>
+                          {inDb ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">DB</span>
+                          ) : (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-700/50 text-zinc-500 border border-zinc-700">env</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-0.5">{description}</p>
+                        {isEditing && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type={sensitive && !isRevealed ? "password" : "text"}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                autoFocus
+                                className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-50 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder={`Enter value for ${key}`}
+                              />
+                              {sensitive && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleReveal(key)}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                >
+                                  {isRevealed ? <EyeOff size={12} /> : <Eye size={12} />}
+                                </button>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => saveEdit(key)}
+                              disabled={saving === key}
+                              className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+                            >
+                              {saving === key ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                              Save
+                            </button>
+                            <button onClick={() => setEditing(null)} className="px-2 py-1.5 text-xs text-zinc-500 hover:text-zinc-300">
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {!isEditing && (
+                        <button
+                          onClick={() => startEdit(key)}
+                          className="shrink-0 flex items-center gap-1 rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+                        >
+                          <Pencil size={11} />
+                          {inDb ? "Edit" : "Set"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  LPR Watchlist Tab                                                  */
+/* ------------------------------------------------------------------ */
+interface WatchlistEntry {
+  id: string;
+  plate: string;
+  label: string;
+  alert_on_detect: boolean;
+  created_at: string;
+}
+
+function LprTab() {
+  const [status, setStatus] = useState<{ configured: boolean; provider: string } | null>(null);
+  const [entries, setEntries] = useState<WatchlistEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newPlate, setNewPlate] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newAlert, setNewAlert] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [statusRes, listRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/lpr/status`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/api/v1/lpr/watchlist`, { headers: getAuthHeaders() }),
+      ]);
+      if (statusRes.ok) {
+        const s = (await statusRes.json()) as { data: { configured: boolean; provider: string } };
+        setStatus(s.data);
+      }
+      if (listRes.ok) {
+        const l = (await listRes.json()) as { data: WatchlistEntry[] };
+        setEntries(l.data ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newPlate.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/lpr/watchlist`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ plate: newPlate.trim(), label: newLabel.trim(), alertOnDetect: newAlert }),
+      });
+      if (res.status === 409) { showToast("Plate already on watchlist", "error"); return; }
+      if (!res.ok) { showToast("Failed to add plate", "error"); return; }
+      showToast("Plate added", "success");
+      setNewPlate(""); setNewLabel(""); setNewAlert(true); setShowAdd(false);
+      void load();
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleToggleAlert = async (entry: WatchlistEntry) => {
+    await fetch(`${API_URL}/api/v1/lpr/watchlist/${entry.id}`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ alertOnDetect: !entry.alert_on_detect }),
+    });
+    void load();
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`${API_URL}/api/v1/lpr/watchlist/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    showToast("Plate removed", "success");
+    void load();
+  };
+
+  return (
+    <div className="max-w-3xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-zinc-50">License Plate Recognition</h2>
+          <p className="text-sm text-zinc-400 mt-1">Manage your plate watchlist. Matched plates trigger high-severity alerts.</p>
+        </div>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+        >
+          <Plus size={15} /> Add Plate
+        </button>
+      </div>
+
+      {/* Status banner */}
+      {status && (
+        <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 mb-6 text-sm ${status.configured ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" : "border-amber-500/30 bg-amber-500/5 text-amber-400"}`}>
+          <AlertCircle size={15} />
+          {status.configured
+            ? `LPR active · Provider: ${status.provider}`
+            : "LPR not configured. Set LPR_API_KEY and LPR_PROVIDER=platerecognizer in Settings → Config or your .env file."}
+        </div>
+      )}
+
+      {/* Add form */}
+      {showAdd && (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-4 space-y-3">
+          <h3 className="text-sm font-semibold text-zinc-200">New watchlist entry</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Plate number *</label>
+              <input
+                type="text"
+                value={newPlate}
+                onChange={(e) => setNewPlate(e.target.value.toUpperCase())}
+                placeholder="ABC1234"
+                className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1">Label (optional)</label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g. Staff – John, BANNED"
+                className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={newAlert} onChange={(e) => setNewAlert(e.target.checked)} className="accent-blue-500 w-4 h-4" />
+            <span className="text-sm text-zinc-300">Alert on detect</span>
+          </label>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+            <button
+              onClick={handleAdd}
+              disabled={adding || !newPlate.trim()}
+              className="flex items-center gap-2 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {adding ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Watchlist table */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+        {loading ? (
+          <table className="w-full text-sm"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={4} />)}</tbody></table>
+        ) : entries.length === 0 ? (
+          <div className="py-12 text-center text-zinc-500 text-sm">No plates on watchlist yet.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left">
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Plate</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Label</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Alert</th>
+                <th className="px-4 py-3 text-xs font-medium text-zinc-400 uppercase tracking-wide">Added</th>
+                <th className="px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id} className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="font-mono font-semibold text-zinc-100 tracking-wider bg-zinc-800 px-2 py-0.5 rounded">{e.plate}</span>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-400">{e.label || <span className="text-zinc-600 italic">—</span>}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => handleToggleAlert(e)}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${e.alert_on_detect ? "bg-blue-600" : "bg-zinc-700"}`}
+                      title={e.alert_on_detect ? "Alerts on" : "Alerts off"}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${e.alert_on_detect ? "translate-x-4" : "translate-x-1"}`} />
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-zinc-500 text-xs">{new Date(e.created_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => handleDelete(e.id)} className="text-zinc-600 hover:text-red-400 transition-colors" title="Remove">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Edge Agents Tab ────────────────────────────────────────────────────────
+
+interface EdgeAgent {
+  id: string;
+  agent_id: string;
+  name: string;
+  location: string | null;
+  status: "online" | "offline" | "error";
+  version: string | null;
+  cameras_active: number;
+  pending_events: number;
+  synced_events: number;
+  last_seen_at: string | null;
+  created_at: string;
+}
+
+function EdgeAgentsTab() {
+  const [agents, setAgents] = useState<EdgeAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/edge/agents`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { data: EdgeAgent[] };
+        setAgents(json.data ?? []);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleDelete = async (agentId: string) => {
+    await fetch(`${API_URL}/api/v1/edge/agents/${agentId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    showToast("Agent removed", "success");
+    void load(true);
+  };
+
+  const statusColor = (s: EdgeAgent["status"]) => {
+    if (s === "online") return "bg-green-500 text-green-400";
+    if (s === "error") return "bg-red-500 text-red-400";
+    return "bg-zinc-600 text-zinc-500";
+  };
+
+  const statusDot = (s: EdgeAgent["status"]) => {
+    if (s === "online") return "bg-green-500";
+    if (s === "error") return "bg-red-500";
+    return "bg-zinc-600";
+  };
+
+  const relativeTime = (iso: string | null) => {
+    if (!iso) return "never";
+    const diff = Date.now() - new Date(iso).getTime();
+    const secs = Math.floor(diff / 1000);
+    if (secs < 60) return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+    return `${Math.floor(secs / 3600)}h ago`;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-zinc-100">Edge Agents</h3>
+          <p className="mt-0.5 text-sm text-zinc-400">
+            On-premise binaries that buffer events locally and sync to the cloud.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void load(true)}
+          disabled={refreshing}
+          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Setup instructions */}
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <h4 className="mb-2 text-sm font-medium text-zinc-200">Deploy an Edge Agent</h4>
+        <p className="mb-3 text-xs text-zinc-400">
+          Run one binary per site. It connects to a local go2rtc, detects motion offline, and
+          syncs events here automatically.
+        </p>
+        <pre className="rounded-md bg-zinc-950 p-3 text-xs text-zinc-300 overflow-x-auto">{`# Docker
+docker run -d --name osp-edge \\
+  -e EDGE_AGENT_ID=site-01 \\
+  -e EDGE_AGENT_NAME="Building A" \\
+  -e CLOUD_GATEWAY_URL=https://your-gateway.fly.dev \\
+  -e CLOUD_API_TOKEN=<your-api-key> \\
+  -e TENANT_ID=<your-tenant-id> \\
+  -e GO2RTC_URL=http://go2rtc:1984 \\
+  -v edge-data:/data \\
+  ghcr.io/matidesign/osp-edge-agent:latest`}</pre>
+      </div>
+
+      {/* Agent list */}
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />
+        </div>
+      ) : agents.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-zinc-800 py-14 text-center">
+          <Server className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
+          <p className="text-sm font-medium text-zinc-400">No edge agents registered</p>
+          <p className="mt-1 text-xs text-zinc-600">
+            Deploy the edge agent binary at a remote site — it will appear here automatically.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {agents.map((agent) => (
+            <div
+              key={agent.id}
+              className="rounded-lg border border-zinc-800 bg-zinc-900 p-4"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-800">
+                    {agent.status === "online" ? (
+                      <Wifi className="h-4 w-4 text-green-400" />
+                    ) : (
+                      <WifiOff className="h-4 w-4 text-zinc-500" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-zinc-100">{agent.name}</span>
+                      <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusDot(agent.status)}`} />
+                        {agent.status}
+                      </span>
+                      {agent.version && (
+                        <span className="text-[10px] text-zinc-600">v{agent.version}</span>
+                      )}
+                    </div>
+                    {agent.location && (
+                      <p className="mt-0.5 text-xs text-zinc-500">{agent.location}</p>
+                    )}
+                    <p className="mt-0.5 text-[11px] text-zinc-600">
+                      ID: {agent.agent_id} · Last seen: {relativeTime(agent.last_seen_at)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(agent.agent_id)}
+                  className="cursor-pointer rounded p-1 text-zinc-600 transition-colors hover:text-red-400"
+                  title="Remove agent"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Stats row */}
+              <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-800 pt-3">
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-zinc-100">{agent.cameras_active}</p>
+                  <p className="text-[10px] text-zinc-500">Cameras</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-lg font-semibold ${agent.pending_events > 0 ? "text-amber-400" : "text-zinc-100"}`}>
+                    {agent.pending_events}
+                  </p>
+                  <p className="text-[10px] text-zinc-500">Pending sync</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-semibold text-zinc-100">{agent.synced_events}</p>
+                  <p className="text-[10px] text-zinc-500">Synced</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SsoTab() {
   const [configs, setConfigs] = useState<SsoConfig[]>([]);
@@ -2336,6 +3029,15 @@ function SettingsPageInner() {
 
         {/* ── API Keys tab ───────────────────────────────────── */}
         {activeTab === "apikeys" && <ApiKeysTab />}
+
+        {/* ── LPR tab ─────────────────────────────────────────── */}
+        {activeTab === "lpr" && <LprTab />}
+
+        {/* ── Edge Agents tab ──────────────────────────────────── */}
+        {activeTab === "edge" && <EdgeAgentsTab />}
+
+        {/* ── Config & Secrets tab ─────────────────────────────── */}
+        {activeTab === "config" && <ConfigTab />}
 
         {/* ── SSO / Identity tab ──────────────────────────────── */}
         {activeTab === "sso" && <SsoTab />}

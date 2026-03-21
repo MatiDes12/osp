@@ -388,10 +388,35 @@ pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 **How**: Integrate OpenALPR or PlateMaker API as an extension
 **Effort**: 16-32 hours
 
-#### TODO-19: Edge computing agent
-**Why**: Large sites need on-premise processing, not cloud
-**What**: Lightweight Go binary that runs locally, syncs events/recordings to cloud
-**Effort**: 40-80 hours
+#### ✅ TODO-19: Edge computing agent
+**Status**: Done. Lightweight Go binary for on-premise deployment with offline buffering + cloud sync.
+- `services/edge-agent/` — standalone Go service (no gRPC; HTTP-only)
+  - `internal/motion/detector.go` — pure-Go JPEG pixel-diff motion detection (1 fps polling)
+  - `internal/storage/db.go` — BoltDB offline event queue (no CGO)
+  - `internal/sync/syncer.go` — cloud sync loop: heartbeat + batch event upload, prune after 24h
+  - `internal/camera/manager.go` — static camera list or auto-discovery from go2rtc
+  - `internal/health/server.go` — HTTP `/health` + `/status` endpoints
+  - `cmd/server/main.go` — startup, graceful shutdown, 8084 port
+  - `Dockerfile` — CGO_ENABLED=0 multi-stage Alpine build
+  - `fly.toml` — Fly.io deployment with `/data` volume
+- `infra/supabase/migrations/00021_create_edge_agents.sql` — `edge_agents` table with RLS
+- `services/gateway/src/routes/edge.routes.ts` — 6 endpoints: register, heartbeat, list, get, patch, delete
+- `services/gateway/src/app.ts` — mounted at `/api/v1/edge`
+- `apps/web/src/app/(dashboard)/settings/page.tsx` — new "Edge Agents" tab: live agent cards (status, cameras, queue depth, last seen), setup instructions with Docker run command
+
+**To run**:
+```bash
+docker build -t osp-edge-agent services/edge-agent/
+docker run -d \
+  -e EDGE_AGENT_ID=site-01 \
+  -e EDGE_AGENT_NAME="Building A" \
+  -e CLOUD_GATEWAY_URL=http://localhost:3000 \
+  -e CLOUD_API_TOKEN=<api-key> \
+  -e TENANT_ID=<tenant-id> \
+  -e GO2RTC_URL=http://host.docker.internal:1984 \
+  -p 8084:8084 -v edge-data:/data osp-edge-agent
+```
+**Offline behaviour**: Events buffer in BoltDB at `/data/edge-agent.db`. On reconnect, up to 50 events/cycle are synced and pruned after 24 h.
 
 #### ✅ TODO-20: ONVIF PTZ (real commands)
 **Status**: Done — PTZ route forwards to camera-ingest gRPC; real ONVIF SOAP commands when service is up.
@@ -558,4 +583,4 @@ osp/
 4. **TODO-9** — Tauri desktop app (16-32 hours)
 5. **TODO-16** — ClickHouse analytics (40-80 hours, Phase 3)
 
-**All other TODO-1 through TODO-13 items (and TODO-2) are now complete.**
+**All other TODO-1 through TODO-13 items, TODO-17, and TODO-19 are now complete.**
