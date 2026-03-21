@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts && node -e \"const{cpSync}=require('fs');cpSync('src/grpc/proto','dist/grpc/proto',{recursive:true})\"",
+    "build": "tsup src/index.ts --format esm && cp -r src/grpc/proto dist/proto",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",
     "test": "vitest run",

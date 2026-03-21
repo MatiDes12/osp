@@ -61,8 +61,15 @@ services:
       - CLICKHOUSE_USER=osp
       - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-osp_analytics}
       - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    # Required on Docker Desktop (Windows/macOS/WSL2) — ClickHouse calls
+    # get_mempolicy for NUMA which is blocked by the default seccomp profile
+    cap_add:
+      - SYS_NICE
+      - IPC_LOCK
+    security_opt:
+      - seccomp:unconfined
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -141,6 +148,9 @@ services:
       - REDIS_URL=redis://redis:6379
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - redis
       - go2rtc
@@ -163,6 +173,9 @@ services:
       - REDIS_URL=redis://redis:6379
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - redis
     restart: unless-stopped
