@@ -189,7 +189,7 @@ export default function HomePage() {
       {/* ---------------------------------------------------------------- */}
       {/*  FEATURES                                                        */}
       {/* ---------------------------------------------------------------- */}
-      <section className="border-t border-zinc-800/60 px-6 py-24">
+      <section id="features" className="border-t border-zinc-800/60 px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <div className="mb-16 text-center">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
@@ -367,16 +367,16 @@ export default function HomePage() {
 
           {/* Links */}
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-zinc-400">
-            <a href="#" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
+            <a href="#features" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
               Product
             </a>
-            <a href="#" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
+            <a href="/docs" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
               Documentation
             </a>
-            <a href="#" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
+            <a href="https://github.com/MatiDes12/osp" target="_blank" rel="noopener noreferrer" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
               GitHub
             </a>
-            <a href="#" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
+            <a href="/docs" className="cursor-pointer transition-colors duration-150 hover:text-zinc-200">
               API Reference
             </a>
           </div>

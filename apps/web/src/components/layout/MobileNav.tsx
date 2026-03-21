@@ -28,8 +28,11 @@ export function MobileNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-zinc-800 bg-zinc-900 lg:hidden">
-      <div className="flex h-16 items-center justify-around px-2 pb-[env(safe-area-inset-bottom)]">
+    <nav
+      className="fixed bottom-0 inset-x-0 z-30 border-t border-zinc-800 bg-zinc-900/95 backdrop-blur-sm lg:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div className="flex h-16 items-stretch">
         {MOBILE_TABS.map((tab) => {
           const active = isActive(tab.href);
           const Icon = tab.icon;
@@ -38,12 +41,17 @@ export function MobileNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 transition-colors duration-150 ${
-                active ? "text-blue-500" : "text-zinc-500"
+              className={`relative flex flex-1 flex-col items-center justify-center gap-1 transition-colors duration-150 ${
+                active ? "text-blue-400" : "text-zinc-500 hover:text-zinc-300"
               }`}
             >
-              <Icon className="h-6 w-6" />
-              <span className="text-xs leading-tight">{tab.label}</span>
+              {active && (
+                <span className="absolute inset-x-3 top-0 h-[2px] rounded-b-full bg-blue-500" />
+              )}
+              <Icon className="h-5 w-5" strokeWidth={active ? 2.5 : 1.75} />
+              <span className={`text-[10px] font-medium leading-none ${active ? "text-blue-400" : "text-zinc-500"}`}>
+                {tab.label}
+              </span>
             </Link>
           );
         })}

@@ -321,7 +321,9 @@ export default function RegisterPage() {
               <span className="text-sm text-zinc-400">
                 I agree to the{" "}
                 <a
-                  href="#"
+                  href="https://github.com/MatiDes12/osp/blob/main/docs/TERMS.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="cursor-pointer text-blue-400 transition-colors duration-150 hover:text-blue-300"
                 >
                   Terms of Service
