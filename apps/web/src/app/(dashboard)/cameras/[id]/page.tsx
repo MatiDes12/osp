@@ -1635,7 +1635,11 @@ export default function CameraDetailPage() {
             <RecordingTab
               cameraId={camera.id}
               onPlay={(url, offset) => {
-                setPlaybackUrl(url);
+                const token = localStorage.getItem("osp_access_token");
+                const authedUrl = token
+                  ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+                  : url;
+                setPlaybackUrl(authedUrl);
                 setPlaybackOffset(offset ?? 0);
               }}
             />

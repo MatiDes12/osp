@@ -250,7 +250,7 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
           <button
             type="button"
             onClick={toggle}
-            className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
+            className="flex w-full items-center justify-start gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:bg-zinc-800/50 hover:text-zinc-300 cursor-pointer"
             aria-label={effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {effectiveCollapsed ? (
@@ -273,7 +273,7 @@ export function Sidebar({ isMobileDrawer = false }: SidebarProps) {
             window.location.href = "/login";
           }}
           title={effectiveCollapsed ? "Sign Out" : undefined}
-          className="flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:text-red-400 cursor-pointer"
+          className="flex w-full items-center justify-start gap-2 rounded-md px-3 py-2 text-sm text-zinc-500 transition-colors duration-150 hover:text-red-400 cursor-pointer"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           {!effectiveCollapsed && <span>Sign Out</span>}

@@ -696,7 +696,7 @@ export default function RulesPage() {
           {!loading &&
             !error &&
             sortedRules.map((rule) => (
-              <button
+              <div
                 key={rule.id}
                 onClick={() => { setIsCreating(false); setSelectedRuleId(rule.id); }}
                 className={`w-full text-left bg-zinc-900 border rounded-lg p-4 mb-2 cursor-pointer transition-all duration-150 hover:bg-zinc-800/50 ${
@@ -770,7 +770,7 @@ export default function RulesPage() {
                     />
                   </button>
                 </div>
-              </button>
+              </div>
             ))}
         </div>
       </div>
