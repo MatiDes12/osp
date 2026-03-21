@@ -13,153 +13,259 @@ concurrency:
 env:
   NODE_VERSION: "20"
   PNPM_VERSION: "10"
+  GO_VERSION: "1.22"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reusable setup composite (avoid duplicating across jobs)
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
-  # ─── Lint & Type Check ──────────────────────────────
-  lint-and-typecheck:
+
+  # ── 1. Format ────────────────────────────────────────────────────────────
+  format:
+    name: Format Check (Prettier)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Prettier check
+        run: pnpm format --check
+
+  # ── 2. Lint & Type Check ─────────────────────────────────────────────────
+  lint:
     name: Lint & Type Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
+        with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
-
       - name: Build @osp/shared
         run: pnpm --filter @osp/shared build
-
-      - name: Lint
+      - name: ESLint
         run: pnpm lint
-
-      - name: Type Check
+      - name: TypeScript
         run: pnpm type-check
 
-  # ─── Test Shared Package ────────────────────────────
+  # ── 3. Dependency Audit ──────────────────────────────────────────────────
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit (high+)
+        run: pnpm audit --audit-level=high
+
+  # ── 4. Unit Tests — Shared ───────────────────────────────────────────────
   test-shared:
-    name: Test (@osp/shared)
+    name: Unit Tests (@osp/shared)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
+        with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
-
       - name: Build @osp/shared
         run: pnpm --filter @osp/shared build
-
-      - name: Test @osp/shared
-        run: pnpm --filter @osp/shared test -- --coverage
-
-      - name: Upload coverage report
-        if: always()
+      - name: Test with coverage
+        run: pnpm --filter @osp/shared test -- --coverage --reporter=verbose
+      - name: Upload coverage
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: coverage-shared
           path: packages/shared/coverage/
           retention-days: 7
 
-  # ─── Test Gateway ───────────────────────────────────
+  # ── 5. Unit Tests — Gateway ──────────────────────────────────────────────
   test-gateway:
-    name: Test (@osp/gateway)
+    name: Unit Tests (@osp/gateway)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
+        with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
-
       - name: Build @osp/shared
         run: pnpm --filter @osp/shared build
-
-      - name: Test @osp/gateway
-        run: pnpm --filter @osp/gateway test -- --coverage
-
-      - name: Upload coverage report
-        if: always()
+      - name: Test with coverage
+        run: pnpm --filter @osp/gateway test -- --coverage --reporter=verbose
+      - name: Upload coverage
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: coverage-gateway
           path: services/gateway/coverage/
           retention-days: 7
 
-  # ─── Build Web App ─────────────────────────────────
+  # ── 6. Build — Web ───────────────────────────────────────────────────────
   build-web:
     name: Build (@osp/web)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    outputs:
+      bundle-size: ${{ steps.bundle.outputs.size }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
+        with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
-
       - name: Build @osp/shared
         run: pnpm --filter @osp/shared build
-
-      - name: Build @osp/web
+      - name: Build @osp/ui
+        run: pnpm --filter @osp/ui build
+      - name: Build web app
         run: pnpm --filter @osp/web build
-
-      - name: Cache .next directory
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+      - name: Bundle size summary
+        id: bundle
+        run: |
+          SIZE=$(du -sh apps/web/.next/ | cut -f1)
+          echo "size=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "### 📦 Bundle size: $SIZE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Cache .next
         uses: actions/cache@v4
         with:
           path: apps/web/.next
           key: next-build-${{ github.sha }}
-          restore-keys: |
-            next-build-
 
-  # ─── Build Extension SDK ───────────────────────────
+  # ── 7. Build — Extension SDK ─────────────────────────────────────────────
   build-sdk:
-    name: Build (@osp/extension-sdk)
+    name: Build (@osp/sdk)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
+        with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @osp/extension-sdk build
 
-      - name: Build @osp/extension-sdk
-        run: pnpm --filter @osp/extension-sdk build
+  # ── 8. Go — Lint & Test ──────────────────────────────────────────────────
+  go-check:
+    name: Go Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            services/camera-ingest/go.sum
+            services/video-pipeline/go.sum
+            services/event-engine/go.sum
+            services/extension-runtime/go.sum
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: services/camera-ingest
+        continue-on-error: true
+      - name: Go vet (all services)
+        run: |
+          for svc in camera-ingest video-pipeline event-engine extension-runtime; do
+            dir="services/$svc"
+            if [ -f "$dir/go.mod" ]; then
+              echo "=== vet $svc ==="
+              cd "$dir" && go vet ./... && cd ../..
+            fi
+          done
+      - name: Go test (all services)
+        run: |
+          for svc in camera-ingest video-pipeline event-engine extension-runtime; do
+            dir="services/$svc"
+            if [ -f "$dir/go.mod" ]; then
+              echo "=== test $svc ==="
+              cd "$dir" && go test ./... -timeout 60s && cd ../..
+            fi
+          done
+
+  # ── 9. Migration Lint ────────────────────────────────────────────────────
+  migration-check:
+    name: SQL Migration Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check migration file naming
+        run: |
+          # Ensure migrations are sequentially named
+          prev=0
+          for f in $(ls infra/supabase/migrations/*.sql | sort); do
+            num=$(basename "$f" | grep -oE '^[0-9]+')
+            # Allow duplicates (two 00021 files) but no gaps > 1
+            if [ $((10#$num - prev)) -gt 2 ]; then
+              echo "❌ Gap detected before $f (prev: $prev)"
+              exit 1
+            fi
+            prev=$((10#$num))
+          done
+          echo "✅ Migration numbering OK"
+      - name: Check all migrations have semicolons
+        run: |
+          for f in infra/supabase/migrations/*.sql; do
+            if ! grep -q ";" "$f"; then
+              echo "⚠️  $f may be missing semicolons"
+            fi
+          done
+          echo "✅ Migration syntax check done"
+
+  # ── 10. CI Gate ──────────────────────────────────────────────────────────
+  ci-gate:
+    name: ✅ CI Gate
+    runs-on: ubuntu-latest
+    needs:
+      - format
+      - lint
+      - audit
+      - test-shared
+      - test-gateway
+      - build-web
+      - build-sdk
+      - go-check
+      - migration-check
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          results='${{ toJSON(needs) }}'
+          failed=$(echo "$results" | python3 -c "
+          import json,sys
+          data=json.load(sys.stdin)
+          failed=[k for k,v in data.items() if v['result'] not in ('success','skipped')]
+          print('\n'.join(failed))
+          ")
+          if [ -n "$failed" ]; then
+            echo "❌ Failed jobs:"
+            echo "$failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"
