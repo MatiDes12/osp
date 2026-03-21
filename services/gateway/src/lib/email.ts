@@ -1,18 +1,9 @@
-import { Resend } from "resend";
 import { createLogger } from "./logger.js";
 import { get } from "./config.js";
 
 const logger = createLogger("email");
 
-let resendClient: Resend | null | undefined;
-
-function getResend(): Resend | null {
-  if (resendClient === undefined) {
-    const key = get("RESEND_API_KEY");
-    resendClient = key ? new Resend(key) : null;
-  }
-  return resendClient;
-}
+const SENDGRID_API = "https://api.sendgrid.com/v3/mail/send";
 
 export interface SendEmailParams {
   readonly to: readonly string[];
@@ -21,35 +12,50 @@ export interface SendEmailParams {
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<void> {
-  const resend = getResend();
-  if (!resend) {
-    logger.info("[email] (no RESEND_API_KEY, logging instead)", {
+  const apiKey = get("SENDGRID_API_KEY");
+
+  if (!apiKey) {
+    logger.info("[email] no SENDGRID_API_KEY — logging instead", {
       subject: params.subject,
       to: params.to.join(", "),
     });
     return;
   }
 
-  const from = get("EMAIL_FROM") ?? "OSP <alerts@osp.dev>";
+  const from = get("EMAIL_FROM") ?? "OSP Alerts <alerts@osp.dev>";
+
+  const body = {
+    personalizations: [
+      {
+        to: params.to.map((email) => ({ email })),
+      },
+    ],
+    from: { email: from.includes("<") ? from.match(/<(.+)>/)?.[1] ?? from : from, name: "OSP" },
+    subject: params.subject,
+    content: [{ type: "text/html", value: params.html }],
+  };
 
   try {
-    const { error } = await resend.emails.send({
-      from,
-      to: [...params.to],
-      subject: params.subject,
-      html: params.html,
+    const res = await fetch(SENDGRID_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
 
-    if (error) {
-      logger.error("Failed to send email via Resend", {
-        errorMessage: error.message,
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      logger.error("SendGrid rejected email", {
+        status: String(res.status),
+        body: errText.slice(0, 300),
         subject: params.subject,
-        to: params.to.join(", "),
       });
       return;
     }
 
-    logger.info("Email sent", {
+    logger.info("Email sent via SendGrid", {
       subject: params.subject,
       recipientCount: String(params.to.length),
     });

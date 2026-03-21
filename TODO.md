@@ -214,17 +214,12 @@ To enable: set `TURN_SERVER_URL=turn:localhost:3478`, `TURN_SERVER_USERNAME`, `T
 
 ---
 
-#### TODO-6: Email sending — needs Resend API key
-**Status**: `email.ts` + templates exist. Wired to invite and alert actions.
-**Missing**: Just needs a real `RESEND_API_KEY` in `.env`.
-**Test**:
-```bash
-# Add to .env:
-RESEND_API_KEY=re_xxxx
-EMAIL_FROM=alerts@yourdomain.com
-# Then trigger a rule with email action
-```
-**Note**: For dev, free tier Resend allows 3000 emails/month.
+#### ✅ TODO-6: Email sending — SendGrid
+**Status**: Done. Switched from Resend to SendGrid (no npm package — pure fetch against SendGrid HTTP API v3).
+- `services/gateway/src/lib/email.ts` — rewrote to POST to `api.sendgrid.com/v3/mail/send`; graceful no-op + log when `SENDGRID_API_KEY` is absent
+- `.env` — `SENDGRID_API_KEY` and `EMAIL_FROM` set
+- `resend` npm dependency removed from gateway
+- Invite emails and alert rule email actions are live.
 
 ---
 
@@ -376,10 +371,17 @@ pnpm --filter @osp/desktop build    # production installers (.dmg/.msi/.deb)
 - `apps/web/src/hooks/use-analytics.ts` — data hooks with 24h/7d/30d/90d presets
 - Events are automatically tracked on creation (fire-and-forget, never blocks API response)
 
-#### TODO-17: SSO / SAML for enterprise
-**Why**: Enterprise customers need Active Directory / Okta integration
-**How**: Supabase supports SAML 2.0 on Enterprise plan
-**Effort**: 16-32 hours
+#### ✅ TODO-17: SSO / SAML for enterprise
+**Status**: Done. OAuth SSO implemented for Google, Microsoft/Azure AD, and GitHub.
+- `infra/supabase/migrations/00020_create_sso_configs.sql` — `sso_configs` table with per-tenant provider config (enabled, allowed_domains, auto_provision, default_role)
+- `services/gateway/src/routes/sso.routes.ts` — 6 endpoints: providers lookup, OAuth URL initiate, session exchange (auto-provisions users on first SSO login), config CRUD
+- `services/gateway/src/app.ts` — mounted at `/api/v1/auth/sso`
+- `apps/web/src/app/(auth)/callback/page.tsx` — OAuth callback page (extracts tokens from URL hash, exchanges via gateway, redirects to dashboard)
+- `apps/web/src/app/(auth)/login/page.tsx` — Google, Microsoft, GitHub SSO buttons wired with loading states
+- `apps/web/src/app/(dashboard)/settings/page.tsx` — new "SSO / Identity" tab: toggle providers, restrict by email domain, configure auto-provisioning and default role, setup instructions
+
+**To activate**: Enable the OAuth provider in Supabase dashboard (Authentication → Providers) with your OAuth app credentials. Set callback URL to `https://your-domain.com/auth/callback`. Then enable it in Settings → SSO.
+**Note**: SAML 2.0 (for stricter enterprise SSO without OAuth) requires Supabase Enterprise plan.
 
 #### TODO-18: License plate recognition (LPR)
 **Why**: Key enterprise feature for parking/access control

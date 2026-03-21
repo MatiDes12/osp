@@ -4,7 +4,9 @@
 --
 -- Bootstrap: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY must remain in env
 -- to connect; all other keys can be stored here.
--- Keys use same names as env vars (e.g. REDIS_URL, RESEND_API_KEY).
+-- Keys use same names as env vars (e.g. REDIS_URL, SENDGRID_API_KEY).
+-- If a key is absent from config_secrets, the app falls back to process.env
+-- and continues normally — no hard failure.
 
 CREATE TABLE config_secrets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
