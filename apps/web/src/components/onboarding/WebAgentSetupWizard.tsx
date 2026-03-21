@@ -119,7 +119,14 @@ const DOCKER_LINKS: Record<OS, string> = {
 };
 
 function buildCommands(os: OS, tenantId: string, apiToken: string) {
-  const cont = os === "windows" ? "`\n  " : "\\\n  ";
+  if (os === "windows") {
+    // Single-line commands — works in both CMD and PowerShell
+    const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped alexxit/go2rtc`;
+    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e API_TOKEN=${apiToken} -e GO2RTC_URL=http://localhost:1984 ghcr.io/matides12/osp-camera-ingest:latest`;
+    return { go2rtc, agent };
+  }
+
+  const cont = "\\\n  ";
   const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}alexxit/go2rtc`;
 
   const agentEnv = [
