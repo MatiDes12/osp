@@ -10,7 +10,7 @@ export type ActionKind =
   | "event"
   | "websocket";
 
-export interface ActionEntry {
+interface ActionEntry {
   readonly id: number;
   readonly timestamp: string;
   readonly kind: ActionKind;
@@ -96,37 +96,3 @@ export const useActionLogStore = create<ActionLogState>((set) => ({
   clear: () => set({ entries: [] }),
 }));
 
-// Convenience functions callable from anywhere.
-export function logAction(
-  kind: ActionKind,
-  label: string,
-  opts?: { detail?: string; data?: Record<string, unknown>; status?: "ok" | "error" | "pending" },
-): void {
-  useActionLogStore.getState().push(kind, label, opts);
-}
-
-export function logNavigate(from: string, to: string): void {
-  logAction("navigate", `${from} -> ${to}`, { detail: to });
-}
-
-export function logClick(element: string, screen?: string): void {
-  logAction("click", element, { detail: screen });
-}
-
-export function logApiCall(method: string, path: string): void {
-  logAction("api_call", `${method} ${path}`, { status: "pending" });
-}
-
-export function logApiResponse(method: string, path: string, status: number, durationMs: number): void {
-  logAction("api_response", `${method} ${path} ${status} ${durationMs}ms`, {
-    data: { status, duration_ms: durationMs },
-    status: status < 400 ? "ok" : "error",
-  });
-}
-
-export function logApiError(method: string, path: string, error: string): void {
-  logAction("api_error", `${method} ${path} FAILED`, {
-    detail: error,
-    status: "error",
-  });
-}

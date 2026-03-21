@@ -45,37 +45,6 @@ VALUES
   );
 }
 
-export interface AnalyticsRecordingRow {
-  recordingId: string;
-  tenantId: string;
-  cameraId: string;
-  startTime: string;
-  durationSec?: number | null;
-  sizeBytes: number;
-  trigger: string;
-  status: string;
-}
-
-/** Fire-and-forget: write one recording row to ClickHouse. */
-export function trackRecording(row: AnalyticsRecordingRow): void {
-  const durVal = row.durationSec != null ? String(row.durationSec) : "NULL";
-  const sql = `
-INSERT INTO osp.recordings_analytics
-  (recording_id, tenant_id, camera_id, start_time, duration_sec, size_bytes, trigger, status)
-VALUES
-  ('${chEscape(row.recordingId)}',
-   '${chEscape(row.tenantId)}',
-   '${chEscape(row.cameraId)}',
-   ${chDateTime(row.startTime)},
-   ${durVal},
-   ${row.sizeBytes},
-   '${chEscape(row.trigger)}',
-   '${chEscape(row.status)}')
-`;
-  chInsert(sql).catch((err) =>
-    logger.warn("trackRecording failed", { error: String(err) }),
-  );
-}
 
 // ─── Query path ──────────────────────────────────────────────────────────────
 

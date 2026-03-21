@@ -55,19 +55,13 @@ export function getToken(): string | null {
   return getAccessToken();
 }
 
-export function isAuthenticated(): boolean {
-  const token = getToken();
-  if (!token) return false;
-  return !isTokenExpired(token);
-}
-
 export function getUserFromToken(): JWTPayload | null {
   const token = getToken();
   if (!token) return null;
   return decodeJWT(token);
 }
 
-export function useAuth(): UseAuthReturn {
+function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 

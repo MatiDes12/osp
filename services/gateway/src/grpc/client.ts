@@ -49,7 +49,7 @@ function getEventEngineAddress(): string {
 //  Generic helper: load a proto and return a typed service client constructor
 // ---------------------------------------------------------------------------
 
-export function loadServiceClient<T>(
+function loadServiceClient<T>(
   protoFile: string,
   packageName: string,
   serviceName: string,

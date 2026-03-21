@@ -15,10 +15,6 @@ import type {
   User,
   UserRole,
   UserPreferences,
-  AlertRule,
-  ConditionNode,
-  RuleAction,
-  RuleSchedule,
 } from "@osp/shared";
 
 type RawRow = Record<string, unknown>;
@@ -79,7 +75,7 @@ export function transformCamera(raw: RawRow): Camera {
 /**
  * Convert snake_case Supabase camera_zones row to camelCase CameraZone type.
  */
-export function transformZone(raw: RawRow): CameraZone {
+function transformZone(raw: RawRow): CameraZone {
   return {
     id: raw.id as string,
     cameraId: raw.camera_id as string,
@@ -99,7 +95,7 @@ export function transformZone(raw: RawRow): CameraZone {
 /**
  * Convert snake_case Supabase events row to camelCase OSPEvent type.
  */
-export function transformEvent(raw: RawRow): OSPEvent {
+function transformEvent(raw: RawRow): OSPEvent {
   return {
     id: raw.id as string,
     cameraId: raw.camera_id as string,
@@ -128,7 +124,7 @@ export function transformEvent(raw: RawRow): OSPEvent {
 /**
  * Convert snake_case Supabase recordings row to camelCase Recording type.
  */
-export function transformRecording(raw: RawRow): Recording {
+function transformRecording(raw: RawRow): Recording {
   return {
     id: raw.id as string,
     cameraId: raw.camera_id as string,
@@ -151,7 +147,7 @@ export function transformRecording(raw: RawRow): Recording {
 /**
  * Convert snake_case Supabase users row (with joined role) to camelCase User type.
  */
-export function transformUser(raw: RawRow): User {
+function transformUser(raw: RawRow): User {
   return {
     id: raw.id as string,
     tenantId: raw.tenant_id as string,
@@ -168,31 +164,6 @@ export function transformUser(raw: RawRow): User {
       timezone: null,
     },
     lastLoginAt: (raw.last_login_at as string | null) ?? null,
-    createdAt: raw.created_at as string,
-    updatedAt: raw.updated_at as string,
-  };
-}
-
-/**
- * Convert snake_case Supabase alert_rules row to camelCase AlertRule type.
- */
-export function transformRule(raw: RawRow): AlertRule {
-  return {
-    id: raw.id as string,
-    tenantId: raw.tenant_id as string,
-    name: raw.name as string,
-    description: (raw.description as string | null) ?? null,
-    triggerEvent: (raw.trigger_event as EventType) ?? (raw.triggerEvent as EventType),
-    conditions: (raw.conditions as ConditionNode),
-    actions: (raw.actions as RuleAction[]) ?? [],
-    cameraIds: (raw.camera_ids as string[] | null) ?? null,
-    zoneIds: (raw.zone_ids as string[] | null) ?? null,
-    schedule: (raw.schedule as RuleSchedule | null) ?? null,
-    cooldownSec: (raw.cooldown_sec as number) ?? 0,
-    enabled: (raw.enabled as boolean) ?? true,
-    priority: (raw.priority as number) ?? 0,
-    lastTriggeredAt: (raw.last_triggered_at as string | null) ?? null,
-    triggerCount24h: (raw.trigger_count_24h as number) ?? 0,
     createdAt: raw.created_at as string,
     updatedAt: raw.updated_at as string,
   };
@@ -229,6 +200,3 @@ export function transformUsers(rows: readonly RawRow[]): User[] {
   return rows.map((r) => (isSnakeCaseRow(r) ? transformUser(r) : (r as unknown as User)));
 }
 
-export function transformRules(rows: readonly RawRow[]): AlertRule[] {
-  return rows.map((r) => (isSnakeCaseRow(r) ? transformRule(r) : (r as unknown as AlertRule)));
-}

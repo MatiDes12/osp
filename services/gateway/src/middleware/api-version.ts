@@ -50,32 +50,3 @@ export function apiVersion(): MiddlewareHandler {
  * @example
  *   router.get("/old-endpoint", deprecated("2026-12-31"), myHandler);
  */
-export function deprecated(sunsetDate: string): MiddlewareHandler {
-  return async (c, next) => {
-    await next();
-    // RFC 8594 — Deprecation header (boolean true = already deprecated)
-    c.res.headers.set("Deprecation", "true");
-    // RFC 8594 — Sunset header: HTTP-date when the endpoint goes away
-    c.res.headers.set(
-      "Sunset",
-      new Date(sunsetDate).toUTCString(),
-    );
-    c.res.headers.set(
-      "Link",
-      `</docs>; rel="deprecation"; type="text/html"`,
-    );
-  };
-}
-
-/**
- * Parse the `Accept-Version` request header.
- * Returns the requested major version number, or null if not present.
- *
- * Clients can opt-in to a newer API version before the old one is removed:
- *   Accept-Version: 2
- */
-export function getRequestedVersion(acceptVersion: string | undefined): number | null {
-  if (!acceptVersion) return null;
-  const v = parseInt(acceptVersion.trim(), 10);
-  return Number.isFinite(v) ? v : null;
-}

@@ -77,7 +77,7 @@ export function transformCameras(raw: readonly unknown[]): readonly Camera[] {
   return raw.map((r) => transformCamera(r as Raw));
 }
 
-export function transformEvent(raw: Raw): OSPEvent {
+function transformEvent(raw: Raw): OSPEvent {
   return {
     id: str(raw["id"]),
     cameraId: str(pick(raw["camera_id"], raw["cameraId"], "")),
@@ -103,7 +103,7 @@ export function transformEvents(raw: readonly unknown[]): readonly OSPEvent[] {
   return raw.map((r) => transformEvent(r as Raw));
 }
 
-export function transformUser(raw: Raw): User {
+function transformUser(raw: Raw): User {
   return {
     id: str(raw["id"]),
     tenantId: str(pick(raw["tenant_id"], raw["tenantId"], "")),

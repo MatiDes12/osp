@@ -40,7 +40,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 }
 
-export function setupNotificationHandlers(
+function setupNotificationHandlers(
   onNotification?: (notification: Notifications.Notification) => void,
   onResponse?: (response: Notifications.NotificationResponse) => void,
 ) {

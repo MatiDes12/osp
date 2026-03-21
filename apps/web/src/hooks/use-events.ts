@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type {
   OSPEvent,
-  EventSummary,
   ApiResponse,
   ListEventsInput,
   PaginationParams,
@@ -139,40 +138,3 @@ export function useEvents(
   };
 }
 
-interface UseEventSummaryReturn {
-  readonly summary: EventSummary | null;
-  readonly loading: boolean;
-}
-
-export function useEventSummary(params?: {
-  from?: string;
-  to?: string;
-}): UseEventSummaryReturn {
-  const [summary, setSummary] = useState<EventSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchSummary = useCallback(async () => {
-    setLoading(true);
-    try {
-      const qs = toSearchParams(params as Record<string, unknown>);
-      const response = await fetch(`${API_URL}/api/v1/events/summary${qs}`, {
-        headers: getAuthHeaders(),
-      });
-      const json: ApiResponse<EventSummary> = await response.json();
-      if (json.success && json.data) {
-        setSummary(json.data);
-      }
-    } catch {
-      // Silently fail for summary
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(params)]);
-
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
-
-  return { summary, loading };
-}

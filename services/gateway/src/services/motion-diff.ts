@@ -98,27 +98,4 @@ function clampSensitivity(sensitivity: number): number {
   return Math.max(1, Math.min(10, Math.round(sensitivity)));
 }
 
-export function averageRgbDelta(previous: Uint8Array, current: Uint8Array): number {
-  const len = Math.min(previous.length, current.length);
-  if (len === 0) return 0;
-
-  let total = 0;
-  let count = 0;
-  for (let i = 0; i + 2 < len; i += CHANNELS_PER_PIXEL) {
-    const currentR = current[i] ?? 0;
-    const currentG = current[i + 1] ?? 0;
-    const currentB = current[i + 2] ?? 0;
-    const previousR = previous[i] ?? 0;
-    const previousG = previous[i + 1] ?? 0;
-    const previousB = previous[i + 2] ?? 0;
-
-    total += Math.abs(currentR - previousR);
-    total += Math.abs(currentG - previousG);
-    total += Math.abs(currentB - previousB);
-    count += 3;
-  }
-
-  if (count === 0) return 0;
-  return total / count / MAX_CHANNEL_DELTA;
-}
 

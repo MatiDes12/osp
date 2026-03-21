@@ -27,11 +27,3 @@ export {
   type PlaybackURLResult,
 } from "./video-pipeline.client.js";
 
-export {
-  getEventEngineClient,
-  type EventEngineClient,
-  type ProcessEventRequest,
-  type ProcessEventResult,
-  type MatchedRule,
-  type RuleStatus,
-} from "./event-engine.client.js";

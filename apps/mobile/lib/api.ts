@@ -59,7 +59,7 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-export async function apiRequest<T>(
+async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<ApiResponse<T>> {

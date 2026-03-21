@@ -79,13 +79,3 @@ export async function getAutostartEnabled(): Promise<boolean> {
   }
 }
 
-/** Show and focus the main desktop window. */
-export async function showMainWindow(): Promise<void> {
-  const invoke = getInvoke();
-  if (!invoke) return;
-  try {
-    await invoke("show_main_window");
-  } catch {
-    // ignore
-  }
-}

@@ -11,7 +11,7 @@ const STREAM_TOKEN_TTL_SECONDS = 30;
 const STREAM_TOKEN_PREFIX = "osp:stream:token:";
 const SNAPSHOT_TIMEOUT_MS = 5000;
 
-export interface StreamStatus {
+interface StreamStatus {
   name: string;
   producers: ProducerInfo[];
   consumers: ConsumerInfo[];

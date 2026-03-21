@@ -39,7 +39,7 @@ export async function loadRecordingsCache(): Promise<{
   }
 }
 
-export async function clearRecordingsCache(): Promise<void> {
+async function clearRecordingsCache(): Promise<void> {
   try {
     await Promise.all([
       AsyncStorage.removeItem(CACHE_KEY),
