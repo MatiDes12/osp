@@ -56,6 +56,9 @@ func (s *Syncer) Run(ctx context.Context) {
 		return
 	}
 
+	// Register with the gateway on startup so the dashboard can detect us.
+	s.registerAgent(ctx)
+
 	// Attempt sync immediately on startup.
 	s.syncOnce(ctx)
 
@@ -113,6 +116,41 @@ func (s *Syncer) syncOnce(ctx context.Context) {
 	pruned, _ := s.db.PruneOldSynced(24 * time.Hour)
 	if pruned > 0 {
 		slog.Info("pruned synced events", "count", pruned)
+	}
+}
+
+func (s *Syncer) registerAgent(ctx context.Context) {
+	url := fmt.Sprintf("%s/api/v1/edge/agents/register", s.gatewayURL)
+	payload := map[string]interface{}{
+		"agentId": s.agentID,
+		"name":    "OSP Edge Agent (" + s.agentID + ")",
+		"version": "0.1.0",
+	}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		slog.Warn("register: build request failed", "error", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.apiToken)
+	if s.tenantID != "" {
+		req.Header.Set("X-Tenant-Id", s.tenantID)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.Warn("register: request failed", "error", err)
+		return
+	}
+	defer resp.Body.Close()
+	io.ReadAll(resp.Body) //nolint:errcheck
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		slog.Info("agent registered with gateway", "agent_id", s.agentID)
+	} else {
+		slog.Warn("register: unexpected status", "status", resp.StatusCode)
 	}
 }
 
