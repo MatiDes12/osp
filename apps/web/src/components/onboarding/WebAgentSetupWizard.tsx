@@ -268,6 +268,11 @@ echo.
 echo OSP - Removing old containers if they exist...
 docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>nul
 echo.
+echo OSP - Pulling latest images...
+docker pull alexxit/go2rtc:latest
+docker pull cloudflare/cloudflared:latest
+docker pull ghcr.io/matides12/osp-edge-agent:latest
+echo.
 echo OSP - Step 1: Starting camera proxy (go2rtc)...
 ${go2rtcLine}
 if errorlevel 1 (
@@ -303,6 +308,11 @@ set -euo pipefail
 echo ""
 echo "OSP — Removing old containers if they exist..."
 docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>/dev/null || true
+echo ""
+echo "OSP — Pulling latest images..."
+docker pull alexxit/go2rtc:latest
+docker pull cloudflare/cloudflared:latest
+docker pull ghcr.io/matides12/osp-edge-agent:latest
 echo ""
 echo "OSP — Step 1: Starting camera proxy (go2rtc)..."
 ${go2rtcLine}
