@@ -45,20 +45,45 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     tenantId,
   );
 
-  // Use the gateway WHEP proxy for better dev reliability (Docker/CORS/LAN issues).
-  // This only proxies signaling; media still flows via WebRTC ICE.
-  const gatewayPublicUrl =
-    get("GATEWAY_PUBLIC_URL") ??
-    get("NEXT_PUBLIC_API_URL") ??
-    "http://localhost:3000";
-  const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
+  // If an edge agent has a public go2rtc URL (e.g. Cloudflare Tunnel), point
+  // the browser directly at it so WebRTC ICE candidates come from the real
+  // local machine, not from the gateway proxy which would break media transport.
+  const supabase2 = getSupabase();
+  const { data: agentRow } = await supabase2
+    .from("edge_agents")
+    .select("go2rtc_url")
+    .eq("tenant_id", tenantId)
+    .eq("status", "online")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .single()
+    .catch(() => ({ data: null }));
 
-  const go2rtcPublicUrl =
-    get("GO2RTC_PUBLIC_URL") ??
-    get("GO2RTC_API_URL") ??
-    get("GO2RTC_URL") ??
-    "http://localhost:1984";
-  const fallbackHlsUrl = `${go2rtcPublicUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  const edgeGo2rtcUrl =
+    (agentRow as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+
+  let whepUrl: string;
+  let fallbackHlsUrl: string;
+
+  if (edgeGo2rtcUrl) {
+    // Direct path: browser → Cloudflare Tunnel → local go2rtc
+    whepUrl = `${edgeGo2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
+    fallbackHlsUrl = `${edgeGo2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  } else {
+    // No edge agent — use gateway proxy (works for cloud-hosted go2rtc)
+    const gatewayPublicUrl =
+      get("GATEWAY_PUBLIC_URL") ??
+      get("NEXT_PUBLIC_API_URL") ??
+      "http://localhost:3000";
+    whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
+
+    const go2rtcPublicUrl =
+      get("GO2RTC_PUBLIC_URL") ??
+      get("GO2RTC_API_URL") ??
+      get("GO2RTC_URL") ??
+      "http://localhost:1984";
+    fallbackHlsUrl = `${go2rtcPublicUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  }
 
   return c.json(
     createSuccessResponse({
