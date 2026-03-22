@@ -15,6 +15,7 @@ type Config struct {
 	CloudAPIToken        string
 	TenantID             string
 	Go2RTCURL            string
+	Go2RTCPublicURL      string // publicly reachable go2rtc URL (e.g. Cloudflare Tunnel)
 	CameraIDs            []string
 	SyncIntervalSeconds  int
 	MotionSensitivity    int
@@ -32,6 +33,7 @@ func Load() Config {
 		CloudAPIToken:       envOrDefault("CLOUD_API_TOKEN", ""),
 		TenantID:            envOrDefault("TENANT_ID", ""),
 		Go2RTCURL:           envOrDefault("GO2RTC_URL", "http://localhost:1984"),
+		Go2RTCPublicURL:     envOrDefault("GO2RTC_PUBLIC_URL", ""),
 		CameraIDs:           parseCameraIDs(envOrDefault("CAMERA_IDS", "")),
 		SyncIntervalSeconds: envOrDefaultInt("SYNC_INTERVAL_SECONDS", 30),
 		MotionSensitivity:   envOrDefaultInt("MOTION_SENSITIVITY", 5),

@@ -69,6 +69,7 @@ func main() {
 		db,
 		cfg.CloudGatewayURL,
 		cfg.Go2RTCURL,
+		cfg.Go2RTCPublicURL,
 		cfg.CloudAPIToken,
 		cfg.AgentID,
 		cfg.TenantID,

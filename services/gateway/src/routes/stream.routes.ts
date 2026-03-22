@@ -93,7 +93,24 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
     throw new ApiError("INVALID_REQUEST", "SDP offer body is required", 400);
   }
 
-  const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
+  // Prefer the edge agent's public go2rtc URL (set via GO2RTC_PUBLIC_URL on the agent).
+  // This lets the gateway proxy WebRTC signaling to the correct local go2rtc instance
+  // instead of the gateway's own empty go2rtc container.
+  const { data: agentRow } = await supabase
+    .from("edge_agents")
+    .select("go2rtc_url")
+    .eq("tenant_id", tenantId)
+    .eq("status", "online")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .single()
+    .catch(() => ({ data: null }));
+
+  const go2rtcUrl =
+    (agentRow as { go2rtc_url?: string } | null)?.go2rtc_url ||
+    get("GO2RTC_URL") ||
+    "http://localhost:1984";
+
   const whepUrl = `${go2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
 
   logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });

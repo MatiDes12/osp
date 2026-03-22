@@ -18,36 +18,38 @@ import (
 
 // Syncer manages cloud sync for a single edge agent.
 type Syncer struct {
-	db             *storage.DB
-	gatewayURL     string
-	go2rtcURL      string
-	apiToken       string
-	agentID        string
-	tenantID       string
-	syncInterval   time.Duration
-	httpClient     *http.Client
-	onlineCallback func(bool)
-	isOnline       bool
+	db               *storage.DB
+	gatewayURL       string
+	go2rtcURL        string
+	go2rtcPublicURL  string
+	apiToken         string
+	agentID          string
+	tenantID         string
+	syncInterval     time.Duration
+	httpClient       *http.Client
+	onlineCallback   func(bool)
+	isOnline         bool
 }
 
 // NewSyncer creates a new Syncer.
 // onlineCallback is called (synchronously) whenever cloud connectivity changes.
 func NewSyncer(
 	db *storage.DB,
-	gatewayURL, go2rtcURL, apiToken, agentID, tenantID string,
+	gatewayURL, go2rtcURL, go2rtcPublicURL, apiToken, agentID, tenantID string,
 	syncIntervalSecs int,
 	onlineCallback func(bool),
 ) *Syncer {
 	return &Syncer{
-		db:             db,
-		gatewayURL:     gatewayURL,
-		go2rtcURL:      go2rtcURL,
-		apiToken:       apiToken,
-		agentID:        agentID,
-		tenantID:       tenantID,
-		syncInterval:   time.Duration(syncIntervalSecs) * time.Second,
-		httpClient:     &http.Client{Timeout: 15 * time.Second},
-		onlineCallback: onlineCallback,
+		db:              db,
+		gatewayURL:      gatewayURL,
+		go2rtcURL:       go2rtcURL,
+		go2rtcPublicURL: go2rtcPublicURL,
+		apiToken:        apiToken,
+		agentID:         agentID,
+		tenantID:        tenantID,
+		syncInterval:    time.Duration(syncIntervalSecs) * time.Second,
+		httpClient:      &http.Client{Timeout: 15 * time.Second},
+		onlineCallback:  onlineCallback,
 	}
 }
 
@@ -299,10 +301,11 @@ func (s *Syncer) sendHeartbeat(ctx context.Context) bool {
 	url := fmt.Sprintf("%s/api/v1/edge/agents/%s/heartbeat", s.gatewayURL, s.agentID)
 
 	payload := map[string]interface{}{
-		"status":        "online",
-		"pendingEvents": pending,
-		"syncedEvents":  synced,
-		"timestamp":     time.Now().UTC(),
+		"status":          "online",
+		"pendingEvents":   pending,
+		"syncedEvents":    synced,
+		"timestamp":       time.Now().UTC(),
+		"go2rtcPublicUrl": s.go2rtcPublicURL,
 	}
 	body, _ := json.Marshal(payload)
 

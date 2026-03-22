@@ -95,6 +95,7 @@ const HeartbeatSchema = z.object({
   syncedEvents: z.number().int().min(0).default(0),
   camerasActive: z.number().int().min(0).default(0),
   timestamp: z.string().optional(),
+  go2rtcPublicUrl: z.string().url().optional().or(z.literal("")),
 });
 
 edgeRoutes.post("/agents/:agentId/heartbeat", async (c) => {
@@ -115,15 +116,21 @@ edgeRoutes.post("/agents/:agentId/heartbeat", async (c) => {
   const input = HeartbeatSchema.parse(body);
 
   const supabase = getSupabase();
+  const updatePayload: Record<string, unknown> = {
+    status: input.status,
+    pending_events: input.pendingEvents,
+    synced_events: input.syncedEvents,
+    cameras_active: input.camerasActive,
+    last_seen_at: new Date().toISOString(),
+  };
+  // Only update go2rtc_url when the agent actually sends one (don't clear existing value)
+  if (input.go2rtcPublicUrl) {
+    updatePayload.go2rtc_url = input.go2rtcPublicUrl;
+  }
+
   const { error } = await supabase
     .from("edge_agents")
-    .update({
-      status: input.status,
-      pending_events: input.pendingEvents,
-      synced_events: input.syncedEvents,
-      cameras_active: input.camerasActive,
-      last_seen_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("tenant_id", tenantId)
     .eq("agent_id", agentId);
 
