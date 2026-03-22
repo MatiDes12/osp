@@ -172,13 +172,13 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 	if s.go2rtcURL == "" {
 		return
 	}
-	// Use the internal endpoint — authenticated with the shared API token
-	url := fmt.Sprintf("%s/api/v1/cameras/internal/online", s.gatewayURL)
+	// Use the edge agent endpoint — authenticated with X-Tenant-Id
+	url := fmt.Sprintf("%s/api/v1/edge/cameras", s.gatewayURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return
 	}
-	req.Header.Set("X-Internal-Token", s.apiToken)
+	req.Header.Set("X-Tenant-Id", s.tenantID)
 	resp, err := s.httpClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return
@@ -263,13 +263,13 @@ func (s *Syncer) reportCameraStatuses(ctx context.Context) {
 		return
 	}
 
-	reportURL := fmt.Sprintf("%s/api/v1/cameras/internal/status", s.gatewayURL)
+	reportURL := fmt.Sprintf("%s/api/v1/edge/cameras/status", s.gatewayURL)
 	reportReq, err := http.NewRequestWithContext(ctx, "POST", reportURL, bytes.NewReader(payload))
 	if err != nil {
 		return
 	}
 	reportReq.Header.Set("Content-Type", "application/json")
-	reportReq.Header.Set("X-Internal-Token", s.apiToken)
+	reportReq.Header.Set("X-Tenant-Id", s.tenantID)
 
 	reportResp, err := s.httpClient.Do(reportReq)
 	if err != nil {

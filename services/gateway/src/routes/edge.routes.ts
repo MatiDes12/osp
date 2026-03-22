@@ -142,6 +142,69 @@ edgeRoutes.post("/agents/:agentId/heartbeat", async (c) => {
   return c.json(createSuccessResponse({ received: true }));
 });
 
+// ── Agent: fetch cameras for local go2rtc provisioning ────────────────────────
+// Called by the edge agent each sync cycle to push cameras into local go2rtc.
+// Auth: X-Tenant-Id header (same pattern as register/heartbeat).
+
+edgeRoutes.get("/cameras", async (c) => {
+  const tenantId = resolveTenantId(c);
+  if (!tenantId) {
+    throw new ApiError("AUTH_MISSING", "X-Tenant-Id header required", 401);
+  }
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("cameras")
+    .select("id, connection_uri")
+    .eq("tenant_id", tenantId)
+    .neq("status", "disabled")
+    .not("connection_uri", "is", null);
+
+  if (error) {
+    throw new ApiError("INTERNAL_ERROR", "Failed to fetch cameras", 500);
+  }
+
+  return c.json(createSuccessResponse(data ?? []));
+});
+
+// ── Agent: report go2rtc stream statuses back to gateway ──────────────────────
+// Auth: X-Tenant-Id header.
+
+const CameraStatusSchema = z.object({
+  statuses: z.array(
+    z.object({
+      cameraId: z.string().min(1),
+      status: z.enum(["online", "connecting", "offline"]),
+    }),
+  ),
+});
+
+edgeRoutes.post("/cameras/status", async (c) => {
+  const tenantId = resolveTenantId(c);
+  if (!tenantId) {
+    throw new ApiError("AUTH_MISSING", "X-Tenant-Id header required", 401);
+  }
+
+  const body = await c.req.json().catch(() => {
+    throw new ApiError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+  const input = CameraStatusSchema.parse(body);
+
+  const supabase = getSupabase();
+  await Promise.all(
+    input.statuses.map(({ cameraId, status }) =>
+      supabase
+        .from("cameras")
+        .update({ status })
+        .eq("id", cameraId)
+        .eq("tenant_id", tenantId)
+        .neq("status", "disabled"),
+    ),
+  );
+
+  return c.json(createSuccessResponse({ updated: input.statuses.length }));
+});
+
 // ── List agents ───────────────────────────────────────────────────────────────
 
 edgeRoutes.get("/agents", requireAuth(), async (c) => {
