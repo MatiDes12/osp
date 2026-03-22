@@ -1,4 +1,4 @@
-// Package sync handles periodic synchronization of buffered events to the
+// Package sync handles periodic synchronization of cameras and events to the
 // cloud OSP gateway. When the gateway is unreachable, events accumulate in
 // the local BoltDB queue and are sent in batches once connectivity returns.
 package sync
