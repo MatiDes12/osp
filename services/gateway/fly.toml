@@ -23,9 +23,23 @@ primary_region = "iad"
   path = "/health"
   timeout = "5s"
 
+[[services]]
+  internal_port = 3002
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 3002
+    handlers = ["tls", "http"]
+
+  [[services.tcp_checks]]
+    grace_period = "10s"
+    interval = "15s"
+    timeout = "5s"
+
 [env]
   NODE_ENV = "production"
   GATEWAY_PORT = "3000"
+  WS_PORT = "3002"
 
 [[vm]]
   size = "shared-cpu-1x"
