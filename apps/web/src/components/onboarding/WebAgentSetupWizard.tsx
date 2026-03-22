@@ -12,17 +12,27 @@ import {
   RefreshCw,
   Camera,
   Wifi,
+  ShieldCheck,
+  Download,
+  Terminal,
 } from "lucide-react";
-import { decodeJWT } from "@/lib/jwt";
+import { getTenantIdFromAccessToken } from "@/lib/jwt";
 
 export const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+// NEXT_PUBLIC_GATEWAY_URL lets you override the URL embedded in agent docker
+// commands independently of the web app's own API calls. Falls back to
+// NEXT_PUBLIC_API_URL (same service in most deployments) then to the default
+// production gateway URL so the docker command is always correct.
 const GATEWAY_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://osp-gateway.fly.dev";
+  process.env.NEXT_PUBLIC_GATEWAY_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "https://osp-gateway.fly.dev";
 
 type OS = "windows" | "mac" | "linux";
 type Step = "welcome" | "docker" | "run" | "waiting" | "done";
+type SetupMode = "download" | "terminal";
 
 interface WebAgentSetupWizardProps {
   readonly onComplete: () => void;
@@ -41,12 +51,6 @@ function getAuthHeaders(): Record<string, string> {
   return token
     ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
     : { "Content-Type": "application/json" };
-}
-
-function getTenantId(): string | null {
-  const token = localStorage.getItem("osp_access_token");
-  if (!token) return null;
-  return decodeJWT(token)?.tenant_id ?? null;
 }
 
 // ── Copy button ───────────────────────────────────────────────────────────────
@@ -81,7 +85,15 @@ function CopyButton({
 
 // ── Command block ─────────────────────────────────────────────────────────────
 
-function CommandBlock({ label, command }: { label?: string; command: string }) {
+function CommandBlock({
+  label,
+  command,
+  description,
+}: {
+  label?: string;
+  command: string;
+  description?: string;
+}) {
   return (
     <div className="rounded-xl border border-[#30363d] bg-[#0d1117] overflow-hidden">
       {label && (
@@ -90,6 +102,11 @@ function CommandBlock({ label, command }: { label?: string; command: string }) {
             {label}
           </span>
           <CopyButton text={command} />
+        </div>
+      )}
+      {description && (
+        <div className="px-4 py-3 border-b border-[#30363d] bg-[#161b22]">
+          <p className="text-[11px] leading-relaxed text-[#c9d1d9]">{description}</p>
         </div>
       )}
       <pre className="px-4 py-3 text-[11px] leading-5 text-[#e6edf3] font-mono whitespace-pre-wrap break-all overflow-x-auto">
@@ -141,11 +158,131 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
   return { go2rtc, agent };
 }
 
+/** One line per command — for downloadable scripts (same behavior as copy-paste). */
+function buildSingleLineCommands(
+  os: OS,
+  tenantId: string,
+  apiToken: string,
+): { go2rtcLine: string; agentLine: string } {
+  if (os === "windows") {
+    const { go2rtc, agent } = buildCommands(os, tenantId, apiToken);
+    return { go2rtcLine: go2rtc, agentLine: agent };
+  }
+  const go2rtc =
+    os === "linux"
+      ? `docker run -d --name osp-go2rtc --network host --restart unless-stopped alexxit/go2rtc`
+      : `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped alexxit/go2rtc`;
+  const agentPrefix =
+    os === "linux"
+      ? `docker run -d --name osp-agent --network host --restart unless-stopped`
+      : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
+  const agent = `${agentPrefix} -e GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e API_TOKEN=${apiToken} -e GO2RTC_URL=http://localhost:1984 ghcr.io/matides12/osp-camera-ingest:latest`;
+  return { go2rtcLine: go2rtc, agentLine: agent };
+}
+
+function downloadTextFile(filename: string, content: string): void {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/** Escape for `cmd /c "..."` when the whole docker line is one quoted argument. */
+function escapeForCmdC(s: string): string {
+  return s.replace(/"/g, '""');
+}
+
+function buildWindowsPs1(go2rtcLine: string, agentLine: string): string {
+  const c1 = escapeForCmdC(go2rtcLine);
+  const c2 = escapeForCmdC(agentLine);
+  return `# OSP — camera proxy + agent (official setup from your OSP account)
+# How to run: Right-click this file → "Run with PowerShell"
+# If Windows asks about scripts: this file only runs Docker with the commands below.
+
+$ErrorActionPreference = "Stop"
+
+Write-Host ""
+Write-Host "OSP — Step 1: Starting camera proxy (go2rtc)..." -ForegroundColor Cyan
+cmd /c "${c1}"
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Step 1 failed. Is Docker Desktop running?" -ForegroundColor Red
+  Read-Host "Press Enter to close"
+  exit 1
+}
+
+Write-Host ""
+Write-Host "OSP — Step 2: Starting OSP agent..." -ForegroundColor Cyan
+cmd /c "${c2}"
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Step 2 failed. Check Docker and try again." -ForegroundColor Red
+  Read-Host "Press Enter to close"
+  exit 1
+}
+
+Write-Host ""
+Write-Host "Done. You can close this window and return to OSP in your browser." -ForegroundColor Green
+Read-Host "Press Enter to close"
+`;
+}
+
+function buildWindowsBat(go2rtcLine: string, agentLine: string): string {
+  return `@echo off
+setlocal EnableExtensions
+title OSP setup
+echo.
+echo OSP - Step 1: Starting camera proxy (go2rtc)...
+${go2rtcLine}
+if errorlevel 1 (
+  echo Step 1 failed. Is Docker Desktop running?
+  pause
+  exit /b 1
+)
+echo.
+echo OSP - Step 2: Starting OSP agent...
+${agentLine}
+if errorlevel 1 (
+  echo Step 2 failed. Check Docker and try again.
+  pause
+  exit /b 1
+)
+echo.
+echo Done. Return to OSP in your browser.
+pause
+`;
+}
+
+function buildUnixSh(go2rtcLine: string, agentLine: string): string {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+echo ""
+echo "OSP — Step 1: Starting camera proxy (go2rtc)..."
+${go2rtcLine}
+echo ""
+echo "OSP — Step 2: Starting OSP agent..."
+${agentLine}
+echo ""
+echo "Done. Return to OSP in your browser."
+`;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const [step, setStep] = useState<Step>("welcome");
   const [os, setOs] = useState<OS>(detectOS);
+  const [setupMode, setSetupMode] = useState<SetupMode>(() =>
+    detectOS() === "windows" ? "download" : "terminal",
+  );
+
+  useEffect(() => {
+    setSetupMode(os === "windows" ? "download" : "terminal");
+  }, [os]);
   const [apiToken, setApiToken] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -153,7 +290,41 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const [pollError, setPollError] = useState(false);
   const [pollCount, setPollCount] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tenantId = getTenantId() ?? "your-tenant-id";
+
+  /** Real tenant UUID — never show "your-tenant-id" to users. */
+  const [tenantId, setTenantId] = useState<string | null>(() =>
+    getTenantIdFromAccessToken(localStorage.getItem("osp_access_token")),
+  );
+  const [tenantLoadError, setTenantLoadError] = useState(false);
+
+  // Fill tenant from API if JWT doesn't include it (e.g. older sessions)
+  useEffect(() => {
+    if (tenantId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/tenants/current`, {
+          headers: getAuthHeaders(),
+        });
+        const json = (await res.json()) as {
+          success?: boolean;
+          data?: { id?: string };
+        };
+        if (cancelled) return;
+        const id = json.data?.id;
+        if (json.success && typeof id === "string" && id.length > 0) {
+          setTenantId(id);
+        } else {
+          setTenantLoadError(true);
+        }
+      } catch {
+        if (!cancelled) setTenantLoadError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   // ── Generate API key when user reaches "run" step ────────────────────────────
   const generateApiKey = useCallback(async () => {
@@ -225,7 +396,16 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     };
   }, [step, checkForAgent]);
 
-  const cmds = apiToken ? buildCommands(os, tenantId, apiToken) : null;
+  const cmds =
+    apiToken && tenantId ? buildCommands(os, tenantId, apiToken) : null;
+  const singleLine =
+    apiToken && tenantId
+      ? buildSingleLineCommands(os, tenantId, apiToken)
+      : null;
+  const runStepLoading =
+    step === "run" &&
+    !tenantLoadError &&
+    (!tenantId || generatingKey || !apiToken);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4">
@@ -254,7 +434,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             <h2 className="text-sm font-semibold text-[var(--color-fg)] leading-tight">
               {step === "welcome" && "Connect Your Cameras"}
               {step === "docker" && "Install Docker"}
-              {step === "run" && "Start the OSP Agent"}
+              {step === "run" && "Start the OSP agent"}
               {step === "waiting" && "Waiting for Agent…"}
               {step === "done" && "Agent Connected!"}
             </h2>
@@ -262,7 +442,10 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               {step === "welcome" &&
                 "A lightweight agent runs on your network to stream cameras"}
               {step === "docker" && "Docker runs the agent on your computer"}
-              {step === "run" && "Run these two commands in a terminal"}
+              {step === "run" &&
+                (setupMode === "download"
+                  ? "Download a script or paste commands in a terminal"
+                  : "Run these two commands in a terminal")}
               {step === "waiting" && "Checking every 5 seconds…"}
               {step === "done" && "Your agent is online and ready"}
             </p>
@@ -419,14 +602,94 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
         {step === "run" && (
           <div className="px-7 py-6">
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Open a terminal (Command Prompt or PowerShell on Windows) and run
-              these two commands. Your credentials are already filled in.
+              {setupMode === "download" ? (
+                <>
+                  Prefer no terminal? Download a small setup file, then
+                  double-click it (Windows) or run one command in Terminal
+                  (Mac/Linux). Docker must be running first. Or switch to{" "}
+                  <span className="text-[var(--color-fg)]">Use terminal</span>{" "}
+                  below to copy-paste instead.
+                </>
+              ) : (
+                <>
+                  Open a terminal (Command Prompt or PowerShell on Windows) and
+                  run these two commands. Everything you need is already in the
+                  command — copy and paste as-is. No searching for IDs or codes.
+                </>
+              )}
             </p>
 
-            {generatingKey && (
-              <div className="flex items-center gap-2 text-[var(--color-muted)] text-xs py-6 justify-center">
+            <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 mb-4">
+              <button
+                type="button"
+                onClick={() => setSetupMode("download")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                  setupMode === "download"
+                    ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                }`}
+              >
+                <Download className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                Download &amp; run
+              </button>
+              <button
+                type="button"
+                onClick={() => setSetupMode("terminal")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                  setupMode === "terminal"
+                    ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                }`}
+              >
+                <Terminal className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                Use terminal
+              </button>
+            </div>
+
+            <div className="flex gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3 mb-4">
+              <ShieldCheck
+                className="w-5 h-5 text-[var(--color-accent)] shrink-0 mt-0.5"
+                aria-hidden
+              />
+              <div>
+                <p className="text-xs font-medium text-[var(--color-fg)]">
+                  You’re not being hacked
+                </p>
+                <p className="text-[11px] text-[var(--color-muted)] mt-1 leading-relaxed">
+                  This is official OSP setup while you’re signed in. The commands
+                  run only on <span className="text-[var(--color-fg)]">your</span>{" "}
+                  computer through Docker — the same kind of tool developers use
+                  to run apps safely. They don’t install remote desktop, spyware,
+                  or give strangers access to your PC.
+                </p>
+              </div>
+            </div>
+
+            {runStepLoading && (
+              <div className="flex flex-col items-center gap-2 text-[var(--color-muted)] text-xs py-6 justify-center">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Generating API key…
+                <span>
+                  {!tenantId
+                    ? "Preparing your account…"
+                    : !apiToken
+                      ? "Creating your secure key…"
+                      : "Almost ready…"}
+                </span>
+              </div>
+            )}
+
+            {tenantLoadError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 mb-4">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-red-400 font-medium">
+                    We couldn&apos;t load your organization
+                  </p>
+                  <p className="text-[11px] text-red-400/80 mt-1">
+                    Refresh this page or sign out and sign in again, then reopen
+                    this setup.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -445,14 +708,91 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               </div>
             )}
 
-            {cmds && (
-              <div className="space-y-3 mb-5">
+            {cmds && singleLine && !tenantLoadError && setupMode === "download" && (
+              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5 space-y-3">
+                <p className="text-[11px] text-[var(--color-muted)] leading-relaxed">
+                  {os === "windows" ? (
+                    <>
+                      Save the file to your computer, then double-click it. If
+                      Windows SmartScreen or PowerShell asks for permission,
+                      choose <span className="text-[var(--color-fg)]">Run</span>{" "}
+                      — this only runs the same two Docker commands shown in the
+                      terminal option.
+                    </>
+                  ) : (
+                    <>
+                      After downloading, open Terminal in the folder where you
+                      saved the file, run{" "}
+                      <code className="text-[var(--color-fg)]">
+                        chmod +x osp-setup.sh &amp;&amp; ./osp-setup.sh
+                      </code>
+                      .
+                    </>
+                  )}
+                </p>
+                {os === "windows" ? (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadTextFile(
+                          "osp-windows-setup.ps1",
+                          buildWindowsPs1(
+                            singleLine.go2rtcLine,
+                            singleLine.agentLine,
+                          ),
+                        )
+                      }
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      PowerShell (.ps1)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadTextFile(
+                          "osp-windows-setup.bat",
+                          buildWindowsBat(
+                            singleLine.go2rtcLine,
+                            singleLine.agentLine,
+                          ),
+                        )
+                      }
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      Command Prompt (.bat)
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadTextFile(
+                        "osp-setup.sh",
+                        buildUnixSh(singleLine.go2rtcLine, singleLine.agentLine),
+                      )
+                    }
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    Download setup script (.sh)
+                  </button>
+                )}
+              </div>
+            )}
+
+            {cmds && !tenantLoadError && setupMode === "terminal" && (
+              <div className="space-y-4 mb-5">
                 <CommandBlock
                   label="Step 1 — Start camera proxy"
+                  description='What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It’s a “bridge” for video — not a virus, not remote control of your PC.'
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
                   label="Step 2 — Start OSP agent"
+                  description="What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer."
                   command={cmds.agent}
                 />
               </div>
@@ -467,7 +807,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               </button>
               <button
                 onClick={() => setStep("waiting")}
-                disabled={!cmds}
+                disabled={!cmds || tenantLoadError}
                 className="flex-1 py-2.5 rounded-xl bg-[var(--color-accent)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
                 I've run the commands — Connect
