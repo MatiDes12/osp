@@ -205,7 +205,7 @@ jobs:
         run: |
           flyctl deploy \
             --config ${{ matrix.config }} \
-            --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ github.sha }} \
+            --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest \
             --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
