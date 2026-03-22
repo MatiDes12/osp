@@ -4,6 +4,8 @@
 # This is all a client needs to install on their NAS/server/PC.
 # It connects to the OSP cloud gateway for auth, rules, and data.
 # go2rtc handles all local camera streams (RTSP/ONVIF/USB).
+# cloudflared creates a secure public tunnel so live streams work from
+# anywhere — no port forwarding or network config required.
 #
 # Setup:
 #   1. Copy .env.agent.example to .env.agent and fill in your values
@@ -31,6 +33,19 @@ services:
       timeout: 5s
       retries: 3
 
+  # ── Cloudflare Tunnel: exposes go2rtc publicly so live streams work from
+  #    the cloud dashboard without any port forwarding or static IP.
+  #    The edge agent auto-discovers the tunnel URL from cloudflared's API.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: osp-cloudflared
+    network_mode: host
+    restart: unless-stopped
+    command: tunnel --url http://localhost:1984 --metrics 0.0.0.0:20241 --no-autoupdate
+    depends_on:
+      go2rtc:
+        condition: service_healthy
+
   # ── OSP Agent: registers cameras with cloud gateway ──────────────────────
   osp-agent:
     image: ghcr.io/matides12/osp-edge-agent:latest
@@ -40,12 +55,15 @@ services:
     depends_on:
       go2rtc:
         condition: service_healthy
+      cloudflared:
+        condition: service_started
     environment:
       - GATEWAY_URL=${GATEWAY_URL:-https://osp-gateway.fly.dev}
       - TENANT_ID=${TENANT_ID}
       - API_TOKEN=${API_TOKEN}
       - GO2RTC_URL=http://localhost:1984
-      - GRPC_PORT=${GRPC_PORT:-50051}
+      # Auto-discovered from cloudflared — no need to set manually
+      - CLOUDFLARED_METRICS_URL=http://localhost:20241
       - TZ=${TZ:-UTC}
 
 volumes:

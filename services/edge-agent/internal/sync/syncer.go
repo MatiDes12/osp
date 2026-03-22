@@ -18,39 +18,65 @@ import (
 
 // Syncer manages cloud sync for a single edge agent.
 type Syncer struct {
-	db               *storage.DB
-	gatewayURL       string
-	go2rtcURL        string
-	go2rtcPublicURL  string
-	apiToken         string
-	agentID          string
-	tenantID         string
-	syncInterval     time.Duration
-	httpClient       *http.Client
-	onlineCallback   func(bool)
-	isOnline         bool
+	db                    *storage.DB
+	gatewayURL            string
+	go2rtcURL             string
+	go2rtcPublicURL       string
+	cloudflaredMetricsURL string
+	apiToken              string
+	agentID               string
+	tenantID              string
+	syncInterval          time.Duration
+	httpClient            *http.Client
+	onlineCallback        func(bool)
+	isOnline              bool
 }
 
 // NewSyncer creates a new Syncer.
 // onlineCallback is called (synchronously) whenever cloud connectivity changes.
 func NewSyncer(
 	db *storage.DB,
-	gatewayURL, go2rtcURL, go2rtcPublicURL, apiToken, agentID, tenantID string,
+	gatewayURL, go2rtcURL, go2rtcPublicURL, cloudflaredMetricsURL, apiToken, agentID, tenantID string,
 	syncIntervalSecs int,
 	onlineCallback func(bool),
 ) *Syncer {
 	return &Syncer{
-		db:              db,
-		gatewayURL:      gatewayURL,
-		go2rtcURL:       go2rtcURL,
-		go2rtcPublicURL: go2rtcPublicURL,
-		apiToken:        apiToken,
-		agentID:         agentID,
-		tenantID:        tenantID,
-		syncInterval:    time.Duration(syncIntervalSecs) * time.Second,
-		httpClient:      &http.Client{Timeout: 15 * time.Second},
-		onlineCallback:  onlineCallback,
+		db:                    db,
+		gatewayURL:            gatewayURL,
+		go2rtcURL:             go2rtcURL,
+		go2rtcPublicURL:       go2rtcPublicURL,
+		cloudflaredMetricsURL: cloudflaredMetricsURL,
+		apiToken:              apiToken,
+		agentID:               agentID,
+		tenantID:              tenantID,
+		syncInterval:          time.Duration(syncIntervalSecs) * time.Second,
+		httpClient:            &http.Client{Timeout: 15 * time.Second},
+		onlineCallback:        onlineCallback,
 	}
+}
+
+// resolveGo2RTCPublicURL returns the best available public URL for go2rtc.
+// Priority: explicit GO2RTC_PUBLIC_URL > auto-discovered from cloudflared API > empty.
+func (s *Syncer) resolveGo2RTCPublicURL() string {
+	if s.go2rtcPublicURL != "" {
+		return s.go2rtcPublicURL
+	}
+	if s.cloudflaredMetricsURL == "" {
+		return ""
+	}
+	// cloudflared exposes the quick tunnel hostname at /quicktunnel
+	resp, err := s.httpClient.Get(s.cloudflaredMetricsURL + "/quicktunnel")
+	if err != nil || resp.StatusCode != 200 {
+		return ""
+	}
+	defer resp.Body.Close()
+	var result struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ""
+	}
+	return result.URL
 }
 
 // Run starts the sync loop. Blocks until ctx is cancelled.
@@ -305,7 +331,7 @@ func (s *Syncer) sendHeartbeat(ctx context.Context) bool {
 		"pendingEvents":   pending,
 		"syncedEvents":    synced,
 		"timestamp":       time.Now().UTC(),
-		"go2rtcPublicUrl": s.go2rtcPublicURL,
+		"go2rtcPublicUrl": s.resolveGo2RTCPublicURL(),
 	}
 	body, _ := json.Marshal(payload)
 
