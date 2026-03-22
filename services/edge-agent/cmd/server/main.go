@@ -68,6 +68,7 @@ func main() {
 	syncer := agentsync.NewSyncer(
 		db,
 		cfg.CloudGatewayURL,
+		cfg.Go2RTCURL,
 		cfg.CloudAPIToken,
 		cfg.AgentID,
 		cfg.TenantID,

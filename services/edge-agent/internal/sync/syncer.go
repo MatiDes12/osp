@@ -20,6 +20,7 @@ import (
 type Syncer struct {
 	db             *storage.DB
 	gatewayURL     string
+	go2rtcURL      string
 	apiToken       string
 	agentID        string
 	tenantID       string
@@ -33,13 +34,14 @@ type Syncer struct {
 // onlineCallback is called (synchronously) whenever cloud connectivity changes.
 func NewSyncer(
 	db *storage.DB,
-	gatewayURL, apiToken, agentID, tenantID string,
+	gatewayURL, go2rtcURL, apiToken, agentID, tenantID string,
 	syncIntervalSecs int,
 	onlineCallback func(bool),
 ) *Syncer {
 	return &Syncer{
 		db:             db,
 		gatewayURL:     gatewayURL,
+		go2rtcURL:      go2rtcURL,
 		apiToken:       apiToken,
 		agentID:        agentID,
 		tenantID:       tenantID,
@@ -92,6 +94,9 @@ func (s *Syncer) syncOnce(ctx context.Context) {
 		return
 	}
 
+	// Sync cameras from gateway into local go2rtc
+	s.syncCamerasToGo2RTC(ctx)
+
 	// Sync up to 50 pending events per cycle.
 	events, err := s.db.GetPendingEvents(50)
 	if err != nil {
@@ -117,6 +122,70 @@ func (s *Syncer) syncOnce(ctx context.Context) {
 	if pruned > 0 {
 		slog.Info("pruned synced events", "count", pruned)
 	}
+}
+
+type cameraRow struct {
+	ID            string `json:"id"`
+	ConnectionURI string `json:"connection_uri"`
+}
+
+func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
+	if s.go2rtcURL == "" {
+		return
+	}
+	url := fmt.Sprintf("%s/api/v1/cameras", s.gatewayURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+s.apiToken)
+	if s.tenantID != "" {
+		req.Header.Set("X-Tenant-Id", s.tenantID)
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []cameraRow `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return
+	}
+
+	for _, cam := range result.Data {
+		if cam.ID == "" || cam.ConnectionURI == "" {
+			continue
+		}
+		addURL := fmt.Sprintf("%s/api/streams?name=%s&src=%s",
+			s.go2rtcURL, urlEncode(cam.ID), urlEncode(cam.ConnectionURI))
+		addReq, err := http.NewRequestWithContext(ctx, "PUT", addURL, nil)
+		if err != nil {
+			continue
+		}
+		addResp, err := s.httpClient.Do(addReq)
+		if err != nil {
+			slog.Warn("failed to register camera in go2rtc", "camera_id", cam.ID, "error", err)
+			continue
+		}
+		addResp.Body.Close()
+		slog.Debug("camera synced to go2rtc", "camera_id", cam.ID)
+	}
+}
+
+func urlEncode(s string) string {
+	encoded := ""
+	for _, c := range []byte(s) {
+		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+			c == '-' || c == '_' || c == '.' || c == '~' {
+			encoded += string(c)
+		} else {
+			encoded += fmt.Sprintf("%%%02X", c)
+		}
+	}
+	return encoded
 }
 
 func (s *Syncer) registerAgent(ctx context.Context) {
