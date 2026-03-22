@@ -9,7 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/osp
 
 jobs:
   # ─── Build & Push Gateway ──────────────────────────
@@ -24,6 +23,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Compute lowercase image name
+        id: image
+        run: echo "ref=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp-gateway" >> $GITHUB_OUTPUT
+
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -36,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}-gateway
+          images: ${{ steps.image.outputs.ref }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -54,8 +57,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.image.outputs.ref }}:latest
+          cache-to: type=inline
 
   # ─── Build & Push Go Services ──────────────────────
   go-services:
@@ -72,6 +75,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Compute lowercase image name
+        id: image
+        run: echo "ref=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp-${{ matrix.service }}" >> $GITHUB_OUTPUT
+
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -84,7 +91,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          images: ${{ steps.image.outputs.ref }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -102,8 +109,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.image.outputs.ref }}:latest
+          cache-to: type=inline
 
   # ─── Trivy Security Scan (gateway image) ───────────
   trivy:
@@ -118,6 +125,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Compute lowercase image name
+        id: image
+        run: echo "ref=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp-gateway" >> $GITHUB_OUTPUT
+
       - name: Build gateway image for scanning
         uses: docker/build-push-action@v6
         with:
@@ -126,7 +137,8 @@ jobs:
           push: false
           load: true
           tags: osp-gateway:scan
-          cache-from: type=gha
+          provenance: false
+          cache-from: type=registry,ref=${{ steps.image.outputs.ref }}:latest
 
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
@@ -155,6 +167,10 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      - name: Compute lowercase image name
+        id: image
+        run: echo "ref=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp-web" >> $GITHUB_OUTPUT
+
       - name: Login to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -167,7 +183,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}-web
+          images: ${{ steps.image.outputs.ref }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -185,5 +201,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.image.outputs.ref }}:latest
+          cache-to: type=inline

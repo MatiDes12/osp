@@ -157,8 +157,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.prefix.outputs.value }}-${{ matrix.service }}:latest
+          cache-to: type=inline
 
   # ─── Deploy to Fly.io ───────────────────────────────
   deploy-fly:
