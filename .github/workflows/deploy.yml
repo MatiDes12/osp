@@ -34,7 +34,6 @@ concurrency:
 env:
   NODE_VERSION: "20"
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/osp
 
 jobs:
   # ─── Determine what changed ──────────────────────────
@@ -103,6 +102,10 @@ jobs:
             context: services/event-engine
             dockerfile: services/event-engine/Dockerfile
     steps:
+      - name: Compute lowercase image prefix
+        id: prefix
+        run: echo "value=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp" >> $GITHUB_OUTPUT
+
       - name: Should build?
         id: should-build
         run: |
@@ -138,7 +141,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          images: ${{ steps.prefix.outputs.value }}-${{ matrix.service }}
           tags: |
             type=sha,prefix=,format=long
             type=raw,value=latest,enable={{is_default_branch}}
@@ -178,6 +181,10 @@ jobs:
             app: osp-event-engine
             config: services/event-engine/fly.toml
     steps:
+      - name: Compute lowercase image prefix
+        id: prefix
+        run: echo "value=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/osp" >> $GITHUB_OUTPUT
+
       - name: Should deploy?
         id: should-deploy
         run: |
@@ -205,7 +212,7 @@ jobs:
         run: |
           flyctl deploy \
             --config ${{ matrix.config }} \
-            --image ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest \
+            --image ${{ steps.prefix.outputs.value }}-${{ matrix.service }}:latest \
             --wait-timeout 300
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
