@@ -231,17 +231,18 @@ edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
   const tenantId = c.get("tenantId");
   const supabase = getSupabase();
 
-  const { data } = await supabase
-    .from("edge_agents")
-    .select("go2rtc_url")
-    .eq("tenant_id", tenantId)
-    .eq("status", "online")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .single()
-    .catch(() => ({ data: null }));
-
-  const go2rtcUrl = (data as { go2rtc_url?: string } | null)?.go2rtc_url;
+  let go2rtcUrl: string | undefined;
+  try {
+    const { data } = await supabase
+      .from("edge_agents")
+      .select("go2rtc_url")
+      .eq("tenant_id", tenantId)
+      .eq("status", "online")
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .single();
+    go2rtcUrl = (data as { go2rtc_url?: string } | null)?.go2rtc_url;
+  } catch { /* ignore */ }
   if (!go2rtcUrl) {
     return c.json(createSuccessResponse({ status: "not_configured", streams: 0 }));
   }

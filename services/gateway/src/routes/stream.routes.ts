@@ -18,16 +18,19 @@ async function resolveEdgeGo2rtcUrl(
   supabase: ReturnType<typeof getSupabase>,
   tenantId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("edge_agents")
-    .select("go2rtc_url")
-    .eq("tenant_id", tenantId)
-    .eq("status", "online")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .single()
-    .catch(() => ({ data: null }));
-  return (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+  try {
+    const { data } = await supabase
+      .from("edge_agents")
+      .select("go2rtc_url")
+      .eq("tenant_id", tenantId)
+      .eq("status", "online")
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .single();
+    return (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // GET /api/v1/cameras/:id/stream - Returns WebRTC connection info
@@ -126,18 +129,21 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   // Prefer the edge agent's public go2rtc URL (set via GO2RTC_PUBLIC_URL on the agent).
   // This lets the gateway proxy WebRTC signaling to the correct local go2rtc instance
   // instead of the gateway's own empty go2rtc container.
-  const { data: agentRow } = await supabase
-    .from("edge_agents")
-    .select("go2rtc_url")
-    .eq("tenant_id", tenantId)
-    .eq("status", "online")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .single()
-    .catch(() => ({ data: null }));
+  let agentRow: { go2rtc_url?: string } | null = null;
+  try {
+    const { data } = await supabase
+      .from("edge_agents")
+      .select("go2rtc_url")
+      .eq("tenant_id", tenantId)
+      .eq("status", "online")
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .single();
+    agentRow = data as { go2rtc_url?: string } | null;
+  } catch { /* ignore */ }
 
   const go2rtcUrl =
-    (agentRow as { go2rtc_url?: string } | null)?.go2rtc_url ||
+    agentRow?.go2rtc_url ||
     get("GO2RTC_URL") ||
     "http://localhost:1984";
 
