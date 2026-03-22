@@ -1,9 +1,6 @@
 app = "osp-gateway"
 primary_region = "iad"
 
-[build]
-  dockerfile = "../../infra/docker/gateway.Dockerfile"
-
 [http_service]
   internal_port = 3000
   force_https = true
