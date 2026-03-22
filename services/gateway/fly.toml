@@ -1,5 +1,6 @@
 app = "osp-gateway"
 primary_region = "iad"
+# deploy fix: lowercase image names
 
 [http_service]
   internal_port = 3000
