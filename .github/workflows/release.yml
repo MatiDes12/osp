@@ -88,6 +88,9 @@ jobs:
   github-release:
     name: Create Release
     needs: [build-binaries, docker-release]
+    # Desktop installers are built and uploaded by desktop.yml in parallel.
+    # That workflow appends its artifacts to the same release this job creates,
+    # so no explicit dependency needed — both use upsert-style release actions.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
