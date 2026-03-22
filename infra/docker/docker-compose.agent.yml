@@ -58,9 +58,9 @@ services:
       cloudflared:
         condition: service_started
     environment:
-      - GATEWAY_URL=${GATEWAY_URL:-https://osp-gateway.fly.dev}
+      - CLOUD_GATEWAY_URL=${CLOUD_GATEWAY_URL:-https://osp-gateway.fly.dev}
       - TENANT_ID=${TENANT_ID}
-      - API_TOKEN=${API_TOKEN}
+      - CLOUD_API_TOKEN=${CLOUD_API_TOKEN}
       - GO2RTC_URL=http://localhost:1984
       # Auto-discovered from cloudflared — no need to set manually
       - CLOUDFLARED_METRICS_URL=http://localhost:20241
