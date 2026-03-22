@@ -757,18 +757,21 @@ export function AddCameraDialog({
     setTestResult(null);
     setTestDetails(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/streams/test`, {
+      // Stream test goes directly to the local edge agent (localhost:8084)
+      // because the cloud gateway can't reach go2rtc behind NAT.
+      const agentPort = process.env.NEXT_PUBLIC_EDGE_AGENT_PORT ?? "8084";
+      const res = await fetch(`http://localhost:${agentPort}/streams/test`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           connectionUri: effectiveUri,
           protocol: selectedProto?.id,
         }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) {
+      if (!res.ok || json.error) {
         setTestResult("error");
-        setTestDetails({ error: json.error?.message ?? "Connection failed" });
+        setTestDetails({ error: json.error ?? "Connection failed" });
       } else {
         setTestResult("success");
         setTestDetails({

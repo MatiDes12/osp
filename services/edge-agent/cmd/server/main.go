@@ -112,7 +112,7 @@ func main() {
 	go motionSvc.StartPolling(ctx)
 
 	// ── Health / status HTTP server ──────────────────────────────────────────
-	healthSrv := health.NewServer(cfg.HTTPPort, func() health.Status {
+	healthSrv := health.NewServer(cfg.HTTPPort, cfg.Go2RTCURL, func() health.Status {
 		pending, synced, _ := db.Stats()
 		st := "online"
 		if !cloudOnline {
