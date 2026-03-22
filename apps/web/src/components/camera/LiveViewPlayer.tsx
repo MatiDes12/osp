@@ -26,7 +26,7 @@ interface StreamInfo {
 type PlayerState = "loading" | "connecting" | "live" | "fallback" | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-const WEBRTC_TIMEOUT_MS = 15000;
+const WEBRTC_TIMEOUT_MS = 8000;
 
 // ---------------------------------------------------------------------------
 // Module-level connection pool — survives React component unmounts.
@@ -509,10 +509,14 @@ export function LiveViewPlayer({
 
   // HLS fallback mode
   if (state === "fallback") {
-    const go2rtcUrl = isTauri()
-      ? "http://localhost:1984"
-      : (process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984");
-    const mjpegUrl = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
+    // Prefer the fallbackHlsUrl from stream info (may be a Cloudflare Tunnel URL).
+    // Replace .m3u8 with .mp4 for MSE streaming which works better in browsers.
+    const fallbackBase = streamInfo?.fallbackHlsUrl
+      ? streamInfo.fallbackHlsUrl.replace(/\/api\/stream\.m3u8.*$/, "")
+      : isTauri()
+        ? "http://localhost:1984"
+        : (process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984");
+    const mjpegUrl = `${fallbackBase}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
     return (
       <div className={`relative ${className ?? ""}`}>
         <video
