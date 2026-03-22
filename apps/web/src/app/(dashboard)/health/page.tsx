@@ -44,29 +44,26 @@ async function probeGo2rtc(baseUrl: string): Promise<ServiceStatus> {
 }
 
 /**
- * Resolves the best go2rtc URL to probe:
- * 1. If on HTTP, probe localhost:1984 directly.
- * 2. If on HTTPS, fetch the active edge agent's go2rtc_url from the API.
- * Returns null if no go2rtc source is available.
+ * Resolves go2rtc status:
+ * - HTTP: probe localhost:1984 directly
+ * - HTTPS: call gateway proxy (avoids CORS issues with cloudflare tunnel)
  */
 async function resolveGo2rtcStatus(
   authHeaders: Record<string, string>,
 ): Promise<ServiceStatus | null> {
-  // HTTP: probe local directly (no CORS/mixed-content issues)
+  // HTTP: probe local directly
   if (window.location.protocol !== "https:") {
     return probeGo2rtc("http://localhost:1984");
   }
-  // HTTPS: fetch edge agent's public go2rtc URL (cloudflare tunnel)
+  // HTTPS: use gateway proxy endpoint (server-side fetch avoids CORS)
   try {
-    const res = await fetch(`${API_URL}/api/v1/edge/agents`, {
+    const res = await fetch(`${API_URL}/api/v1/edge/agents/go2rtc-status`, {
       headers: authHeaders,
-      signal: AbortSignal.timeout(5_000),
+      signal: AbortSignal.timeout(6_000),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { data?: { go2rtc_url?: string; status?: string }[] };
-    const agent = (json.data ?? []).find((a) => a.status === "online" && a.go2rtc_url);
-    if (!agent?.go2rtc_url) return null;
-    return probeGo2rtc(agent.go2rtc_url);
+    const json = (await res.json()) as { data?: ServiceStatus };
+    return json.data ?? null;
   } catch {
     return null;
   }

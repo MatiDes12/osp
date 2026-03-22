@@ -321,40 +321,70 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
   }
 
   const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
-  const streamService = edgeGo2rtcUrl
-    ? new StreamService(edgeGo2rtcUrl)
-    : getStreamService();
 
-  // Remove existing stream, then re-add
-  await streamService.removeStream(cameraId);
-
-  // Set status to connecting while we attempt to re-add
   await supabase
     .from("cameras")
     .update({ status: "connecting", updated_at: new Date().toISOString() })
     .eq("id", cameraId)
     .eq("tenant_id", tenantId);
 
-  try {
-    await streamService.addStream(cameraId, camera.connection_uri as string);
+  if (edgeGo2rtcUrl) {
+    // Edge agent mode: call go2rtc directly via cloudflare tunnel — skip gRPC entirely
+    const connectionUri = camera.connection_uri as string;
+    try {
+      // Remove existing stream
+      await fetch(
+        `${edgeGo2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
+        { method: "DELETE", signal: AbortSignal.timeout(5000) },
+      ).catch(() => {});
 
-    // Stream re-added successfully — mark camera as online
-    await supabase
-      .from("cameras")
-      .update({ status: "online", updated_at: new Date().toISOString() })
-      .eq("id", cameraId)
-      .eq("tenant_id", tenantId);
-  } catch (err) {
-    logger.warn("Failed to re-add stream in go2rtc on reconnect", {
-      cameraId,
-      error: String(err),
-    });
+      // Re-add stream
+      const addResp = await fetch(
+        `${edgeGo2rtcUrl}/api/streams?name=${encodeURIComponent(cameraId)}&src=${encodeURIComponent(connectionUri)}`,
+        { method: "PUT", signal: AbortSignal.timeout(5000) },
+      );
 
-    await supabase
-      .from("cameras")
-      .update({ status: "error", updated_at: new Date().toISOString() })
-      .eq("id", cameraId)
-      .eq("tenant_id", tenantId);
+      if (addResp.ok) {
+        await supabase
+          .from("cameras")
+          .update({ status: "online", updated_at: new Date().toISOString() })
+          .eq("id", cameraId)
+          .eq("tenant_id", tenantId);
+      } else {
+        const body = await addResp.text().catch(() => "");
+        logger.warn("go2rtc rejected stream re-registration", { cameraId, status: addResp.status, body });
+        await supabase
+          .from("cameras")
+          .update({ status: "error", updated_at: new Date().toISOString() })
+          .eq("id", cameraId)
+          .eq("tenant_id", tenantId);
+      }
+    } catch (err) {
+      logger.warn("Failed to reconnect stream via edge agent", { cameraId, error: String(err) });
+      await supabase
+        .from("cameras")
+        .update({ status: "error", updated_at: new Date().toISOString() })
+        .eq("id", cameraId)
+        .eq("tenant_id", tenantId);
+    }
+  } else {
+    const streamService = getStreamService();
+    try {
+      await streamService.removeStream(cameraId);
+      await streamService.addStream(cameraId, camera.connection_uri as string);
+      await supabase
+        .from("cameras")
+        .update({ status: "online", updated_at: new Date().toISOString() })
+        .eq("id", cameraId)
+        .eq("tenant_id", tenantId);
+    } catch (err) {
+      logger.warn("Failed to re-add stream in go2rtc on reconnect", { cameraId, error: String(err) });
+      await supabase
+        .from("cameras")
+        .update({ status: "error", updated_at: new Date().toISOString() })
+        .eq("id", cameraId)
+        .eq("tenant_id", tenantId);
+    }
   }
 
   return c.json(createSuccessResponse({ reconnected: true, cameraId }));

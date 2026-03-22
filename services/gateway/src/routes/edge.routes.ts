@@ -298,4 +298,46 @@ edgeRoutes.delete("/agents/:agentId", requireAuth(), async (c) => {
   return c.json(createSuccessResponse({ deleted: true }));
 });
 
+// ── Go2rtc health proxy ───────────────────────────────────────────────────────
+// Fetches /api/streams from the active edge agent's go2rtc URL server-side
+// so the browser avoids CORS issues when probing the cloudflare tunnel.
+
+edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  const { data } = await supabase
+    .from("edge_agents")
+    .select("go2rtc_url")
+    .eq("tenant_id", tenantId)
+    .eq("status", "online")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .single()
+    .catch(() => ({ data: null }));
+
+  const go2rtcUrl = (data as { go2rtc_url?: string } | null)?.go2rtc_url;
+  if (!go2rtcUrl) {
+    return c.json(createSuccessResponse({ status: "not_configured", streams: 0 }));
+  }
+
+  const start = Date.now();
+  try {
+    const resp = await fetch(`${go2rtcUrl}/api/streams`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const latency = Date.now() - start;
+    if (!resp.ok) {
+      return c.json(createSuccessResponse({ status: "down", latency_ms: latency, error: `HTTP ${resp.status}` }));
+    }
+    const streams = (await resp.json()) as Record<string, unknown>;
+    return c.json(createSuccessResponse({ status: "up", latency_ms: latency, streams: Object.keys(streams).length }));
+  } catch (err) {
+    return c.json(createSuccessResponse({
+      status: "down",
+      latency_ms: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
+});
 
