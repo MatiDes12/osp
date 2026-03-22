@@ -65,18 +65,26 @@ func (s *Syncer) resolveGo2RTCPublicURL() string {
 		return ""
 	}
 	// cloudflared exposes the quick tunnel hostname at /quicktunnel
+	// Response: {"hostname":"xxx.trycloudflare.com"} or {"url":"https://..."}
 	resp, err := s.httpClient.Get(s.cloudflaredMetricsURL + "/quicktunnel")
 	if err != nil || resp.StatusCode != 200 {
 		return ""
 	}
 	defer resp.Body.Close()
 	var result struct {
-		URL string `json:"url"`
+		Hostname string `json:"hostname"`
+		URL      string `json:"url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return ""
 	}
-	return result.URL
+	if result.URL != "" {
+		return result.URL
+	}
+	if result.Hostname != "" {
+		return "https://" + result.Hostname
+	}
+	return ""
 }
 
 // Run starts the sync loop. Blocks until ctx is cancelled.
