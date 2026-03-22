@@ -26,6 +26,16 @@ function hasLocalAgent(): boolean {
 }
 
 async function checkLocalGo2rtc(): Promise<ServiceStatus> {
+  // Chrome's Private Network Access policy blocks HTTP localhost fetches from
+  // HTTPS pages. Skip the live check and explain the situation instead.
+  if (window.location.protocol === "https:") {
+    return {
+      status: "not_configured",
+      latency_ms: 0,
+      error: "Open the app at http://localhost:3001 to see local go2rtc status",
+    };
+  }
+
   const start = performance.now();
   try {
     const res = await fetch("http://localhost:1984/api/streams", {
@@ -37,11 +47,15 @@ async function checkLocalGo2rtc(): Promise<ServiceStatus> {
     }
     const data = (await res.json()) as Record<string, unknown>;
     return { status: "up", latency_ms: latency, streams: Object.keys(data).length };
-  } catch {
+  } catch (err) {
+    const latency = Math.round(performance.now() - start);
+    const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
     return {
       status: "down",
-      latency_ms: Math.round(performance.now() - start),
-      error: "Unreachable — is go2rtc running?",
+      latency_ms: latency,
+      error: isTimeout
+        ? "Timed out — go2rtc may be starting up"
+        : "Unreachable — run: docker compose -f infra/docker/docker-compose.yml up -d go2rtc",
     };
   }
 }
@@ -175,9 +189,11 @@ function ServiceCard({
       </div>
 
       <div className="space-y-1 text-sm text-zinc-400">
-        <p>
-          Latency: <span className="text-zinc-200">{service.latency_ms}ms</span>
-        </p>
+        {service.latency_ms > 0 && (
+          <p>
+            Latency: <span className="text-zinc-200">{service.latency_ms}ms</span>
+          </p>
+        )}
         {service.streams !== undefined && (
           <p>
             Streams: <span className="text-zinc-200">{service.streams}</span>
@@ -190,7 +206,9 @@ function ServiceCard({
           </p>
         )}
         {service.error && (
-          <p className="text-red-400">Error: {service.error}</p>
+          <p className={notConfigured ? "text-zinc-500" : "text-red-400"}>
+            {service.error}
+          </p>
         )}
       </div>
     </div>
