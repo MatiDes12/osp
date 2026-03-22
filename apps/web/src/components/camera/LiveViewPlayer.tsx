@@ -232,23 +232,35 @@ export function LiveViewPlayer({
           direction: twoWayAudioSupported ? "sendrecv" : "recvonly",
         });
 
+        // Track received from go2rtc — attach to video but don't show "live" yet.
+        // ICE may still be "checking"; media only flows once ICE is connected.
+        let pendingStream: MediaStream | null = null;
         pc.ontrack = (event) => {
           const stream = event.streams[0];
           if (videoRef.current && stream) {
             videoRef.current.srcObject = stream;
-            setState("live");
-            // Save to pool once we have a live stream
-            connectionPool.set(cameraId, {
-              pc,
-              stream,
-              streamInfo: info,
-              lastActiveAt: Date.now(),
-            });
+            pendingStream = stream;
           }
         };
 
         pc.oniceconnectionstatechange = () => {
-          if (pc.iceConnectionState === "failed") {
+          const s = pc.iceConnectionState;
+          if (s === "connected" || s === "completed") {
+            // ICE succeeded — media is actually flowing now
+            if (pendingStream) {
+              setState("live");
+              if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+              }
+              connectionPool.set(cameraId, {
+                pc,
+                stream: pendingStream,
+                streamInfo: info,
+                lastActiveAt: Date.now(),
+              });
+            }
+          } else if (s === "failed") {
             fallbackToHLS(info);
           }
         };
@@ -507,23 +519,22 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // HLS fallback mode
+  // MJPEG fallback — works in all browsers via <img>, no codec/MSE issues.
+  // go2rtc's /api/stream.mjpeg is a multipart/x-mixed-replace stream that
+  // browsers display natively as a continuously-updating image.
   if (state === "fallback") {
-    // Prefer the fallbackHlsUrl from stream info (may be a Cloudflare Tunnel URL).
-    // Replace .m3u8 with .mp4 for MSE streaming which works better in browsers.
     const fallbackBase = streamInfo?.fallbackHlsUrl
       ? streamInfo.fallbackHlsUrl.replace(/\/api\/stream\.m3u8.*$/, "")
       : isTauri()
         ? "http://localhost:1984"
         : (process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984");
-    const mjpegUrl = `${fallbackBase}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
+    const mjpegUrl = `${fallbackBase}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
     return (
       <div className={`relative ${className ?? ""}`}>
-        <video
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={mjpegUrl}
-          autoPlay
-          muted
-          playsInline
+          alt={`${cameraName} live`}
           className="aspect-video w-full bg-black rounded-lg object-contain"
           onError={() => {
             setErrorMessage("Stream unavailable");
