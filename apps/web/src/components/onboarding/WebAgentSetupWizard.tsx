@@ -228,8 +228,18 @@ Write-Host "OSP — Removing old containers if they exist..." -ForegroundColor G
 docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>&1 | Out-Null
 
 Write-Host ""
+Write-Host "OSP — Writing go2rtc config (enables CORS for live streams)..." -ForegroundColor Gray
+$OspDir = "$env:LOCALAPPDATA\\OSP"
+New-Item -ItemType Directory -Force -Path $OspDir | Out-Null
+@"
+api:
+  listen: ":1984"
+  origin: "*"
+"@ | Set-Content "$OspDir\\go2rtc.yaml"
+
+Write-Host ""
 Write-Host "OSP — Step 1: Starting camera proxy (go2rtc)..." -ForegroundColor Cyan
-cmd /c "${c1}"
+docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -v "$OspDir/go2rtc.yaml:/config/go2rtc.yaml:ro" alexxit/go2rtc
 if ($LASTEXITCODE -ne 0) {
   Write-Host "Step 1 failed. Is Docker Desktop running?" -ForegroundColor Red
   Read-Host "Press Enter to close"
@@ -268,13 +278,19 @@ echo.
 echo OSP - Removing old containers if they exist...
 docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>nul
 echo.
+echo OSP - Writing go2rtc config (enables CORS for live streams)...
+if not exist "%LOCALAPPDATA%\\OSP" mkdir "%LOCALAPPDATA%\\OSP"
+(echo api:) > "%LOCALAPPDATA%\\OSP\\go2rtc.yaml"
+(echo   listen: ":1984") >> "%LOCALAPPDATA%\\OSP\\go2rtc.yaml"
+(echo   origin: "*") >> "%LOCALAPPDATA%\\OSP\\go2rtc.yaml"
+echo.
 echo OSP - Pulling latest images...
 docker pull alexxit/go2rtc:latest
 docker pull cloudflare/cloudflared:latest
 docker pull ghcr.io/matides12/osp-edge-agent:latest
 echo.
 echo OSP - Step 1: Starting camera proxy (go2rtc)...
-${go2rtcLine}
+docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -v "%LOCALAPPDATA%\\OSP\\go2rtc.yaml:/config/go2rtc.yaml:ro" alexxit/go2rtc
 if errorlevel 1 (
   echo Step 1 failed. Is Docker Desktop running?
   pause
@@ -309,13 +325,21 @@ echo ""
 echo "OSP — Removing old containers if they exist..."
 docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>/dev/null || true
 echo ""
+echo "OSP — Writing go2rtc config (enables CORS for live streams)..."
+mkdir -p "$HOME/.osp"
+cat > "$HOME/.osp/go2rtc.yaml" << 'GOCONF'
+api:
+  listen: ":1984"
+  origin: "*"
+GOCONF
+echo ""
 echo "OSP — Pulling latest images..."
 docker pull alexxit/go2rtc:latest
 docker pull cloudflare/cloudflared:latest
 docker pull ghcr.io/matides12/osp-edge-agent:latest
 echo ""
 echo "OSP — Step 1: Starting camera proxy (go2rtc)..."
-${go2rtcLine}
+docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -v "$HOME/.osp/go2rtc.yaml:/config/go2rtc.yaml:ro" alexxit/go2rtc
 echo ""
 echo "OSP — Step 2: Starting Cloudflare Tunnel (live stream access)..."
 ${cloudflaredLine}
