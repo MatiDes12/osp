@@ -244,7 +244,6 @@ jobs:
         run: pnpm --filter @osp/shared build
 
       - name: Deploy to Vercel
-        working-directory: apps/web
         run: |
           if [ "${{ needs.changes.outputs.environment }}" = "production" ]; then
             npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
