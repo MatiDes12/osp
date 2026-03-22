@@ -11,7 +11,6 @@ import {
   Monitor,
   Smartphone,
   Download,
-  Github,
   ChevronRight,
   Zap,
   Lock,
@@ -207,13 +206,10 @@ export default async function HomePage() {
               Pricing
             </a>
             <a
-              href="https://github.com/MatiDes12/osp"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 transition-colors hover:text-zinc-100"
+              href="/docs"
+              className="transition-colors hover:text-zinc-100"
             >
-              <Github className="h-4 w-4" />
-              GitHub
+              Docs
             </a>
           </nav>
 
@@ -663,13 +659,11 @@ export default async function HomePage() {
               <ChevronRight className="h-4 w-4" />
             </Link>
             <a
-              href="https://github.com/MatiDes12/osp"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/docs"
               className="inline-flex items-center gap-2 rounded-lg border border-zinc-700 px-6 py-3 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800"
             >
-              <Github className="h-4 w-4" />
-              View on GitHub
+              Learn More
+              <ChevronRight className="h-4 w-4" />
             </a>
           </div>
         </div>
@@ -715,14 +709,8 @@ export default async function HomePage() {
               <a href="/docs" className="transition-colors hover:text-zinc-200">
                 Docs
               </a>
-              <a
-                href="https://github.com/MatiDes12/osp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 transition-colors hover:text-zinc-200"
-              >
-                <Github className="h-3.5 w-3.5" />
-                GitHub
+              <a href="/docs" className="transition-colors hover:text-zinc-200">
+                Docs
               </a>
             </div>
           </div>
