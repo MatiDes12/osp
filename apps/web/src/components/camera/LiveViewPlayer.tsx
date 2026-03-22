@@ -26,7 +26,12 @@ interface StreamInfo {
 type PlayerState = "loading" | "connecting" | "live" | "fallback" | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-const WEBRTC_TIMEOUT_MS = 8000;
+const WEBRTC_TIMEOUT_MS = 12000;
+
+// Per-camera session cache so repeat visits skip the API fetch and know
+// whether WebRTC is viable (it never is through a Cloudflare tunnel).
+const streamInfoCache = new Map<string, StreamInfo>();
+const webrtcFailed = new Set<string>(); // cameras where WebRTC failed this session
 
 // ---------------------------------------------------------------------------
 // Module-level connection pool — survives React component unmounts.
@@ -197,6 +202,8 @@ export function LiveViewPlayer({
   const fallbackToHLS = useCallback(
     (info: StreamInfo) => {
       teardown();
+      // Remember that WebRTC failed for this camera so next visit skips straight to MJPEG
+      webrtcFailed.add(cameraId);
       if (info.fallbackHlsUrl) {
         setState("fallback");
       } else {
@@ -205,7 +212,7 @@ export function LiveViewPlayer({
         onError?.("WebRTC failed and no HLS fallback available");
       }
     },
-    [teardown, onError],
+    [cameraId, teardown, onError],
   );
 
   const connectWebRTC = useCallback(
@@ -335,43 +342,21 @@ export function LiveViewPlayer({
     setState("loading");
     setErrorMessage(null);
     try {
-      let info: StreamInfo;
+      // Use cached stream info if available — avoids API round-trip on repeat visits
+      let info: StreamInfo | undefined = streamInfoCache.get(cameraId);
 
-      if (isTauri()) {
-        // Desktop: go2rtc runs locally as a sidecar — connect directly
-        const go2rtcBase = "http://localhost:1984";
-        info = {
-          whepUrl: `${go2rtcBase}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
-          token: "",
-          fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
-          iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
-        };
-      } else if (window.location.protocol === "https:") {
-        // HTTPS: browser blocks HTTP localhost fetches — cloud gateway only
-        const response = await fetch(
-          `${API_URL}/api/v1/cameras/${cameraId}/stream`,
-          { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
-        );
-        if (!response.ok)
-          throw new Error(`Failed to fetch stream info (${response.status})`);
-        const json = await response.json();
-        info = json.data ?? json;
-      } else {
-        // HTTP: probe local go2rtc regardless of setup flag — no localStorage dependency
-        const localOk = await fetch("http://localhost:1984/api/streams", {
-          signal: AbortSignal.timeout(1500),
-        }).then((r) => r.ok).catch(() => false);
-
-        if (localOk) {
-          const base = "http://localhost:1984";
+      if (!info) {
+        if (isTauri()) {
+          // Desktop: go2rtc runs locally as a sidecar — connect directly
+          const go2rtcBase = "http://localhost:1984";
           info = {
-            whepUrl: `${base}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
+            whepUrl: `${go2rtcBase}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
             token: "",
-            fallbackHlsUrl: `${base}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+            fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
             iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
           };
-        } else {
-          // Local go2rtc not running — fall back to cloud
+        } else if (window.location.protocol === "https:") {
+          // HTTPS: browser blocks HTTP localhost fetches — cloud gateway only
           const response = await fetch(
             `${API_URL}/api/v1/cameras/${cameraId}/stream`,
             { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
@@ -380,12 +365,46 @@ export function LiveViewPlayer({
             throw new Error(`Failed to fetch stream info (${response.status})`);
           const json = await response.json();
           info = json.data ?? json;
+        } else {
+          // HTTP: probe local go2rtc regardless of setup flag — no localStorage dependency
+          const localOk = await fetch("http://localhost:1984/api/streams", {
+            signal: AbortSignal.timeout(1500),
+          }).then((r) => r.ok).catch(() => false);
+
+          if (localOk) {
+            const base = "http://localhost:1984";
+            info = {
+              whepUrl: `${base}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
+              token: "",
+              fallbackHlsUrl: `${base}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+              iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+            };
+          } else {
+            // Local go2rtc not running — fall back to cloud
+            const response = await fetch(
+              `${API_URL}/api/v1/cameras/${cameraId}/stream`,
+              { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
+            );
+            if (!response.ok)
+              throw new Error(`Failed to fetch stream info (${response.status})`);
+            const json = await response.json();
+            info = json.data ?? json;
+          }
         }
+        streamInfoCache.set(cameraId, info as StreamInfo);
       }
 
-      setStreamInfo(info);
-      streamInfoRef.current = info;
-      await connectWebRTC(info);
+      const resolvedInfo = info as StreamInfo;
+      setStreamInfo(resolvedInfo);
+      streamInfoRef.current = resolvedInfo;
+
+      // If WebRTC already failed for this camera this session, skip straight to MJPEG
+      if (webrtcFailed.has(cameraId)) {
+        setState("fallback");
+        return;
+      }
+
+      await connectWebRTC(resolvedInfo);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load stream";
@@ -477,6 +496,8 @@ export function LiveViewPlayer({
       e.pc.close();
       connectionPool.delete(cameraId);
     }
+    // Clear failure flag so manual reconnect retries WebRTC
+    webrtcFailed.delete(cameraId);
     teardown();
     void fetchStreamAndConnect();
   }, [cameraId, teardown, fetchStreamAndConnect]);
