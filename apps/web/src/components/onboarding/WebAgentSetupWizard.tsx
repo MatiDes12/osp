@@ -139,18 +139,19 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
   if (os === "windows") {
     // Single-line commands — works in both CMD and PowerShell
     const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped alexxit/go2rtc`;
-    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://localhost:1984 ghcr.io/matides12/osp-edge-agent:latest`;
+    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 ghcr.io/matides12/osp-edge-agent:latest`;
     return { go2rtc, agent };
   }
 
   const cont = "\\\n  ";
   const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}alexxit/go2rtc`;
+  const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
 
   const agentEnv = [
-    `-e GATEWAY_URL=${GATEWAY_URL}`,
+    `-e CLOUD_GATEWAY_URL=${GATEWAY_URL}`,
     `-e TENANT_ID=${tenantId}`,
-    `-e API_TOKEN=${apiToken}`,
-    `-e GO2RTC_URL=http://localhost:1984`,
+    `-e CLOUD_API_TOKEN=${apiToken}`,
+    `-e GO2RTC_URL=${go2rtcUrl}`,
   ].join(` ${cont}`);
 
   const agent = `docker run -d --name osp-agent ${os === "linux" ? "--network host " : ""}${cont}--restart unless-stopped ${cont}${agentEnv} ${cont}ghcr.io/matides12/osp-camera-ingest:latest`;
@@ -176,7 +177,8 @@ function buildSingleLineCommands(
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`
       : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
-  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://localhost:1984 ghcr.io/matides12/osp-edge-agent:latest`;
+  const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} ghcr.io/matides12/osp-edge-agent:latest`;
   return { go2rtcLine: go2rtc, agentLine: agent };
 }
 
@@ -208,6 +210,10 @@ function buildWindowsPs1(go2rtcLine: string, agentLine: string): string {
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
+Write-Host "OSP — Removing old containers if they exist..." -ForegroundColor Gray
+docker rm -f osp-go2rtc osp-agent 2>&1 | Out-Null
+
+Write-Host ""
 Write-Host "OSP — Step 1: Starting camera proxy (go2rtc)..." -ForegroundColor Cyan
 cmd /c "${c1}"
 if ($LASTEXITCODE -ne 0) {
@@ -235,6 +241,9 @@ function buildWindowsBat(go2rtcLine: string, agentLine: string): string {
   return `@echo off
 setlocal EnableExtensions
 title OSP setup
+echo.
+echo OSP - Removing old containers if they exist...
+docker rm -f osp-go2rtc osp-agent 2>nul
 echo.
 echo OSP - Step 1: Starting camera proxy (go2rtc)...
 ${go2rtcLine}
