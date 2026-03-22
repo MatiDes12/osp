@@ -132,6 +132,11 @@ export class CameraHealthChecker {
       if (cameras.length === 0) return;
 
       const streamStatuses = await this.fetchStreamStatuses();
+      // null means go2rtc is unreachable — skip cycle to avoid incorrectly
+      // marking cameras offline just because the cloud gateway can't reach
+      // a locally-running go2rtc instance.
+      if (streamStatuses === null) return;
+
       for (const row of cameras) {
         await this.processCameraHealth(row, streamStatuses);
       }
@@ -401,6 +406,8 @@ export class CameraHealthChecker {
       // Without this, go2rtc is in lazy-pull mode: when no WebRTC viewer is
       // active it disconnects from the RTSP source, so frame.jpeg times out.
       const streamStatuses = await this.fetchStreamStatuses();
+      // go2rtc unreachable — skip motion sampling this cycle
+      if (streamStatuses === null) return;
 
       for (const row of cameras as CameraRow[]) {
         const stream = streamStatuses.get(row.id);
@@ -691,30 +698,34 @@ export class CameraHealthChecker {
 
   /**
    * Fetch all stream statuses from go2rtc in a single API call.
-   * Returns a map of streamId -> stream info.
+   * Returns a map of streamId -> stream info, or null if go2rtc is unreachable.
+   * Callers must treat null as "skip this cycle" — not as "all cameras offline".
    */
-  private async fetchStreamStatuses(): Promise<
-    ReadonlyMap<string, Go2rtcStream>
-  > {
+  private async fetchStreamStatuses(): Promise<ReadonlyMap<
+    string,
+    Go2rtcStream
+  > | null> {
     try {
       const res = await fetch(`${this.go2rtcUrl}/api/streams`, {
         signal: AbortSignal.timeout(5_000),
       });
 
       if (!res.ok) {
-        logger.warn("go2rtc streams API returned non-OK", {
+        logger.warn("go2rtc streams API returned non-OK — skipping health check cycle", {
           status: String(res.status),
         });
-        return new Map();
+        return null;
       }
 
       const body = (await res.json()) as Record<string, Go2rtcStream>;
       return new Map(Object.entries(body));
     } catch (err) {
-      logger.warn("Failed to fetch go2rtc stream statuses", {
+      // go2rtc is unreachable (e.g. running locally while gateway is in cloud).
+      // Return null so callers skip the cycle rather than marking every camera offline.
+      logger.debug("go2rtc unreachable — skipping health check cycle", {
         error: String(err),
       });
-      return new Map();
+      return null;
     }
   }
 

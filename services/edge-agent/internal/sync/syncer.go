@@ -97,6 +97,9 @@ func (s *Syncer) syncOnce(ctx context.Context) {
 	// Sync cameras from gateway into local go2rtc
 	s.syncCamerasToGo2RTC(ctx)
 
+	// Report go2rtc stream statuses back to gateway so camera cards show online/offline.
+	s.reportCameraStatuses(ctx)
+
 	// Sync up to 50 pending events per cycle.
 	events, err := s.db.GetPendingEvents(50)
 	if err != nil {
@@ -171,6 +174,76 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 		addResp.Body.Close()
 		slog.Info("camera registered in go2rtc", "camera_id", cam.ID)
 	}
+}
+
+type go2rtcStream struct {
+	Producers []interface{} `json:"producers"`
+}
+
+// reportCameraStatuses queries local go2rtc for all stream statuses and
+// reports them to the gateway so camera cards show the correct online/offline state.
+func (s *Syncer) reportCameraStatuses(ctx context.Context) {
+	if s.go2rtcURL == "" {
+		return
+	}
+
+	// Fetch all streams from go2rtc.
+	streamsURL := fmt.Sprintf("%s/api/streams", s.go2rtcURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", streamsURL, nil)
+	if err != nil {
+		return
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return
+	}
+	defer resp.Body.Close()
+
+	var streams map[string]go2rtcStream
+	if err := json.NewDecoder(resp.Body).Decode(&streams); err != nil {
+		return
+	}
+
+	type statusEntry struct {
+		CameraID string `json:"cameraId"`
+		Status   string `json:"status"`
+	}
+
+	statuses := make([]statusEntry, 0, len(streams))
+	for id, stream := range streams {
+		st := "connecting"
+		if len(stream.Producers) > 0 {
+			st = "online"
+		}
+		statuses = append(statuses, statusEntry{CameraID: id, Status: st})
+	}
+
+	if len(statuses) == 0 {
+		return
+	}
+
+	payload, err := json.Marshal(map[string]interface{}{"statuses": statuses})
+	if err != nil {
+		return
+	}
+
+	reportURL := fmt.Sprintf("%s/api/v1/cameras/internal/status", s.gatewayURL)
+	reportReq, err := http.NewRequestWithContext(ctx, "POST", reportURL, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
+	reportReq.Header.Set("Content-Type", "application/json")
+	reportReq.Header.Set("X-Internal-Token", s.apiToken)
+
+	reportResp, err := s.httpClient.Do(reportReq)
+	if err != nil {
+		slog.Warn("failed to report camera statuses to gateway", "error", err)
+		return
+	}
+	defer reportResp.Body.Close()
+	io.ReadAll(reportResp.Body) //nolint:errcheck
+
+	slog.Info("camera statuses reported to gateway", "count", len(statuses))
 }
 
 func urlEncode(s string) string {

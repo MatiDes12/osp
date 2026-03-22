@@ -20,6 +20,7 @@ import {
   createSuccessResponse,
 } from "@osp/shared";
 import type { PTZCommandInput, RecordingTrigger } from "@osp/shared";
+import { z } from "zod";
 
 const logger = createLogger("camera-routes");
 
@@ -49,6 +50,62 @@ cameraRoutes.get("/internal/online", async (c) => {
   }
 
   return c.json(createSuccessResponse(data ?? []));
+});
+
+// Internal endpoint: edge agent reports which cameras are online/connecting in go2rtc.
+// Protected by shared service token. Does NOT update disabled cameras.
+const CameraStatusReportSchema = z.object({
+  statuses: z.array(
+    z.object({
+      cameraId: z.string().min(1),
+      status: z.enum(["online", "connecting", "offline"]),
+    }),
+  ),
+});
+
+cameraRoutes.post("/internal/status", async (c) => {
+  const token = c.req.header("X-Internal-Token");
+  const expectedToken = get("API_TOKEN");
+  if (!expectedToken || !token || token !== expectedToken) {
+    throw new ApiError(
+      "AUTH_TOKEN_INVALID",
+      "Invalid internal service token",
+      401,
+    );
+  }
+
+  const body = await c.req.json().catch(() => {
+    throw new ApiError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+  const { statuses } = CameraStatusReportSchema.parse(body);
+
+  if (statuses.length === 0) {
+    return c.json(createSuccessResponse({ updated: 0 }));
+  }
+
+  const supabase = getSupabase();
+  let updated = 0;
+
+  // Update each camera status individually so we can skip disabled ones.
+  for (const { cameraId, status } of statuses) {
+    const { error } = await supabase
+      .from("cameras")
+      .update({
+        status,
+        last_seen_at: status === "online" ? new Date().toISOString() : undefined,
+      })
+      .eq("id", cameraId)
+      .neq("status", "disabled"); // never touch disabled cameras
+
+    if (!error) updated++;
+  }
+
+  logger.info("edge agent camera status report applied", {
+    reported: String(statuses.length),
+    updated: String(updated),
+  });
+
+  return c.json(createSuccessResponse({ updated }));
 });
 
 // List cameras
