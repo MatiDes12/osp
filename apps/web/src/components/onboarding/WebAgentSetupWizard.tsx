@@ -699,13 +699,13 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               />
               <div>
                 <p className="text-xs font-medium text-[var(--color-fg)]">
-                  You’re not being hacked
+                  You're not being hacked
                 </p>
                 <p className="text-[11px] text-[var(--color-muted)] mt-1 leading-relaxed">
-                  This is official OSP setup while you’re signed in. The commands
+                  This is official OSP setup while you're signed in. The commands
                   run only on <span className="text-[var(--color-fg)]">your</span>{" "}
                   computer through Docker — the same kind of tool developers use
-                  to run apps safely. They don’t install remote desktop, spyware,
+                  to run apps safely. They don't install remote desktop, spyware,
                   or give strangers access to your PC.
                 </p>
               </div>
@@ -831,21 +831,21 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               </div>
             )}
 
-            {cmds && !tenantLoadError && setupMode === “terminal” && (
-              <div className=”space-y-4 mb-5”>
+            {cmds && !tenantLoadError && setupMode === "terminal" && (
+              <div className="space-y-4 mb-5">
                 <CommandBlock
-                  label=”Step 1 — Start camera proxy”
-                  description=’What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It’s a “bridge” for video — not a virus, not remote control of your PC.’
+                  label="Step 1 — Start camera proxy"
+                  description='What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It's a "bridge" for video — not a virus, not remote control of your PC.'
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
-                  label=”Step 2 — Start Cloudflare Tunnel”
+                  label="Step 2 — Start Cloudflare Tunnel"
                   description={'What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. Cloudflare is trusted by millions of websites worldwide.'}
                   command={cmds.cloudflared}
                 />
                 <CommandBlock
-                  label=”Step 3 — Start OSP agent”
-                  description=”What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer.”
+                  label="Step 3 — Start OSP agent"
+                  description="What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer."
                   command={cmds.agent}
                 />
               </div>
