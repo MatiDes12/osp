@@ -64,7 +64,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [camera-ingest, video-pipeline, event-engine, extension-runtime]
+        service: [camera-ingest, video-pipeline, event-engine, extension-runtime, edge-agent]
     steps:
       - uses: actions/checkout@v4
 

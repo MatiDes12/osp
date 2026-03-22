@@ -33,7 +33,7 @@ services:
 
   # ── OSP Agent: registers cameras with cloud gateway ──────────────────────
   osp-agent:
-    image: ghcr.io/matides12/osp-camera-ingest:latest
+    image: ghcr.io/matides12/osp-edge-agent:latest
     container_name: osp-agent
     network_mode: host
     restart: unless-stopped
