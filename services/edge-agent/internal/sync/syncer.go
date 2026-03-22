@@ -180,17 +180,26 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 	}
 	req.Header.Set("X-Tenant-Id", s.tenantID)
 	resp, err := s.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	if err != nil {
+		slog.Warn("syncCameras: gateway request failed", "error", err)
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		slog.Warn("syncCameras: gateway returned non-200", "status", resp.StatusCode, "body", string(body))
+		return
+	}
 
 	var result struct {
 		Data []cameraRow `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		slog.Warn("syncCameras: failed to decode gateway response", "error", err)
 		return
 	}
+
+	slog.Info("syncCameras: cameras fetched from gateway", "count", len(result.Data))
 
 	for _, cam := range result.Data {
 		if cam.ID == "" || cam.ConnectionURI == "" {
@@ -204,11 +213,16 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 		}
 		addResp, err := s.httpClient.Do(addReq)
 		if err != nil {
-			slog.Warn("failed to register camera in go2rtc", "camera_id", cam.ID, "error", err)
+			slog.Warn("syncCameras: failed to register camera in go2rtc", "camera_id", cam.ID, "error", err)
 			continue
 		}
+		body, _ := io.ReadAll(addResp.Body)
 		addResp.Body.Close()
-		slog.Info("camera registered in go2rtc", "camera_id", cam.ID)
+		if addResp.StatusCode >= 300 {
+			slog.Warn("syncCameras: go2rtc rejected camera", "camera_id", cam.ID, "status", addResp.StatusCode, "body", string(body))
+		} else {
+			slog.Info("syncCameras: camera registered in go2rtc", "camera_id", cam.ID)
+		}
 	}
 }
 
