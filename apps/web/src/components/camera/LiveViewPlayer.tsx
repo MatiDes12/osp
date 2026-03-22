@@ -27,13 +27,6 @@ type PlayerState = "loading" | "connecting" | "live" | "fallback" | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const WEBRTC_TIMEOUT_MS = 15000;
-const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
-
-/** True when the user has the local Docker agent running (go2rtc on localhost:1984). */
-function hasLocalAgent(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!localStorage.getItem(WEB_SETUP_KEY);
-}
 
 // ---------------------------------------------------------------------------
 // Module-level connection pool — survives React component unmounts.
@@ -140,6 +133,7 @@ export function LiveViewPlayer({
       const cloudSnapshotUrl = `${API_URL}/api/v1/cameras/${cameraId}/snapshot`;
       const localSnapshotUrl = `http://localhost:1984/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
       const isLocal = isTauri();
+      const canReachLocal = !isLocal && window.location.protocol !== "https:";
       let res = await fetch(
         isLocal ? localSnapshotUrl : cloudSnapshotUrl,
         {
@@ -147,8 +141,8 @@ export function LiveViewPlayer({
           signal: AbortSignal.timeout(4000),
         },
       ).catch(() => null);
-      // Fall back to local go2rtc if cloud snapshot failed
-      if ((!res || !res.ok) && !isLocal && hasLocalAgent()) {
+      // On HTTP, try local go2rtc snapshot as fallback (no localStorage gate)
+      if ((!res || !res.ok) && canReachLocal) {
         res = await fetch(localSnapshotUrl, { signal: AbortSignal.timeout(4000) }).catch(() => null);
       }
       if (!res?.ok) return;
@@ -340,42 +334,32 @@ export function LiveViewPlayer({
           fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
           iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
         };
+      } else if (window.location.protocol === "https:") {
+        // HTTPS: browser blocks HTTP localhost fetches — cloud gateway only
+        const response = await fetch(
+          `${API_URL}/api/v1/cameras/${cameraId}/stream`,
+          { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
+        );
+        if (!response.ok)
+          throw new Error(`Failed to fetch stream info (${response.status})`);
+        const json = await response.json();
+        info = json.data ?? json;
       } else {
-        const localInfo = (): StreamInfo => {
-          const go2rtcBase = "http://localhost:1984";
-          return {
-            whepUrl: `${go2rtcBase}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
+        // HTTP: probe local go2rtc regardless of setup flag — no localStorage dependency
+        const localOk = await fetch("http://localhost:1984/api/streams", {
+          signal: AbortSignal.timeout(1500),
+        }).then((r) => r.ok).catch(() => false);
+
+        if (localOk) {
+          const base = "http://localhost:1984";
+          info = {
+            whepUrl: `${base}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
             token: "",
-            fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+            fallbackHlsUrl: `${base}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
             iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
           };
-        };
-
-        if (hasLocalAgent()) {
-          // Local agent present: try local go2rtc first (fastest, always works)
-          const localOk = await fetch("http://localhost:1984/api/streams", {
-            signal: AbortSignal.timeout(1500),
-          }).then(r => r.ok).catch(() => false);
-
-          if (localOk) {
-            info = localInfo();
-          } else {
-            // Local not responding — try cloud
-            const response = await fetch(
-              `${API_URL}/api/v1/cameras/${cameraId}/stream`,
-              { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
-            ).catch(() => null);
-
-            if (response?.ok) {
-              const json = await response.json();
-              info = json.data ?? json;
-            } else {
-              // Cloud also failed — retry local (go2rtc may still be starting up)
-              info = localInfo();
-            }
-          }
         } else {
-          // No local agent — cloud only
+          // Local go2rtc not running — fall back to cloud
           const response = await fetch(
             `${API_URL}/api/v1/cameras/${cameraId}/stream`,
             { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },

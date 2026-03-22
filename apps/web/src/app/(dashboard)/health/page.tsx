@@ -18,23 +18,14 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const REFRESH_INTERVAL_MS = 30_000;
-const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
 
-function hasLocalAgent(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!localStorage.getItem(WEB_SETUP_KEY);
-}
-
-async function checkLocalGo2rtc(): Promise<ServiceStatus> {
-  // Chrome's Private Network Access policy blocks HTTP localhost fetches from
-  // HTTPS pages. Skip the live check and explain the situation instead.
-  if (window.location.protocol === "https:") {
-    return {
-      status: "not_configured",
-      latency_ms: 0,
-      error: "Open the app at http://localhost:3001 to see local go2rtc status",
-    };
-  }
+/**
+ * Probes local go2rtc on HTTP only.
+ * Returns null on HTTPS (browser blocks HTTP localhost fetches) — caller
+ * falls back to the gateway's go2rtc status in that case.
+ */
+async function checkLocalGo2rtc(): Promise<ServiceStatus | null> {
+  if (window.location.protocol === "https:") return null;
 
   const start = performance.now();
   try {
@@ -245,7 +236,6 @@ export default function HealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [localGo2rtc, setLocalGo2rtc] = useState<ServiceStatus | null>(null);
-  const [localAgentPresent, setLocalAgentPresent] = useState(false);
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -266,13 +256,11 @@ export default function HealthPage() {
   }, []);
 
   const fetchLocalGo2rtc = useCallback(async () => {
-    if (!hasLocalAgent()) return;
     const status = await checkLocalGo2rtc();
     setLocalGo2rtc(status);
   }, []);
 
   useEffect(() => {
-    setLocalAgentPresent(hasLocalAgent());
     fetchHealth();
     fetchLocalGo2rtc();
     const interval = setInterval(() => {
@@ -365,7 +353,7 @@ export default function HealthPage() {
                 icon={Radio}
                 service={health.services.redis}
               />
-              {localAgentPresent && localGo2rtc ? (
+              {localGo2rtc ? (
                 <ServiceCard
                   name="go2rtc (Local)"
                   icon={Video}
