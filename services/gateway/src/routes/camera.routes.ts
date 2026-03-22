@@ -42,7 +42,7 @@ cameraRoutes.get("/internal/online", async (c) => {
   const { data, error } = await supabase
     .from("cameras")
     .select("id, tenant_id, name, connection_uri, status, config")
-    .eq("status", "online");
+    .neq("status", "disabled");
 
   if (error) {
     throw new ApiError("INTERNAL_ERROR", "Failed to fetch online cameras", 500);

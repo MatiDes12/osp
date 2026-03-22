@@ -138,13 +138,13 @@ const DOCKER_LINKS: Record<OS, string> = {
 function buildCommands(os: OS, tenantId: string, apiToken: string) {
   if (os === "windows") {
     // Single-line commands — works in both CMD and PowerShell
-    const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped alexxit/go2rtc`;
+    const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
     const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 ghcr.io/matides12/osp-edge-agent:latest`;
     return { go2rtc, agent };
   }
 
   const cont = "\\\n  ";
-  const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}alexxit/go2rtc`;
+  const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}-e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
 
   const agentEnv = [
@@ -154,7 +154,7 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
     `-e GO2RTC_URL=${go2rtcUrl}`,
   ].join(` ${cont}`);
 
-  const agent = `docker run -d --name osp-agent ${os === "linux" ? "--network host " : ""}${cont}--restart unless-stopped ${cont}${agentEnv} ${cont}ghcr.io/matides12/osp-camera-ingest:latest`;
+  const agent = `docker run -d --name osp-agent ${os === "linux" ? "--network host " : ""}${cont}--restart unless-stopped ${cont}${agentEnv} ${cont}ghcr.io/matides12/osp-edge-agent:latest`;
 
   return { go2rtc, agent };
 }
@@ -171,8 +171,8 @@ function buildSingleLineCommands(
   }
   const go2rtc =
     os === "linux"
-      ? `docker run -d --name osp-go2rtc --network host --restart unless-stopped alexxit/go2rtc`
-      : `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped alexxit/go2rtc`;
+      ? `docker run -d --name osp-go2rtc --network host --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`
+      : `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
   const agentPrefix =
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`

@@ -133,15 +133,13 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 	if s.go2rtcURL == "" {
 		return
 	}
-	url := fmt.Sprintf("%s/api/v1/cameras", s.gatewayURL)
+	// Use the internal endpoint — authenticated with the shared API token
+	url := fmt.Sprintf("%s/api/v1/cameras/internal/online", s.gatewayURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+s.apiToken)
-	if s.tenantID != "" {
-		req.Header.Set("X-Tenant-Id", s.tenantID)
-	}
+	req.Header.Set("X-Internal-Token", s.apiToken)
 	resp, err := s.httpClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return
@@ -171,7 +169,7 @@ func (s *Syncer) syncCamerasToGo2RTC(ctx context.Context) {
 			continue
 		}
 		addResp.Body.Close()
-		slog.Debug("camera synced to go2rtc", "camera_id", cam.ID)
+		slog.Info("camera registered in go2rtc", "camera_id", cam.ID)
 	}
 }
 
