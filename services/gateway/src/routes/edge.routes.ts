@@ -297,3 +297,4 @@ edgeRoutes.delete("/agents/:agentId", requireAuth(), async (c) => {
 
   return c.json(createSuccessResponse({ deleted: true }));
 });
+
