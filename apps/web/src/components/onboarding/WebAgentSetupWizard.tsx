@@ -840,7 +840,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 />
                 <CommandBlock
                   label=”Step 2 — Start Cloudflare Tunnel”
-                  description=”What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. Cloudflare is trusted by millions of websites worldwide.”
+                  description={'What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. Cloudflare is trusted by millions of websites worldwide.'}
                   command={cmds.cloudflared}
                 />
                 <CommandBlock
