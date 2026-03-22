@@ -18,6 +18,33 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const REFRESH_INTERVAL_MS = 30_000;
+const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
+
+function hasLocalAgent(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!localStorage.getItem(WEB_SETUP_KEY);
+}
+
+async function checkLocalGo2rtc(): Promise<ServiceStatus> {
+  const start = performance.now();
+  try {
+    const res = await fetch("http://localhost:1984/api/streams", {
+      signal: AbortSignal.timeout(3_000),
+    });
+    const latency = Math.round(performance.now() - start);
+    if (!res.ok) {
+      return { status: "down", latency_ms: latency, error: `HTTP ${res.status}` };
+    }
+    const data = (await res.json()) as Record<string, unknown>;
+    return { status: "up", latency_ms: latency, streams: Object.keys(data).length };
+  } catch {
+    return {
+      status: "down",
+      latency_ms: Math.round(performance.now() - start),
+      error: "Unreachable — is go2rtc running?",
+    };
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -199,6 +226,8 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
+  const [localGo2rtc, setLocalGo2rtc] = useState<ServiceStatus | null>(null);
+  const [localAgentPresent, setLocalAgentPresent] = useState(false);
 
   const fetchHealth = useCallback(async () => {
     try {
@@ -218,11 +247,22 @@ export default function HealthPage() {
     }
   }, []);
 
+  const fetchLocalGo2rtc = useCallback(async () => {
+    if (!hasLocalAgent()) return;
+    const status = await checkLocalGo2rtc();
+    setLocalGo2rtc(status);
+  }, []);
+
   useEffect(() => {
+    setLocalAgentPresent(hasLocalAgent());
     fetchHealth();
-    const interval = setInterval(fetchHealth, REFRESH_INTERVAL_MS);
+    fetchLocalGo2rtc();
+    const interval = setInterval(() => {
+      fetchHealth();
+      fetchLocalGo2rtc();
+    }, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [fetchHealth]);
+  }, [fetchHealth, fetchLocalGo2rtc]);
 
   if (loading && !health) {
     return (
@@ -307,11 +347,19 @@ export default function HealthPage() {
                 icon={Radio}
                 service={health.services.redis}
               />
-              <ServiceCard
-                name="go2rtc"
-                icon={Video}
-                service={health.services.go2rtc}
-              />
+              {localAgentPresent && localGo2rtc ? (
+                <ServiceCard
+                  name="go2rtc (Local)"
+                  icon={Video}
+                  service={localGo2rtc}
+                />
+              ) : (
+                <ServiceCard
+                  name="go2rtc"
+                  icon={Video}
+                  service={health.services.go2rtc}
+                />
+              )}
               <ServiceCard
                 name="WebSocket"
                 icon={Wifi}

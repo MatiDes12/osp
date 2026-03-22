@@ -67,8 +67,16 @@ async function checkRedis(): Promise<ServiceCheck> {
 }
 
 async function checkGo2rtc(): Promise<ServiceCheck> {
-  const url =
-    get("GO2RTC_API_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  // If no explicit GO2RTC_API_URL is set, go2rtc is expected to run locally
+  // on each user's machine (edge agent setup). The gateway cannot reach it from
+  // the cloud, so we return not_configured rather than "down" to avoid
+  // incorrectly marking the system as degraded.
+  const explicitUrl = get("GO2RTC_API_URL");
+  const url = explicitUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  if (!explicitUrl) {
+    return { status: "not_configured", latency_ms: 0 };
+  }
+
   const start = performance.now();
   try {
     const res = await fetch(`${url}/api/streams`, {
@@ -162,6 +170,7 @@ healthRoutes.get("/", async (c) => {
 
   const overall =
     supabase.status === "up" && redis.status === "up" ? "ok" : "degraded";
+  void go2rtc; // go2rtc runs locally in edge-agent mode; not used for gateway liveness
 
   return c.json({
     status: overall,
@@ -246,8 +255,11 @@ healthRoutes.get("/detailed", async (c) => {
     // Stats are best-effort; service checks above already flag Supabase down.
   }
 
+  // go2rtc is "not_configured" when it runs locally (edge agent setup) — that's expected.
+  const go2rtcOk =
+    go2rtc.status === "up" || go2rtc.status === "not_configured";
   const allUp =
-    supabase.status === "up" && redis.status === "up" && go2rtc.status === "up";
+    supabase.status === "up" && redis.status === "up" && go2rtcOk;
 
   return c.json({
     status: allUp ? "healthy" : "degraded",
