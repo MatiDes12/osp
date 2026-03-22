@@ -139,24 +139,30 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
   if (os === "windows") {
     // Single-line commands — works in both CMD and PowerShell
     const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
-    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 ghcr.io/matides12/osp-edge-agent:latest`;
-    return { go2rtc, agent };
+    const cloudflared = `docker run -d --name osp-cloudflared -p 20241:20241 --restart unless-stopped cloudflare/cloudflared:latest tunnel --url http://host.docker.internal:1984 --metrics 0.0.0.0:20241 --no-autoupdate`;
+    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 -e CLOUDFLARED_METRICS_URL=http://host.docker.internal:20241 ghcr.io/matides12/osp-edge-agent:latest`;
+    return { go2rtc, cloudflared, agent };
   }
 
   const cont = "\\\n  ";
   const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}-e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const cloudflaredTunnel = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const cloudflaredMetrics = os === "linux" ? "http://localhost:20241" : "http://host.docker.internal:20241";
+  const cloudflaredNet = os === "linux" ? "--network host " : "-p 20241:20241 ";
+  const cloudflared = `docker run -d --name osp-cloudflared ${cloudflaredNet}${cont}--restart unless-stopped ${cont}cloudflare/cloudflared:latest tunnel --url ${cloudflaredTunnel} --metrics 0.0.0.0:20241 --no-autoupdate`;
 
   const agentEnv = [
     `-e CLOUD_GATEWAY_URL=${GATEWAY_URL}`,
     `-e TENANT_ID=${tenantId}`,
     `-e CLOUD_API_TOKEN=${apiToken}`,
     `-e GO2RTC_URL=${go2rtcUrl}`,
+    `-e CLOUDFLARED_METRICS_URL=${cloudflaredMetrics}`,
   ].join(` ${cont}`);
 
   const agent = `docker run -d --name osp-agent ${os === "linux" ? "--network host " : ""}${cont}--restart unless-stopped ${cont}${agentEnv} ${cont}ghcr.io/matides12/osp-edge-agent:latest`;
 
-  return { go2rtc, agent };
+  return { go2rtc, cloudflared, agent };
 }
 
 /** One line per command — for downloadable scripts (same behavior as copy-paste). */
@@ -164,22 +170,29 @@ function buildSingleLineCommands(
   os: OS,
   tenantId: string,
   apiToken: string,
-): { go2rtcLine: string; agentLine: string } {
+): { go2rtcLine: string; cloudflaredLine: string; agentLine: string } {
   if (os === "windows") {
-    const { go2rtc, agent } = buildCommands(os, tenantId, apiToken);
-    return { go2rtcLine: go2rtc, agentLine: agent };
+    const { go2rtc, cloudflared, agent } = buildCommands(os, tenantId, apiToken);
+    return { go2rtcLine: go2rtc, cloudflaredLine: cloudflared, agentLine: agent };
   }
   const go2rtc =
     os === "linux"
       ? `docker run -d --name osp-go2rtc --network host --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`
       : `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
+  const cloudflaredPrefix =
+    os === "linux"
+      ? `docker run -d --name osp-cloudflared --network host --restart unless-stopped`
+      : `docker run -d --name osp-cloudflared -p 20241:20241 --restart unless-stopped`;
+  const cloudflaredTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const cloudflared = `${cloudflaredPrefix} cloudflare/cloudflared:latest tunnel --url ${cloudflaredTarget} --metrics 0.0.0.0:20241 --no-autoupdate`;
   const agentPrefix =
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`
       : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} ghcr.io/matides12/osp-edge-agent:latest`;
-  return { go2rtcLine: go2rtc, agentLine: agent };
+  const cloudflaredMetrics = os === "linux" ? "http://localhost:20241" : "http://host.docker.internal:20241";
+  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} -e CLOUDFLARED_METRICS_URL=${cloudflaredMetrics} ghcr.io/matides12/osp-edge-agent:latest`;
+  return { go2rtcLine: go2rtc, cloudflaredLine: cloudflared, agentLine: agent };
 }
 
 function downloadTextFile(filename: string, content: string): void {
@@ -200,10 +213,11 @@ function escapeForCmdC(s: string): string {
   return s.replace(/"/g, '""');
 }
 
-function buildWindowsPs1(go2rtcLine: string, agentLine: string): string {
+function buildWindowsPs1(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
   const c1 = escapeForCmdC(go2rtcLine);
-  const c2 = escapeForCmdC(agentLine);
-  return `# OSP — camera proxy + agent (official setup from your OSP account)
+  const c2 = escapeForCmdC(cloudflaredLine);
+  const c3 = escapeForCmdC(agentLine);
+  return `# OSP — camera proxy + tunnel + agent (official setup from your OSP account)
 # How to run: Right-click this file → "Run with PowerShell"
 # If Windows asks about scripts: this file only runs Docker with the commands below.
 
@@ -211,7 +225,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "OSP — Removing old containers if they exist..." -ForegroundColor Gray
-docker rm -f osp-go2rtc osp-agent 2>&1 | Out-Null
+docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>&1 | Out-Null
 
 Write-Host ""
 Write-Host "OSP — Step 1: Starting camera proxy (go2rtc)..." -ForegroundColor Cyan
@@ -223,10 +237,19 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "OSP — Step 2: Starting OSP agent..." -ForegroundColor Cyan
+Write-Host "OSP — Step 2: Starting Cloudflare Tunnel (live stream access)..." -ForegroundColor Cyan
 cmd /c "${c2}"
 if ($LASTEXITCODE -ne 0) {
   Write-Host "Step 2 failed. Check Docker and try again." -ForegroundColor Red
+  Read-Host "Press Enter to close"
+  exit 1
+}
+
+Write-Host ""
+Write-Host "OSP — Step 3: Starting OSP agent..." -ForegroundColor Cyan
+cmd /c "${c3}"
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "Step 3 failed. Check Docker and try again." -ForegroundColor Red
   Read-Host "Press Enter to close"
   exit 1
 }
@@ -237,13 +260,13 @@ Read-Host "Press Enter to close"
 `;
 }
 
-function buildWindowsBat(go2rtcLine: string, agentLine: string): string {
+function buildWindowsBat(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
   return `@echo off
 setlocal EnableExtensions
 title OSP setup
 echo.
 echo OSP - Removing old containers if they exist...
-docker rm -f osp-go2rtc osp-agent 2>nul
+docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>nul
 echo.
 echo OSP - Step 1: Starting camera proxy (go2rtc)...
 ${go2rtcLine}
@@ -253,10 +276,18 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo OSP - Step 2: Starting OSP agent...
-${agentLine}
+echo OSP - Step 2: Starting Cloudflare Tunnel (live stream access)...
+${cloudflaredLine}
 if errorlevel 1 (
   echo Step 2 failed. Check Docker and try again.
+  pause
+  exit /b 1
+)
+echo.
+echo OSP - Step 3: Starting OSP agent...
+${agentLine}
+if errorlevel 1 (
+  echo Step 3 failed. Check Docker and try again.
   pause
   exit /b 1
 )
@@ -266,14 +297,20 @@ pause
 `;
 }
 
-function buildUnixSh(go2rtcLine: string, agentLine: string): string {
+function buildUnixSh(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
+echo ""
+echo "OSP — Removing old containers if they exist..."
+docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>/dev/null || true
 echo ""
 echo "OSP — Step 1: Starting camera proxy (go2rtc)..."
 ${go2rtcLine}
 echo ""
-echo "OSP — Step 2: Starting OSP agent..."
+echo "OSP — Step 2: Starting Cloudflare Tunnel (live stream access)..."
+${cloudflaredLine}
+echo ""
+echo "OSP — Step 3: Starting OSP agent..."
 ${agentLine}
 echo ""
 echo "Done. Return to OSP in your browser."
@@ -748,6 +785,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                           "osp-windows-setup.ps1",
                           buildWindowsPs1(
                             singleLine.go2rtcLine,
+                            singleLine.cloudflaredLine,
                             singleLine.agentLine,
                           ),
                         )
@@ -764,6 +802,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                           "osp-windows-setup.bat",
                           buildWindowsBat(
                             singleLine.go2rtcLine,
+                            singleLine.cloudflaredLine,
                             singleLine.agentLine,
                           ),
                         )
@@ -780,7 +819,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                     onClick={() =>
                       downloadTextFile(
                         "osp-setup.sh",
-                        buildUnixSh(singleLine.go2rtcLine, singleLine.agentLine),
+                        buildUnixSh(singleLine.go2rtcLine, singleLine.cloudflaredLine, singleLine.agentLine),
                       )
                     }
                     className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
@@ -792,16 +831,21 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               </div>
             )}
 
-            {cmds && !tenantLoadError && setupMode === "terminal" && (
-              <div className="space-y-4 mb-5">
+            {cmds && !tenantLoadError && setupMode === “terminal” && (
+              <div className=”space-y-4 mb-5”>
                 <CommandBlock
-                  label="Step 1 — Start camera proxy"
-                  description='What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It’s a “bridge” for video — not a virus, not remote control of your PC.'
+                  label=”Step 1 — Start camera proxy”
+                  description=’What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It’s a “bridge” for video — not a virus, not remote control of your PC.’
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
-                  label="Step 2 — Start OSP agent"
-                  description="What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer."
+                  label=”Step 2 — Start Cloudflare Tunnel”
+                  description=”What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. Cloudflare is trusted by millions of websites worldwide.”
+                  command={cmds.cloudflared}
+                />
+                <CommandBlock
+                  label=”Step 3 — Start OSP agent”
+                  description=”What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer.”
                   command={cmds.agent}
                 />
               </div>
