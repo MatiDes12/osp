@@ -835,7 +835,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               <div className="space-y-4 mb-5">
                 <CommandBlock
                   label="Step 1 — Start camera proxy"
-                  description='What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It's a "bridge" for video — not a virus, not remote control of your PC.'
+                  description={"What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It's a \"bridge\" for video — not a virus, not remote control of your PC."}
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
