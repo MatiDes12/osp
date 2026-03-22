@@ -4,7 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { get } from "../lib/config.js";
-import { getStreamService } from "../services/stream.service.js";
+import { StreamService, getStreamService } from "../services/stream.service.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
 import { DiscoveryService } from "../services/discovery.service.js";
@@ -12,6 +12,23 @@ import { DiscoveryService } from "../services/discovery.service.js";
 const logger = createLogger("stream-routes");
 
 export const streamRoutes = new Hono<Env>();
+
+/** Returns the public go2rtc URL for the tenant's active edge agent, or null. */
+async function resolveEdgeGo2rtcUrl(
+  supabase: ReturnType<typeof getSupabase>,
+  tenantId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("edge_agents")
+    .select("go2rtc_url")
+    .eq("tenant_id", tenantId)
+    .eq("status", "online")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .single()
+    .catch(() => ({ data: null }));
+  return (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+}
 
 // GET /api/v1/cameras/:id/stream - Returns WebRTC connection info
 streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
@@ -48,19 +65,7 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
   // If an edge agent has a public go2rtc URL (e.g. Cloudflare Tunnel), point
   // the browser directly at it so WebRTC ICE candidates come from the real
   // local machine, not from the gateway proxy which would break media transport.
-  const supabase2 = getSupabase();
-  const { data: agentRow } = await supabase2
-    .from("edge_agents")
-    .select("go2rtc_url")
-    .eq("tenant_id", tenantId)
-    .eq("status", "online")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .single()
-    .catch(() => ({ data: null }));
-
-  const edgeGo2rtcUrl =
-    (agentRow as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+  const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
 
   let whepUrl: string;
   let fallbackHlsUrl: string;
@@ -263,8 +268,22 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
     throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
   }
 
-  const streamService = getStreamService();
-  const imageBuffer = await streamService.getSnapshot(cameraId);
+  // Use the edge agent's public go2rtc URL when available
+  const edgeUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
+  let imageBuffer: Buffer;
+  if (edgeUrl) {
+    const snapUrl = `${edgeUrl}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
+    const resp = await fetch(snapUrl, {
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => null);
+    if (!resp?.ok) {
+      throw new ApiError("SNAPSHOT_FAILED", "Failed to capture snapshot from edge agent", 502);
+    }
+    imageBuffer = Buffer.from(await resp.arrayBuffer());
+  } else {
+    const streamService = getStreamService();
+    imageBuffer = await streamService.getSnapshot(cameraId);
+  }
 
   return new Response(imageBuffer, {
     headers: {
@@ -301,7 +320,10 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
     );
   }
 
-  const streamService = getStreamService();
+  const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
+  const streamService = edgeGo2rtcUrl
+    ? new StreamService(edgeGo2rtcUrl)
+    : getStreamService();
 
   // Remove existing stream, then re-add
   await streamService.removeStream(cameraId);

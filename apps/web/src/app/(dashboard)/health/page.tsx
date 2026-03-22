@@ -19,18 +19,12 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const REFRESH_INTERVAL_MS = 30_000;
 
-/**
- * Probes local go2rtc on HTTP only.
- * Returns null on HTTPS (browser blocks HTTP localhost fetches) — caller
- * falls back to the gateway's go2rtc status in that case.
- */
-async function checkLocalGo2rtc(): Promise<ServiceStatus | null> {
-  if (window.location.protocol === "https:") return null;
-
+/** Probe go2rtc at the given base URL (local or cloudflare tunnel). */
+async function probeGo2rtc(baseUrl: string): Promise<ServiceStatus> {
   const start = performance.now();
   try {
-    const res = await fetch("http://localhost:1984/api/streams", {
-      signal: AbortSignal.timeout(3_000),
+    const res = await fetch(`${baseUrl}/api/streams`, {
+      signal: AbortSignal.timeout(4_000),
     });
     const latency = Math.round(performance.now() - start);
     if (!res.ok) {
@@ -44,10 +38,37 @@ async function checkLocalGo2rtc(): Promise<ServiceStatus | null> {
     return {
       status: "down",
       latency_ms: latency,
-      error: isTimeout
-        ? "Timed out — go2rtc may be starting up"
-        : "Unreachable — run: docker compose -f infra/docker/docker-compose.yml up -d go2rtc",
+      error: isTimeout ? "Timed out" : String(err instanceof Error ? err.message : err),
     };
+  }
+}
+
+/**
+ * Resolves the best go2rtc URL to probe:
+ * 1. If on HTTP, probe localhost:1984 directly.
+ * 2. If on HTTPS, fetch the active edge agent's go2rtc_url from the API.
+ * Returns null if no go2rtc source is available.
+ */
+async function resolveGo2rtcStatus(
+  authHeaders: Record<string, string>,
+): Promise<ServiceStatus | null> {
+  // HTTP: probe local directly (no CORS/mixed-content issues)
+  if (window.location.protocol !== "https:") {
+    return probeGo2rtc("http://localhost:1984");
+  }
+  // HTTPS: fetch edge agent's public go2rtc URL (cloudflare tunnel)
+  try {
+    const res = await fetch(`${API_URL}/api/v1/edge/agents`, {
+      headers: authHeaders,
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { go2rtc_url?: string; status?: string }[] };
+    const agent = (json.data ?? []).find((a) => a.status === "online" && a.go2rtc_url);
+    if (!agent?.go2rtc_url) return null;
+    return probeGo2rtc(agent.go2rtc_url);
+  } catch {
+    return null;
   }
 }
 
@@ -237,6 +258,11 @@ export default function HealthPage() {
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [localGo2rtc, setLocalGo2rtc] = useState<ServiceStatus | null>(null);
 
+  const getAuthHeaders = useCallback((): Record<string, string> => {
+    const token = localStorage.getItem("osp_access_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, []);
+
   const fetchHealth = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/health/detailed`);
@@ -256,9 +282,9 @@ export default function HealthPage() {
   }, []);
 
   const fetchLocalGo2rtc = useCallback(async () => {
-    const status = await checkLocalGo2rtc();
+    const status = await resolveGo2rtcStatus(getAuthHeaders());
     setLocalGo2rtc(status);
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     fetchHealth();
@@ -355,7 +381,7 @@ export default function HealthPage() {
               />
               {localGo2rtc ? (
                 <ServiceCard
-                  name="go2rtc (Local)"
+                  name={window.location.protocol === "https:" ? "go2rtc (Edge Agent)" : "go2rtc (Local)"}
                   icon={Video}
                   service={localGo2rtc}
                 />
