@@ -70,28 +70,21 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
   // local machine, not from the gateway proxy which would break media transport.
   const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
 
-  let whepUrl: string;
-  let fallbackHlsUrl: string;
+  // Always proxy WebRTC signaling through the gateway — direct go2rtc URLs
+  // cause CORS errors in the browser (Cloudflare tunnel doesn't add CORS headers
+  // and we can't reliably configure go2rtc CORS from here).
+  // The /whep endpoint on this gateway forwards the SDP to the correct go2rtc.
+  const gatewayPublicUrl =
+    get("GATEWAY_PUBLIC_URL") ??
+    get("NEXT_PUBLIC_API_URL") ??
+    "http://localhost:3000";
+  const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
 
-  if (edgeGo2rtcUrl) {
-    // Direct path: browser → Cloudflare Tunnel → local go2rtc
-    whepUrl = `${edgeGo2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
-    fallbackHlsUrl = `${edgeGo2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
-  } else {
-    // No edge agent — use gateway proxy (works for cloud-hosted go2rtc)
-    const gatewayPublicUrl =
-      get("GATEWAY_PUBLIC_URL") ??
-      get("NEXT_PUBLIC_API_URL") ??
-      "http://localhost:3000";
-    whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
-
-    const go2rtcPublicUrl =
-      get("GO2RTC_PUBLIC_URL") ??
-      get("GO2RTC_API_URL") ??
-      get("GO2RTC_URL") ??
-      "http://localhost:1984";
-    fallbackHlsUrl = `${go2rtcPublicUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
-  }
+  // MJPEG fallback is loaded via <img> which doesn't need CORS headers,
+  // so point directly at the edge agent tunnel URL for lowest latency.
+  const fallbackHlsUrl = edgeGo2rtcUrl
+    ? `${edgeGo2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`
+    : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
 
   return c.json(
     createSuccessResponse({
