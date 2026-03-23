@@ -543,18 +543,12 @@ export function LiveViewPlayer({
   // MJPEG fallback — works in all browsers via <img>, no codec/MSE issues.
   // go2rtc's /api/stream.mjpeg is a multipart/x-mixed-replace stream that
   // browsers display natively as a continuously-updating image.
+  // fallbackHlsUrl is the DIRECT go2rtc tunnel URL — <img> is no-cors so no
+  // auth headers are needed, and go2rtc has no auth of its own.
   if (state === "fallback") {
-    // fallbackHlsUrl is the gateway MJPEG proxy URL — append the auth token
-    // as a query param because <img> tags can't send Authorization headers.
-    const accessToken = typeof window !== "undefined"
-      ? (localStorage.getItem("osp_access_token") ?? "")
-      : "";
-    const mjpegBase = isTauri()
+    const mjpegUrl = isTauri()
       ? `http://localhost:1984/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
       : (streamInfo?.fallbackHlsUrl ?? `${process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`);
-    const mjpegUrl = accessToken && !isTauri()
-      ? `${mjpegBase}${mjpegBase.includes("?") ? "&" : "?"}token=${encodeURIComponent(accessToken)}`
-      : mjpegBase;
     return (
       <div className={`relative ${className ?? ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -563,6 +557,8 @@ export function LiveViewPlayer({
           alt={`${cameraName} live`}
           className="aspect-video w-full bg-black rounded-lg object-contain"
           onError={() => {
+            // Clear cache so next reconnect fetches a fresh tunnel URL
+            streamInfoCache.delete(cameraId);
             setErrorMessage("Stream unavailable");
             setState("error");
           }}
