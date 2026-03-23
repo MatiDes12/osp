@@ -80,11 +80,9 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     "http://localhost:3000";
   const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
 
-  // MJPEG fallback is loaded via <img> which doesn't need CORS headers,
-  // so point directly at the edge agent tunnel URL for lowest latency.
-  const fallbackHlsUrl = edgeGo2rtcUrl
-    ? `${edgeGo2rtcUrl}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`
-    : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`;
+  // Always proxy MJPEG through the gateway too — the tunnel URL rotates on
+  // every container restart so storing/using it directly in the browser breaks.
+  const fallbackHlsUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/mjpeg`;
 
   return c.json(
     createSuccessResponse({
@@ -245,6 +243,58 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
     headers: {
       "Content-Type": "application/sdp",
       "Access-Control-Allow-Origin": "*",
+    },
+  });
+});
+
+// GET /api/v1/cameras/:id/mjpeg - Proxy MJPEG stream from go2rtc
+// go2rtc serves multipart/x-mixed-replace — we pipe it straight through so
+// the browser <img> tag never needs to know the tunnel URL.
+streamRoutes.get("/:id/mjpeg", requireAuth("viewer"), async (c) => {
+  const cameraId = c.req.param("id");
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  const { data: camera, error } = await supabase
+    .from("cameras")
+    .select("id, status")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
+  const go2rtcBase = edgeGo2rtcUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  const mjpegUrl = `${go2rtcBase}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
+
+  // Use a race so we fail fast if go2rtc is unreachable, but don't cut the
+  // stream with a timeout once it starts flowing.
+  let upstream: Response;
+  try {
+    upstream = await Promise.race<Response>([
+      fetch(mjpegUrl),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("connect timeout")), 6000),
+      ),
+    ]);
+  } catch (err) {
+    logger.warn("MJPEG connect failed", { cameraId, error: String(err) });
+    throw new ApiError("STREAM_ERROR", "Camera stream unavailable", 502);
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    throw new ApiError("STREAM_ERROR", "Camera stream unavailable", 502);
+  }
+
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type":
+        upstream.headers.get("Content-Type") ?? "multipart/x-mixed-replace",
+      "Cache-Control": "no-cache, no-store",
+      "X-Accel-Buffering": "no", // disable proxy buffering (Nginx/Fly)
     },
   });
 });

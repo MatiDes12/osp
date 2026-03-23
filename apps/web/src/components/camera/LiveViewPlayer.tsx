@@ -544,12 +544,11 @@ export function LiveViewPlayer({
   // go2rtc's /api/stream.mjpeg is a multipart/x-mixed-replace stream that
   // browsers display natively as a continuously-updating image.
   if (state === "fallback") {
-    const fallbackBase = streamInfo?.fallbackHlsUrl
-      ? streamInfo.fallbackHlsUrl.replace(/\/api\/stream\.m3u8.*$/, "")
-      : isTauri()
-        ? "http://localhost:1984"
-        : (process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984");
-    const mjpegUrl = `${fallbackBase}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
+    // fallbackHlsUrl is now the gateway MJPEG proxy URL — use it directly.
+    // For Tauri (local) we still talk to go2rtc directly.
+    const mjpegUrl = isTauri()
+      ? `http://localhost:1984/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
+      : (streamInfo?.fallbackHlsUrl ?? `${process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`);
     return (
       <div className={`relative ${className ?? ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
