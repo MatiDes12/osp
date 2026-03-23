@@ -721,13 +721,19 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MSE-over-WebSocket fallback — Cloudflare tunnels support WebSocket natively
-  // but buffer/terminate infinite HTTP streams (MJPEG). Use go2rtc's /api/ws
-  // which serves fMP4 over WebSocket for smooth video playback.
+  // MSE-over-WebSocket fallback — proxied through the gateway which reads the
+  // fresh go2rtc tunnel URL from DB on every connection. Fly.io natively
+  // supports WebSocket proxying, so this is reliable unlike direct tunnel URLs
+  // (which rotate on restart) or MJPEG (which Cloudflare buffers/terminates).
   if (state === "fallback") {
+    const accessToken = typeof window !== "undefined"
+      ? (localStorage.getItem("osp_access_token") ?? "")
+      : "";
     const wsUrl = isTauri()
       ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
-      : streamInfo?.wsUrl;
+      : streamInfo?.wsUrl
+        ? `${streamInfo.wsUrl}${streamInfo.wsUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(accessToken)}`
+        : undefined;
 
     if (wsUrl && typeof MediaSource !== "undefined") {
       return (

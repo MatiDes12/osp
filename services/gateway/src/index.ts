@@ -16,6 +16,8 @@ initSentry("osp-gateway");
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
 import { startWebSocketServer, stopWebSocketServer } from "./ws/server.js";
+import type { Server } from "node:http";
+import { attachStreamProxy } from "./ws/stream-proxy.js";
 import {
   createLogger,
   logStartupBanner,
@@ -80,10 +82,13 @@ async function start(): Promise<void> {
   const port = Number.parseInt(get("GATEWAY_PORT") ?? "3000", 10);
   const wsPort = Number.parseInt(get("WS_PORT") ?? "3002", 10);
 
-  serve({
+  const httpServer = serve({
     fetch: app.fetch,
     port,
   });
+
+  // Attach WebSocket proxy for camera live streams (MSE over WS)
+  attachStreamProxy(httpServer as unknown as Server);
 
   const bootTime = Math.round(performance.now() - startTime);
 

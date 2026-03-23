@@ -42,7 +42,7 @@ let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
 /**
  * Validates a JWT token and returns tenant/user IDs.
  */
-async function validateToken(
+export async function validateToken(
   token: string,
 ): Promise<{ tenantId: string; userId: string } | null> {
   const supabase = getSupabase();
