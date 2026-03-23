@@ -16,6 +16,7 @@ interface StreamInfo {
   whepUrl: string;
   token: string;
   fallbackHlsUrl: string;
+  wsUrl?: string;
   iceServers: {
     urls: string[];
     username?: string;
@@ -94,6 +95,184 @@ function getAuthHeaders(): Record<string, string> {
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
+}
+
+// ---------------------------------------------------------------------------
+// MSE-over-WebSocket fallback player.
+// Cloudflare tunnels support WebSocket natively but buffer/terminate infinite
+// HTTP streams (MJPEG). go2rtc's /api/ws serves fMP4 over WebSocket — feed
+// the binary data to MSE SourceBuffer for smooth video playback.
+// ---------------------------------------------------------------------------
+
+function MseFallback({
+  wsUrl,
+  cameraId,
+  cameraName,
+  className,
+  onError,
+  onReconnect,
+}: {
+  wsUrl: string;
+  cameraId: string;
+  cameraName: string;
+  className?: string;
+  onError: () => void;
+  onReconnect: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let destroyed = false;
+    let ws: WebSocket | null = null;
+    let sb: SourceBuffer | null = null;
+    const queue: ArrayBuffer[] = [];
+
+    const flush = () => {
+      if (!sb || sb.updating || queue.length === 0) return;
+      try {
+        sb.appendBuffer(queue.shift()!);
+      } catch {
+        // QuotaExceededError — trim old buffer then retry
+        if (sb.buffered.length > 0) {
+          const start = sb.buffered.start(0);
+          const end = sb.buffered.end(sb.buffered.length - 1);
+          if (end - start > 10) {
+            try {
+              sb.remove(start, end - 5);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+    };
+
+    const ms = new MediaSource();
+    video.src = URL.createObjectURL(ms);
+
+    ms.addEventListener("sourceopen", () => {
+      if (destroyed) return;
+
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = "arraybuffer";
+
+      ws.onmessage = (e) => {
+        if (destroyed) return;
+
+        // go2rtc sends a text message first with the MIME type (e.g.
+        // 'video/mp4; codecs="avc1.640029"'), then binary fMP4 segments.
+        if (typeof e.data === "string" && !sb) {
+          try {
+            sb = ms.addSourceBuffer(e.data);
+            sb.mode = "segments";
+            sb.addEventListener("updateend", flush);
+          } catch (err) {
+            console.error("[MSE] addSourceBuffer failed:", err);
+            if (!destroyed) onError();
+          }
+          return;
+        }
+
+        if (e.data instanceof ArrayBuffer) {
+          // If no MIME text received, try a safe default
+          if (!sb) {
+            try {
+              sb = ms.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+              sb.mode = "segments";
+              sb.addEventListener("updateend", flush);
+            } catch {
+              if (!destroyed) onError();
+              return;
+            }
+          }
+          queue.push(e.data);
+          flush();
+        }
+      };
+
+      ws.onerror = () => {
+        if (!destroyed) onError();
+      };
+      ws.onclose = () => {
+        if (!destroyed) onError();
+      };
+    });
+
+    video.play().catch(() => {});
+
+    // Keep playback near the live edge — if we fall behind by >3s, jump forward
+    const liveEdge = setInterval(() => {
+      if (video.buffered.length > 0) {
+        const end = video.buffered.end(video.buffered.length - 1);
+        if (end - video.currentTime > 3) {
+          video.currentTime = end - 0.5;
+        }
+      }
+    }, 3000);
+
+    return () => {
+      destroyed = true;
+      clearInterval(liveEdge);
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+      if (ms.readyState === "open") {
+        try {
+          ms.endOfStream();
+        } catch {
+          /* ignore */
+        }
+      }
+      URL.revokeObjectURL(video.src);
+    };
+  }, [wsUrl, onError]);
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <video
+        ref={videoRef}
+        className="aspect-video w-full bg-black rounded-lg object-contain"
+        autoPlay
+        muted
+        playsInline
+      />
+      <div className="absolute top-2 left-2 flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-500 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-500" />
+        </span>
+        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">
+          Live
+        </span>
+      </div>
+      <div className="absolute top-2 right-2">
+        <button
+          onClick={onReconnect}
+          className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+          title="Retry WebRTC"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function LiveViewPlayer({
@@ -353,6 +532,7 @@ export function LiveViewPlayer({
             whepUrl: `${go2rtcBase}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
             token: "",
             fallbackHlsUrl: `${go2rtcBase}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+            wsUrl: `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`,
             iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
           };
         } else if (window.location.protocol === "https:") {
@@ -377,6 +557,7 @@ export function LiveViewPlayer({
               whepUrl: `${base}/api/webrtc?src=${encodeURIComponent(cameraId)}`,
               token: "",
               fallbackHlsUrl: `${base}/api/stream.m3u8?src=${encodeURIComponent(cameraId)}`,
+              wsUrl: `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`,
               iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
             };
           } else {
@@ -540,15 +721,34 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MJPEG fallback — works in all browsers via <img>, no codec/MSE issues.
-  // go2rtc's /api/stream.mjpeg is a multipart/x-mixed-replace stream that
-  // browsers display natively as a continuously-updating image.
-  // fallbackHlsUrl is the DIRECT go2rtc tunnel URL — <img> is no-cors so no
-  // auth headers are needed, and go2rtc has no auth of its own.
+  // MSE-over-WebSocket fallback — Cloudflare tunnels support WebSocket natively
+  // but buffer/terminate infinite HTTP streams (MJPEG). Use go2rtc's /api/ws
+  // which serves fMP4 over WebSocket for smooth video playback.
   if (state === "fallback") {
-    const mjpegUrl = isTauri()
-      ? `http://localhost:1984/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
-      : (streamInfo?.fallbackHlsUrl ?? `${process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`);
+    const wsUrl = isTauri()
+      ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
+      : streamInfo?.wsUrl;
+
+    if (wsUrl && typeof MediaSource !== "undefined") {
+      return (
+        <MseFallback
+          wsUrl={wsUrl}
+          cameraId={cameraId}
+          cameraName={cameraName}
+          className={className}
+          onError={() => {
+            streamInfoCache.delete(cameraId);
+            setErrorMessage("Stream unavailable");
+            setState("error");
+          }}
+          onReconnect={handleReconnect}
+        />
+      );
+    }
+
+    // Last resort: MJPEG <img> — works on localhost but not through Cloudflare tunnel
+    const mjpegUrl = streamInfo?.fallbackHlsUrl
+      ?? `${process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
     return (
       <div className={`relative ${className ?? ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -557,7 +757,6 @@ export function LiveViewPlayer({
           alt={`${cameraName} live`}
           className="aspect-video w-full bg-black rounded-lg object-contain"
           onError={() => {
-            // Clear cache so next reconnect fetches a fresh tunnel URL
             streamInfoCache.delete(cameraId);
             setErrorMessage("Stream unavailable");
             setState("error");
@@ -565,7 +764,7 @@ export function LiveViewPlayer({
         />
         <div className="absolute top-2 left-2 flex items-center gap-2">
           <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">
-            HLS
+            MJPEG
           </span>
         </div>
         <div className="absolute top-2 right-2">

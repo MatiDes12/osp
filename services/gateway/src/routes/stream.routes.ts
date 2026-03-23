@@ -88,11 +88,19 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     ? `${edgeGo2rtcUrl}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
     : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
 
+  // WebSocket URL for MSE fallback — Cloudflare tunnels natively support
+  // WebSocket, unlike infinite HTTP streaming (MJPEG) which gets buffered and
+  // terminated. go2rtc serves fMP4 over /api/ws for MSE playback.
+  const wsUrl = edgeGo2rtcUrl
+    ? `${edgeGo2rtcUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/api/ws?src=${encodeURIComponent(cameraId)}`
+    : null;
+
   return c.json(
     createSuccessResponse({
       whepUrl,
       token,
       fallbackHlsUrl,
+      wsUrl,
       iceServers,
     }),
   );
