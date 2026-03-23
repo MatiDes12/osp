@@ -80,9 +80,13 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     "http://localhost:3000";
   const whepUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/whep`;
 
-  // Always proxy MJPEG through the gateway too — the tunnel URL rotates on
-  // every container restart so storing/using it directly in the browser breaks.
-  const fallbackHlsUrl = `${gatewayPublicUrl}/api/v1/cameras/${encodeURIComponent(cameraId)}/mjpeg`;
+  // Use the direct go2rtc URL for MJPEG — <img> tags are no-cors by default
+  // so they don't need CORS headers, and Fly.io can't proxy infinite streaming
+  // responses reliably. The gateway reads the current tunnel URL from DB on
+  // every /stream request so the URL is always fresh.
+  const fallbackHlsUrl = edgeGo2rtcUrl
+    ? `${edgeGo2rtcUrl}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
+    : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
 
   return c.json(
     createSuccessResponse({
