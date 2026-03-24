@@ -89,8 +89,15 @@ export function attachStreamProxy(httpServer: Server): void {
           target: go2rtcWsUrl,
         });
 
-        // Connect to go2rtc upstream first
-        const upstream = new WebSocket(go2rtcWsUrl);
+        // Connect to go2rtc upstream first.
+        // Add ngrok-skip-browser-warning header to bypass ngrok free tier
+        // interstitial page (only applies to HTTP connections).
+        const upstream = new WebSocket(go2rtcWsUrl, {
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+            "User-Agent": "osp-gateway",
+          },
+        });
 
         upstream.on("error", (err) => {
           logger.warn("Upstream WebSocket error", {

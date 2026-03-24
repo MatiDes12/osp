@@ -755,13 +755,23 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MSE-over-WebSocket fallback — connects directly to go2rtc through the
-  // ngrok tunnel. ngrok supports WebSocket natively (unlike Cloudflare quick
-  // tunnels). The wsUrl points to the tunnel's /api/ws endpoint.
+  // MSE-over-WebSocket fallback.
+  // - Tauri (desktop): direct local WebSocket to go2rtc
+  // - HTTPS (cloud): proxy through the gateway (browser→WSS→gateway→WS→ngrok→go2rtc)
+  //   because browsers block mixed-content ws:// from HTTPS pages.
   if (state === "fallback") {
-    const wsUrl = isTauri()
-      ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
-      : streamInfo?.wsUrl ?? undefined;
+    let wsUrl: string | undefined;
+    if (isTauri()) {
+      wsUrl = `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`;
+    } else if (typeof window !== "undefined" && window.location.protocol === "https:") {
+      // Route through gateway proxy — it connects to ngrok over HTTP internally
+      const accessToken = localStorage.getItem("osp_access_token") ?? "";
+      const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+      wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}`;
+    } else {
+      // HTTP localhost — direct tunnel URL
+      wsUrl = streamInfo?.wsUrl ?? undefined;
+    }
 
     if (wsUrl && typeof MediaSource !== "undefined") {
       return (

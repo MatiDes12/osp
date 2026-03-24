@@ -335,6 +335,10 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
   if (edgeUrl) {
     const snapUrl = `${edgeUrl}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
     const resp = await fetch(snapUrl, {
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "osp-gateway",
+      },
       signal: AbortSignal.timeout(5000),
     }).catch(() => null);
     if (!resp?.ok) {
