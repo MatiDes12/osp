@@ -114,50 +114,73 @@ export function attachStreamProxy(httpServer: Server): void {
           },
         });
 
+        // Buffer upstream messages that arrive before client WS is ready.
+        // go2rtc sends the MIME type text message immediately on open —
+        // without buffering, this first message is lost because
+        // handleUpgrade's callback hasn't fired yet.
+        const pendingMessages: { data: unknown; isBinary: boolean }[] = [];
+        let clientWs: InstanceType<typeof WebSocket> | null = null;
+
+        upstream.on("message", (data, isBinary) => {
+          if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(data, { binary: isBinary });
+          } else {
+            pendingMessages.push({ data, isBinary });
+          }
+        });
+
         upstream.on("error", (err) => {
           logger.warn("Upstream WebSocket error", {
             cameraId,
             error: String(err),
           });
+          if (clientWs) {
+            try { clientWs.close(); } catch { /* ignore */ }
+          }
           if (!socket.destroyed) {
             socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
             socket.destroy();
           }
         });
 
+        upstream.on("close", () => {
+          if (clientWs) {
+            try { clientWs.close(); } catch { /* ignore */ }
+          }
+        });
+
         upstream.on("open", () => {
+          logger.info("Upstream connected, accepting client upgrade", { cameraId });
+
           // Upstream connected — accept the client's WebSocket upgrade
-          upgradeServer.handleUpgrade(req, socket, head, (clientWs) => {
-            // Pipe upstream → client (go2rtc sends MIME text + binary fMP4)
-            upstream.on("message", (data, isBinary) => {
-              if (clientWs.readyState === WebSocket.OPEN) {
-                clientWs.send(data, { binary: isBinary });
+          upgradeServer.handleUpgrade(req, socket, head, (ws) => {
+            clientWs = ws;
+
+            // Flush any messages that arrived while we were upgrading
+            for (const msg of pendingMessages) {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(msg.data, { binary: msg.isBinary });
               }
+            }
+            pendingMessages.length = 0;
+
+            logger.info("Client connected, streaming", {
+              cameraId,
+              bufferedMessages: pendingMessages.length,
             });
 
             // Pipe client → upstream
-            clientWs.on("message", (data, isBinary) => {
+            ws.on("message", (data, isBinary) => {
               if (upstream.readyState === WebSocket.OPEN) {
                 upstream.send(data, { binary: isBinary });
               }
             });
 
-            upstream.on("close", () => clientWs.close());
-            clientWs.on("close", () => upstream.close());
-
-            upstream.on("error", () => {
-              try {
-                clientWs.close();
-              } catch {
-                /* ignore */
-              }
+            ws.on("close", () => {
+              try { upstream.close(); } catch { /* ignore */ }
             });
-            clientWs.on("error", () => {
-              try {
-                upstream.close();
-              } catch {
-                /* ignore */
-              }
+            ws.on("error", () => {
+              try { upstream.close(); } catch { /* ignore */ }
             });
           });
         });
