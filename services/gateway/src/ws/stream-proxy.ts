@@ -88,7 +88,10 @@ export function attachStreamProxy(httpServer: Server): void {
           const edgeUrl = (data as { go2rtc_url?: string } | null)
             ?.go2rtc_url;
           if (edgeUrl) {
-            go2rtcWsUrl = `${edgeUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/api/ws?src=${encodeURIComponent(cameraId)}`;
+            // Always use wss:// for external URLs — ngrok 307-redirects ws:// to wss://
+            // and the Node.js ws library doesn't follow redirects.
+            // The gateway runs in the cloud so TLS to ngrok works fine.
+            go2rtcWsUrl = `${edgeUrl.replace(/^https?:/, "wss:")}/api/ws?src=${encodeURIComponent(cameraId)}`;
           } else {
             go2rtcWsUrl = `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`;
           }
