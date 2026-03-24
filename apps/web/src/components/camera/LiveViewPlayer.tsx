@@ -171,8 +171,20 @@ function MseFallback({
     ms.addEventListener("sourceopen", () => {
       if (destroyed) return;
 
+      console.log("[MSE] Connecting WebSocket:", wsUrl);
       ws = new WebSocket(wsUrl);
       ws.binaryType = "arraybuffer";
+
+      // If no data arrives within 5s, treat as failed connection
+      const dataTimeout = setTimeout(() => {
+        if (!sb && !destroyed) {
+          console.warn("[MSE] No data received within 5s — firing error");
+          fireError();
+          try { ws?.close(); } catch { /* ignore */ }
+        }
+      }, 5000);
+
+      ws.onopen = () => console.log("[MSE] WebSocket connected");
 
       ws.onmessage = (e) => {
         if (destroyed) return;
@@ -180,6 +192,8 @@ function MseFallback({
         // go2rtc sends a text message first with the MIME type (e.g.
         // 'video/mp4; codecs="avc1.640029"'), then binary fMP4 segments.
         if (typeof e.data === "string" && !sb) {
+          clearTimeout(dataTimeout);
+          console.log("[MSE] Received MIME type:", e.data);
           try {
             sb = ms.addSourceBuffer(e.data);
             sb.mode = "segments";
@@ -192,6 +206,7 @@ function MseFallback({
         }
 
         if (e.data instanceof ArrayBuffer) {
+          clearTimeout(dataTimeout);
           // If no MIME text received, try a safe default
           if (!sb) {
             try {
@@ -208,8 +223,16 @@ function MseFallback({
         }
       };
 
-      ws.onerror = () => fireError();
-      ws.onclose = () => fireError();
+      ws.onerror = (ev) => {
+        console.error("[MSE] WebSocket error:", ev);
+        clearTimeout(dataTimeout);
+        fireError();
+      };
+      ws.onclose = (ev) => {
+        console.warn("[MSE] WebSocket closed:", ev.code, ev.reason);
+        clearTimeout(dataTimeout);
+        fireError();
+      };
     });
 
     video.play().catch(() => {});
