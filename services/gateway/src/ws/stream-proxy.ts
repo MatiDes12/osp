@@ -23,6 +23,7 @@ export function attachStreamProxy(httpServer: Server): void {
 
   httpServer.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+    logger.info("Upgrade request received", { path: url.pathname });
     const match = url.pathname.match(/^\/api\/v1\/cameras\/([^/]+)\/ws$/);
     if (!match) return; // not our path — ignore
 
