@@ -139,30 +139,30 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
   if (os === "windows") {
     // Single-line commands — works in both CMD and PowerShell
     const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
-    const cloudflared = `docker run -d --name osp-cloudflared -p 20241:20241 --restart unless-stopped cloudflare/cloudflared:latest tunnel --url http://host.docker.internal:1984 --metrics 0.0.0.0:20241 --no-autoupdate`;
-    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 -e CLOUDFLARED_METRICS_URL=http://host.docker.internal:20241 ghcr.io/matides12/osp-edge-agent:latest`;
-    return { go2rtc, cloudflared, agent };
+    const ngrok = `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped -e NGROK_AUTHTOKEN=%NGROK_AUTHTOKEN% ngrok/ngrok:latest http http://host.docker.internal:1984 --log stdout`;
+    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 -e NGROK_API_URL=http://host.docker.internal:4040 ghcr.io/matides12/osp-edge-agent:latest`;
+    return { go2rtc, ngrok, agent };
   }
 
   const cont = "\\\n  ";
   const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}-e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const cloudflaredTunnel = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const cloudflaredMetrics = os === "linux" ? "http://localhost:20241" : "http://host.docker.internal:20241";
-  const cloudflaredNet = os === "linux" ? "--network host " : "-p 20241:20241 ";
-  const cloudflared = `docker run -d --name osp-cloudflared ${cloudflaredNet}${cont}--restart unless-stopped ${cont}cloudflare/cloudflared:latest tunnel --url ${cloudflaredTunnel} --metrics 0.0.0.0:20241 --no-autoupdate`;
+  const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
+  const ngrokNet = os === "linux" ? "--network host " : "-p 4040:4040 ";
+  const ngrok = `docker run -d --name osp-ngrok ${ngrokNet}${cont}--restart unless-stopped ${cont}-e NGROK_AUTHTOKEN=$NGROK_AUTHTOKEN ${cont}ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
 
   const agentEnv = [
     `-e CLOUD_GATEWAY_URL=${GATEWAY_URL}`,
     `-e TENANT_ID=${tenantId}`,
     `-e CLOUD_API_TOKEN=${apiToken}`,
     `-e GO2RTC_URL=${go2rtcUrl}`,
-    `-e CLOUDFLARED_METRICS_URL=${cloudflaredMetrics}`,
+    `-e NGROK_API_URL=${ngrokApi}`,
   ].join(` ${cont}`);
 
   const agent = `docker run -d --name osp-agent ${os === "linux" ? "--network host " : ""}${cont}--restart unless-stopped ${cont}${agentEnv} ${cont}ghcr.io/matides12/osp-edge-agent:latest`;
 
-  return { go2rtc, cloudflared, agent };
+  return { go2rtc, ngrok, agent };
 }
 
 /** One line per command — for downloadable scripts (same behavior as copy-paste). */
@@ -170,29 +170,29 @@ function buildSingleLineCommands(
   os: OS,
   tenantId: string,
   apiToken: string,
-): { go2rtcLine: string; cloudflaredLine: string; agentLine: string } {
+): { go2rtcLine: string; ngrokLine: string; agentLine: string } {
   if (os === "windows") {
-    const { go2rtc, cloudflared, agent } = buildCommands(os, tenantId, apiToken);
-    return { go2rtcLine: go2rtc, cloudflaredLine: cloudflared, agentLine: agent };
+    const { go2rtc, ngrok, agent } = buildCommands(os, tenantId, apiToken);
+    return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
   }
   const go2rtc =
     os === "linux"
       ? `docker run -d --name osp-go2rtc --network host --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`
       : `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
-  const cloudflaredPrefix =
+  const ngrokPrefix =
     os === "linux"
-      ? `docker run -d --name osp-cloudflared --network host --restart unless-stopped`
-      : `docker run -d --name osp-cloudflared -p 20241:20241 --restart unless-stopped`;
-  const cloudflaredTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const cloudflared = `${cloudflaredPrefix} cloudflare/cloudflared:latest tunnel --url ${cloudflaredTarget} --metrics 0.0.0.0:20241 --no-autoupdate`;
+      ? `docker run -d --name osp-ngrok --network host --restart unless-stopped`
+      : `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped`;
+  const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const ngrok = `${ngrokPrefix} -e NGROK_AUTHTOKEN=$NGROK_AUTHTOKEN ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
   const agentPrefix =
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`
       : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const cloudflaredMetrics = os === "linux" ? "http://localhost:20241" : "http://host.docker.internal:20241";
-  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} -e CLOUDFLARED_METRICS_URL=${cloudflaredMetrics} ghcr.io/matides12/osp-edge-agent:latest`;
-  return { go2rtcLine: go2rtc, cloudflaredLine: cloudflared, agentLine: agent };
+  const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
+  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} -e NGROK_API_URL=${ngrokApi} ghcr.io/matides12/osp-edge-agent:latest`;
+  return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
 }
 
 function downloadTextFile(filename: string, content: string): void {
@@ -213,9 +213,9 @@ function escapeForCmdC(s: string): string {
   return s.replace(/"/g, '""');
 }
 
-function buildWindowsPs1(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
+function buildWindowsPs1(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
   const c1 = escapeForCmdC(go2rtcLine);
-  const c2 = escapeForCmdC(cloudflaredLine);
+  const c2 = escapeForCmdC(ngrokLine);
   const c3 = escapeForCmdC(agentLine);
   return `# OSP — camera proxy + tunnel + agent (official setup from your OSP account)
 # How to run: Right-click this file → "Run with PowerShell"
@@ -225,7 +225,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "OSP — Removing old containers if they exist..." -ForegroundColor Gray
-docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>&1 | Out-Null
+docker rm -f osp-go2rtc osp-ngrok osp-agent 2>&1 | Out-Null
 
 Write-Host ""
 Write-Host "OSP — Writing go2rtc config (enables CORS for live streams)..." -ForegroundColor Gray
@@ -247,7 +247,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "OSP — Step 2: Starting Cloudflare Tunnel (live stream access)..." -ForegroundColor Cyan
+Write-Host "OSP — Step 2: Starting ngrok tunnel (live stream access)..." -ForegroundColor Cyan
 cmd /c "${c2}"
 if ($LASTEXITCODE -ne 0) {
   Write-Host "Step 2 failed. Check Docker and try again." -ForegroundColor Red
@@ -270,13 +270,13 @@ Read-Host "Press Enter to close"
 `;
 }
 
-function buildWindowsBat(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
+function buildWindowsBat(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
   return `@echo off
 setlocal EnableExtensions
 title OSP setup
 echo.
 echo OSP - Removing old containers if they exist...
-docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>nul
+docker rm -f osp-go2rtc osp-ngrok osp-agent 2>nul
 echo.
 echo OSP - Writing go2rtc config (enables CORS for live streams)...
 if not exist "%LOCALAPPDATA%\\OSP" mkdir "%LOCALAPPDATA%\\OSP"
@@ -286,7 +286,7 @@ if not exist "%LOCALAPPDATA%\\OSP" mkdir "%LOCALAPPDATA%\\OSP"
 echo.
 echo OSP - Pulling latest images...
 docker pull alexxit/go2rtc:latest
-docker pull cloudflare/cloudflared:latest
+docker pull ngrok/ngrok:latest
 docker pull ghcr.io/matides12/osp-edge-agent:latest
 echo.
 echo OSP - Step 1: Starting camera proxy (go2rtc)...
@@ -297,8 +297,8 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo OSP - Step 2: Starting Cloudflare Tunnel (live stream access)...
-${cloudflaredLine}
+echo OSP - Step 2: Starting ngrok tunnel (live stream access)...
+${ngrokLine}
 if errorlevel 1 (
   echo Step 2 failed. Check Docker and try again.
   pause
@@ -318,12 +318,12 @@ pause
 `;
 }
 
-function buildUnixSh(go2rtcLine: string, cloudflaredLine: string, agentLine: string): string {
+function buildUnixSh(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
 echo ""
 echo "OSP — Removing old containers if they exist..."
-docker rm -f osp-go2rtc osp-cloudflared osp-agent 2>/dev/null || true
+docker rm -f osp-go2rtc osp-ngrok osp-agent 2>/dev/null || true
 echo ""
 echo "OSP — Writing go2rtc config (enables CORS for live streams)..."
 mkdir -p "$HOME/.osp"
@@ -335,14 +335,14 @@ GOCONF
 echo ""
 echo "OSP — Pulling latest images..."
 docker pull alexxit/go2rtc:latest
-docker pull cloudflare/cloudflared:latest
+docker pull ngrok/ngrok:latest
 docker pull ghcr.io/matides12/osp-edge-agent:latest
 echo ""
 echo "OSP — Step 1: Starting camera proxy (go2rtc)..."
 docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -v "$HOME/.osp/go2rtc.yaml:/config/go2rtc.yaml:ro" alexxit/go2rtc
 echo ""
-echo "OSP — Step 2: Starting Cloudflare Tunnel (live stream access)..."
-${cloudflaredLine}
+echo "OSP — Step 2: Starting ngrok tunnel (live stream access)..."
+${ngrokLine}
 echo ""
 echo "OSP — Step 3: Starting OSP agent..."
 ${agentLine}
@@ -819,7 +819,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                           "osp-windows-setup.ps1",
                           buildWindowsPs1(
                             singleLine.go2rtcLine,
-                            singleLine.cloudflaredLine,
+                            singleLine.ngrokLine,
                             singleLine.agentLine,
                           ),
                         )
@@ -836,7 +836,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                           "osp-windows-setup.bat",
                           buildWindowsBat(
                             singleLine.go2rtcLine,
-                            singleLine.cloudflaredLine,
+                            singleLine.ngrokLine,
                             singleLine.agentLine,
                           ),
                         )
@@ -853,7 +853,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                     onClick={() =>
                       downloadTextFile(
                         "osp-setup.sh",
-                        buildUnixSh(singleLine.go2rtcLine, singleLine.cloudflaredLine, singleLine.agentLine),
+                        buildUnixSh(singleLine.go2rtcLine, singleLine.ngrokLine, singleLine.agentLine),
                       )
                     }
                     className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
@@ -873,9 +873,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
-                  label="Step 2 — Start Cloudflare Tunnel"
-                  description={'What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. Cloudflare is trusted by millions of websites worldwide.'}
-                  command={cmds.cloudflared}
+                  label="Step 2 — Start ngrok tunnel"
+                  description={'What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. ngrok supports WebSocket for real-time video streaming.'}
+                  command={cmds.ngrok}
                 />
                 <CommandBlock
                   label="Step 3 — Start OSP agent"

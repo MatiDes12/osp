@@ -4,8 +4,9 @@
 # This is all a client needs to install on their NAS/server/PC.
 # It connects to the OSP cloud gateway for auth, rules, and data.
 # go2rtc handles all local camera streams (RTSP/ONVIF/USB).
-# cloudflared creates a secure public tunnel so live streams work from
+# ngrok creates a secure public tunnel so live streams work from
 # anywhere — no port forwarding or network config required.
+# ngrok supports WebSocket which is required for live video streaming.
 #
 # Setup:
 #   1. Copy .env.agent.example to .env.agent and fill in your values
@@ -33,15 +34,18 @@ services:
       timeout: 5s
       retries: 3
 
-  # ── Cloudflare Tunnel: exposes go2rtc publicly so live streams work from
+  # ── ngrok Tunnel: exposes go2rtc publicly so live streams work from
   #    the cloud dashboard without any port forwarding or static IP.
-  #    The edge agent auto-discovers the tunnel URL from cloudflared's API.
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: osp-cloudflared
+  #    Supports WebSocket (required for MSE live streaming).
+  #    The edge agent auto-discovers the tunnel URL from ngrok's local API.
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: osp-ngrok
     network_mode: host
     restart: unless-stopped
-    command: tunnel --url http://localhost:1984 --metrics 0.0.0.0:20241 --no-autoupdate
+    command: http http://localhost:1984 --log stdout
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     depends_on:
       go2rtc:
         condition: service_healthy
@@ -55,15 +59,15 @@ services:
     depends_on:
       go2rtc:
         condition: service_healthy
-      cloudflared:
+      ngrok:
         condition: service_started
     environment:
       - CLOUD_GATEWAY_URL=${CLOUD_GATEWAY_URL:-https://osp-gateway.fly.dev}
       - TENANT_ID=${TENANT_ID}
       - CLOUD_API_TOKEN=${CLOUD_API_TOKEN}
       - GO2RTC_URL=http://localhost:1984
-      # Auto-discovered from cloudflared — no need to set manually
-      - CLOUDFLARED_METRICS_URL=http://localhost:20241
+      # Auto-discovered from ngrok local API — no need to set manually
+      - NGROK_API_URL=http://localhost:4040
       - TZ=${TZ:-UTC}
 
 volumes:

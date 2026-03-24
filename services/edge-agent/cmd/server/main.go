@@ -70,6 +70,7 @@ func main() {
 		cfg.CloudGatewayURL,
 		cfg.Go2RTCURL,
 		cfg.Go2RTCPublicURL,
+		cfg.NgrokAPIURL,
 		cfg.CloudflaredMetricsURL,
 		cfg.CloudAPIToken,
 		cfg.AgentID,

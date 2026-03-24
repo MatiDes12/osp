@@ -65,14 +65,14 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     tenantId,
   );
 
-  // If an edge agent has a public go2rtc URL (e.g. Cloudflare Tunnel), point
+  // If an edge agent has a public go2rtc URL (e.g. ngrok tunnel), point
   // the browser directly at it so WebRTC ICE candidates come from the real
   // local machine, not from the gateway proxy which would break media transport.
   const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
 
   // Always proxy WebRTC signaling through the gateway — direct go2rtc URLs
-  // cause CORS errors in the browser (Cloudflare tunnel doesn't add CORS headers
-  // and we can't reliably configure go2rtc CORS from here).
+  // cause CORS errors in the browser (tunnel doesn't add CORS headers and we
+  // can't reliably configure go2rtc CORS from here).
   // The /whep endpoint on this gateway forwards the SDP to the correct go2rtc.
   const gatewayPublicUrl =
     get("GATEWAY_PUBLIC_URL") ??
@@ -88,10 +88,9 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     ? `${edgeGo2rtcUrl}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
     : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
 
-  // WebSocket URL for MSE fallback — direct tunnel connection. WebSockets
-  // work through Cloudflare tunnels (unlike HTTP streaming/MJPEG). The URL
-  // is read fresh from DB so it's always the current tunnel hostname.
-  // No auth needed — go2rtc has no auth, and WebSocket is not subject to CORS.
+  // WebSocket URL for MSE fallback — direct tunnel connection (ngrok supports
+  // WebSocket natively). The URL is read fresh from DB so it's always the
+  // current tunnel hostname. No auth needed — go2rtc has no auth.
   const wsUrl = edgeGo2rtcUrl
     ? `${edgeGo2rtcUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/api/ws?src=${encodeURIComponent(cameraId)}`
     : null;
@@ -391,7 +390,7 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
     .eq("tenant_id", tenantId);
 
   if (edgeGo2rtcUrl) {
-    // Edge agent mode: call go2rtc directly via cloudflare tunnel — skip gRPC entirely
+    // Edge agent mode: call go2rtc directly via tunnel — skip gRPC entirely
     const connectionUri = camera.connection_uri as string;
     try {
       // Remove existing stream

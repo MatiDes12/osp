@@ -13,7 +13,7 @@ const logger = createLogger("stream-proxy");
  * Path: /api/v1/cameras/:id/ws?token=JWT
  *
  * Why proxy instead of direct tunnel connection?
- * - Cloudflare quick tunnel URLs rotate on every container restart
+ * - Tunnel URLs rotate on every container restart (ngrok free tier)
  * - Gateway reads the current tunnel URL from DB on every connection
  * - Auth is handled via JWT query param
  * - Fly.io natively supports WebSocket proxying

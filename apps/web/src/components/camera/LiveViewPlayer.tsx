@@ -104,6 +104,11 @@ function getAuthHeaders(): Record<string, string> {
 // the binary data to MSE SourceBuffer for smooth video playback.
 // ---------------------------------------------------------------------------
 
+/**
+ * MSE-over-WebSocket fallback — connects to go2rtc's /api/ws endpoint
+ * (through the ngrok tunnel) and pipes fMP4 segments into a MediaSource.
+ * ngrok supports WebSocket natively, so this works reliably for live streaming.
+ */
 function MseFallback({
   wsUrl,
   cameraId,
@@ -249,10 +254,10 @@ function MseFallback({
       />
       <div className="absolute top-2 left-2 flex items-center gap-2">
         <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-500 opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-500" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
         </span>
-        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">
+        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-green-600/80 text-white">
           Live
         </span>
       </div>
@@ -750,19 +755,13 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MSE-over-WebSocket fallback — proxy through the gateway which relays to
-  // go2rtc. Direct tunnel WebSocket from browser fails (Cloudflare quick tunnel
-  // limitation), but server-to-server WebSocket works. The gateway reads the
-  // current tunnel URL from DB on each connection.
+  // MSE-over-WebSocket fallback — connects directly to go2rtc through the
+  // ngrok tunnel. ngrok supports WebSocket natively (unlike Cloudflare quick
+  // tunnels). The wsUrl points to the tunnel's /api/ws endpoint.
   if (state === "fallback") {
-    let wsUrl: string | undefined;
-    if (isTauri()) {
-      wsUrl = `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`;
-    } else {
-      const accessToken = localStorage.getItem("osp_access_token") ?? "";
-      const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-      wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}`;
-    }
+    const wsUrl = isTauri()
+      ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
+      : streamInfo?.wsUrl ?? undefined;
 
     if (wsUrl && typeof MediaSource !== "undefined") {
       return (
@@ -781,50 +780,10 @@ export function LiveViewPlayer({
       );
     }
 
-    // Last resort: MJPEG <img> — works on localhost but not through Cloudflare tunnel
-    const mjpegUrl = streamInfo?.fallbackHlsUrl
-      ?? `${process.env["NEXT_PUBLIC_GO2RTC_URL"] ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
-    return (
-      <div className={`relative ${className ?? ""}`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={mjpegUrl}
-          alt={`${cameraName} live`}
-          className="aspect-video w-full bg-black rounded-lg object-contain"
-          onError={() => {
-            streamInfoCache.delete(cameraId);
-            setErrorMessage("Stream unavailable");
-            setState("error");
-          }}
-        />
-        <div className="absolute top-2 left-2 flex items-center gap-2">
-          <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-yellow-500/80 text-black">
-            MJPEG
-          </span>
-        </div>
-        <div className="absolute top-2 right-2">
-          <button
-            onClick={handleReconnect}
-            className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-            title="Retry WebRTC"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-          </button>
-        </div>
-      </div>
-    );
+    // No WebSocket URL available — show error
+    streamInfoCache.delete(cameraId);
+    setErrorMessage("Stream unavailable — no tunnel connection");
+    setState("error");
   }
 
   return (

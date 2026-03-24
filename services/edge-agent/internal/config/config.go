@@ -15,8 +15,9 @@ type Config struct {
 	CloudAPIToken        string
 	TenantID             string
 	Go2RTCURL            string
-	Go2RTCPublicURL        string // publicly reachable go2rtc URL (e.g. Cloudflare Tunnel)
-	CloudflaredMetricsURL  string // cloudflared local metrics API for auto-discovering tunnel URL
+	Go2RTCPublicURL  string // publicly reachable go2rtc URL (e.g. ngrok tunnel)
+	NgrokAPIURL      string // ngrok local API for auto-discovering tunnel URL
+	CloudflaredMetricsURL string // legacy: cloudflared metrics API (fallback)
 	CameraIDs            []string
 	SyncIntervalSeconds  int
 	MotionSensitivity    int
@@ -35,6 +36,7 @@ func Load() Config {
 		TenantID:            envOrDefault("TENANT_ID", ""),
 		Go2RTCURL:           envOrDefault("GO2RTC_URL", "http://localhost:1984"),
 		Go2RTCPublicURL:       envOrDefault("GO2RTC_PUBLIC_URL", ""),
+		NgrokAPIURL:           envOrDefault("NGROK_API_URL", ""),
 		CloudflaredMetricsURL: envOrDefault("CLOUDFLARED_METRICS_URL", ""),
 		CameraIDs:           parseCameraIDs(envOrDefault("CAMERA_IDS", "")),
 		SyncIntervalSeconds: envOrDefaultInt("SYNC_INTERVAL_SECONDS", 30),

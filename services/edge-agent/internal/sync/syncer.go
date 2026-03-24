@@ -22,7 +22,8 @@ type Syncer struct {
 	gatewayURL            string
 	go2rtcURL             string
 	go2rtcPublicURL       string
-	cloudflaredMetricsURL string
+	ngrokAPIURL           string
+	cloudflaredMetricsURL string // legacy fallback
 	apiToken              string
 	agentID               string
 	tenantID              string
@@ -36,7 +37,7 @@ type Syncer struct {
 // onlineCallback is called (synchronously) whenever cloud connectivity changes.
 func NewSyncer(
 	db *storage.DB,
-	gatewayURL, go2rtcURL, go2rtcPublicURL, cloudflaredMetricsURL, apiToken, agentID, tenantID string,
+	gatewayURL, go2rtcURL, go2rtcPublicURL, ngrokAPIURL, cloudflaredMetricsURL, apiToken, agentID, tenantID string,
 	syncIntervalSecs int,
 	onlineCallback func(bool),
 ) *Syncer {
@@ -45,6 +46,7 @@ func NewSyncer(
 		gatewayURL:            gatewayURL,
 		go2rtcURL:             go2rtcURL,
 		go2rtcPublicURL:       go2rtcPublicURL,
+		ngrokAPIURL:           ngrokAPIURL,
 		cloudflaredMetricsURL: cloudflaredMetricsURL,
 		apiToken:              apiToken,
 		agentID:               agentID,
@@ -56,16 +58,72 @@ func NewSyncer(
 }
 
 // resolveGo2RTCPublicURL returns the best available public URL for go2rtc.
-// Priority: explicit GO2RTC_PUBLIC_URL > auto-discovered from cloudflared API > empty.
+// Priority: explicit GO2RTC_PUBLIC_URL > ngrok API > cloudflared API (legacy) > empty.
 func (s *Syncer) resolveGo2RTCPublicURL() string {
 	if s.go2rtcPublicURL != "" {
 		return s.go2rtcPublicURL
 	}
-	if s.cloudflaredMetricsURL == "" {
+
+	// Try ngrok first (preferred — supports WebSocket for live streaming)
+	if s.ngrokAPIURL != "" {
+		if url := s.discoverNgrokURL(); url != "" {
+			return url
+		}
+	}
+
+	// Fallback: legacy cloudflared quick tunnel
+	if s.cloudflaredMetricsURL != "" {
+		if url := s.discoverCloudflaredURL(); url != "" {
+			return url
+		}
+	}
+
+	return ""
+}
+
+// discoverNgrokURL queries ngrok's local API to find the public tunnel URL.
+// ngrok exposes GET http://localhost:4040/api/tunnels which returns:
+//
+//	{"tunnels":[{"public_url":"https://xxxx.ngrok-free.app",...}]}
+func (s *Syncer) discoverNgrokURL() string {
+	resp, err := s.httpClient.Get(s.ngrokAPIURL + "/api/tunnels")
+	if err != nil {
 		return ""
 	}
-	// cloudflared exposes the quick tunnel hostname at /quicktunnel
-	// Response: {"hostname":"xxx.trycloudflare.com"} or {"url":"https://..."}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	var result struct {
+		Tunnels []struct {
+			PublicURL string `json:"public_url"`
+			Proto    string `json:"proto"`
+		} `json:"tunnels"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return ""
+	}
+	// Prefer HTTPS tunnel
+	for _, t := range result.Tunnels {
+		if t.Proto == "https" && t.PublicURL != "" {
+			return t.PublicURL
+		}
+	}
+	// Fall back to any tunnel
+	for _, t := range result.Tunnels {
+		if t.PublicURL != "" {
+			return t.PublicURL
+		}
+	}
+	return ""
+}
+
+// discoverCloudflaredURL queries cloudflared's metrics API (legacy fallback).
+func (s *Syncer) discoverCloudflaredURL() string {
 	resp, err := s.httpClient.Get(s.cloudflaredMetricsURL + "/quicktunnel")
 	if err != nil || resp.StatusCode != 200 {
 		return ""
