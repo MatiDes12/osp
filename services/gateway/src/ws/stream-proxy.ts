@@ -23,15 +23,26 @@ export function attachStreamProxy(httpServer: Server): void {
 
   httpServer.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
-    logger.info("Upgrade request received", { path: url.pathname });
-    const match = url.pathname.match(/^\/api\/v1\/cameras\/([^/]+)\/ws$/);
-    if (!match) return; // not our path — ignore
+    logger.info("Upgrade request received", {
+      rawUrl: req.url,
+      path: url.pathname,
+      params: Object.fromEntries(url.searchParams),
+    });
 
-    const cameraId = decodeURIComponent(match[1]!);
+    // Extract camera ID: try path first, then fall back to query param.
+    // Fly.io's proxy can strip the path on WebSocket upgrades (req.url = "/"),
+    // so the query param approach is the reliable one for production.
+    const match = url.pathname.match(/^\/api\/v1\/cameras\/([^/]+)\/ws$/);
+    const cameraId = match
+      ? decodeURIComponent(match[1]!)
+      : url.searchParams.get("cameraId");
+
     const token = url.searchParams.get("token");
 
-    if (!token) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    if (!cameraId || !token) {
+      // Not a stream proxy request — ignore (let other handlers deal with it)
+      if (!cameraId && !token) return;
+      socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
       socket.destroy();
       return;
     }

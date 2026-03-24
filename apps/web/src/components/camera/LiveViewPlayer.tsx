@@ -790,7 +790,7 @@ export function LiveViewPlayer({
       // Route through gateway proxy — it connects to ngrok over HTTP internally
       const accessToken = localStorage.getItem("osp_access_token") ?? "";
       const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-      wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}`;
+      wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}&cameraId=${encodeURIComponent(cameraId)}`;
     } else {
       // HTTP localhost — direct tunnel URL
       wsUrl = streamInfo?.wsUrl ?? undefined;
