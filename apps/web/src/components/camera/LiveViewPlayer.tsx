@@ -432,7 +432,6 @@ export function LiveViewPlayer({
         pc.oniceconnectionstatechange = () => {
           const s = pc.iceConnectionState;
           if (s === "connected" || s === "completed") {
-            // ICE succeeded — media is actually flowing now
             if (pendingStream) {
               setState("live");
               if (timeoutRef.current) {
@@ -445,6 +444,17 @@ export function LiveViewPlayer({
                 streamInfo: info,
                 lastActiveAt: Date.now(),
               });
+
+              // Verify actual video frames are rendering — ICE may report
+              // "connected" but Docker bridge networking can block RTP media
+              // transport (UDP), resulting in a dark screen.
+              timeoutRef.current = setTimeout(() => {
+                const video = videoRef.current;
+                if (video && (video.videoWidth === 0 || video.readyState < 2)) {
+                  console.warn("[LiveViewPlayer] ICE connected but no video frames — falling back to MSE");
+                  fallbackToHLS(info);
+                }
+              }, 4000);
             }
           } else if (s === "failed") {
             fallbackToHLS(info);
