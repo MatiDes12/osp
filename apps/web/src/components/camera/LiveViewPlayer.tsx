@@ -608,8 +608,7 @@ export function LiveViewPlayer({
       if (
         !isTauri() &&
         typeof window !== "undefined" &&
-        window.location.protocol === "https:" &&
-        resolvedInfo.wsUrl
+        window.location.protocol === "https:"
       ) {
         setState("fallback");
         return;
@@ -751,14 +750,19 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MSE-over-WebSocket fallback — direct connection to go2rtc through the
-  // Cloudflare tunnel. WebSockets work through tunnels (unlike HTTP streaming).
-  // The wsUrl is the direct tunnel URL (fresh from DB when stream info was fetched).
-  // No auth needed — go2rtc has no auth, and WebSocket ignores CORS.
+  // MSE-over-WebSocket fallback — proxy through the gateway which relays to
+  // go2rtc. Direct tunnel WebSocket from browser fails (Cloudflare quick tunnel
+  // limitation), but server-to-server WebSocket works. The gateway reads the
+  // current tunnel URL from DB on each connection.
   if (state === "fallback") {
-    const wsUrl = isTauri()
-      ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
-      : streamInfo?.wsUrl ?? undefined;
+    let wsUrl: string | undefined;
+    if (isTauri()) {
+      wsUrl = `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`;
+    } else {
+      const accessToken = localStorage.getItem("osp_access_token") ?? "";
+      const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+      wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}`;
+    }
 
     if (wsUrl && typeof MediaSource !== "undefined") {
       return (
