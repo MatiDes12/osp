@@ -88,10 +88,13 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
     ? `${edgeGo2rtcUrl}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`
     : `${get("GO2RTC_PUBLIC_URL") ?? get("GO2RTC_URL") ?? "http://localhost:1984"}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
 
-  // WebSocket URL for MSE fallback — proxied through the gateway so the
-  // browser never needs the direct tunnel URL (which rotates on restart).
-  // Fly.io natively supports WebSocket proxying. Auth via ?token= query param.
-  const wsUrl = `${gatewayPublicUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws`;
+  // WebSocket URL for MSE fallback — direct tunnel connection. WebSockets
+  // work through Cloudflare tunnels (unlike HTTP streaming/MJPEG). The URL
+  // is read fresh from DB so it's always the current tunnel hostname.
+  // No auth needed — go2rtc has no auth, and WebSocket is not subject to CORS.
+  const wsUrl = edgeGo2rtcUrl
+    ? `${edgeGo2rtcUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/api/ws?src=${encodeURIComponent(cameraId)}`
+    : null;
 
   return c.json(
     createSuccessResponse({

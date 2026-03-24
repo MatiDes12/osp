@@ -120,15 +120,25 @@ function MseFallback({
   onReconnect: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     let destroyed = false;
+    let errorFired = false;
     let ws: WebSocket | null = null;
     let sb: SourceBuffer | null = null;
     const queue: ArrayBuffer[] = [];
+
+    const fireError = () => {
+      if (!destroyed && !errorFired) {
+        errorFired = true;
+        onErrorRef.current();
+      }
+    };
 
     const flush = () => {
       if (!sb || sb.updating || queue.length === 0) return;
@@ -171,7 +181,7 @@ function MseFallback({
             sb.addEventListener("updateend", flush);
           } catch (err) {
             console.error("[MSE] addSourceBuffer failed:", err);
-            if (!destroyed) onError();
+            fireError();
           }
           return;
         }
@@ -184,7 +194,7 @@ function MseFallback({
               sb.mode = "segments";
               sb.addEventListener("updateend", flush);
             } catch {
-              if (!destroyed) onError();
+              fireError();
               return;
             }
           }
@@ -193,12 +203,8 @@ function MseFallback({
         }
       };
 
-      ws.onerror = () => {
-        if (!destroyed) onError();
-      };
-      ws.onclose = () => {
-        if (!destroyed) onError();
-      };
+      ws.onerror = () => fireError();
+      ws.onclose = () => fireError();
     });
 
     video.play().catch(() => {});
@@ -230,7 +236,7 @@ function MseFallback({
       }
       URL.revokeObjectURL(video.src);
     };
-  }, [wsUrl, onError]);
+  }, [wsUrl]);
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -745,19 +751,14 @@ export function LiveViewPlayer({
     [speakerMuted],
   );
 
-  // MSE-over-WebSocket fallback — proxied through the gateway which reads the
-  // fresh go2rtc tunnel URL from DB on every connection. Fly.io natively
-  // supports WebSocket proxying, so this is reliable unlike direct tunnel URLs
-  // (which rotate on restart) or MJPEG (which Cloudflare buffers/terminates).
+  // MSE-over-WebSocket fallback — direct connection to go2rtc through the
+  // Cloudflare tunnel. WebSockets work through tunnels (unlike HTTP streaming).
+  // The wsUrl is the direct tunnel URL (fresh from DB when stream info was fetched).
+  // No auth needed — go2rtc has no auth, and WebSocket ignores CORS.
   if (state === "fallback") {
-    const accessToken = typeof window !== "undefined"
-      ? (localStorage.getItem("osp_access_token") ?? "")
-      : "";
     const wsUrl = isTauri()
       ? `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`
-      : streamInfo?.wsUrl
-        ? `${streamInfo.wsUrl}${streamInfo.wsUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(accessToken)}`
-        : undefined;
+      : streamInfo?.wsUrl ?? undefined;
 
     if (wsUrl && typeof MediaSource !== "undefined") {
       return (
