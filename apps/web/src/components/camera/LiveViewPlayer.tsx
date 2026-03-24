@@ -589,8 +589,22 @@ export function LiveViewPlayer({
       setStreamInfo(resolvedInfo);
       streamInfoRef.current = resolvedInfo;
 
-      // If WebRTC already failed for this camera this session, skip straight to MJPEG
+      // If WebRTC already failed for this camera this session, skip straight to MSE
       if (webrtcFailed.has(cameraId)) {
+        setState("fallback");
+        return;
+      }
+
+      // On HTTPS (cloud deployment), skip WebRTC entirely — Cloudflare tunnel
+      // blocks UDP media transport, and Docker bridge networking blocks dynamic
+      // RTP ports. WebRTC signaling succeeds but no video frames arrive.
+      // Go straight to MSE-over-WebSocket which proxies through the gateway.
+      if (
+        !isTauri() &&
+        typeof window !== "undefined" &&
+        window.location.protocol === "https:" &&
+        resolvedInfo.wsUrl
+      ) {
         setState("fallback");
         return;
       }
