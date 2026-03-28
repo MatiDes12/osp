@@ -358,7 +358,10 @@ function MseHttpFallback({
 
       try {
         console.log("[MSE-HTTP] Fetching:", httpUrl);
-        const resp = await fetch(httpUrl, { signal: abortCtrl.signal });
+        const resp = await fetch(httpUrl, {
+          signal: abortCtrl.signal,
+          headers: getAuthHeaders(),
+        });
 
         if (!resp.ok || !resp.body) {
           console.error("[MSE-HTTP] Fetch failed:", resp.status);
