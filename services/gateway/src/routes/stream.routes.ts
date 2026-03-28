@@ -600,6 +600,63 @@ streamRoutes.get("/:id/recording.mp4", requireAuth("viewer"), async (c) => {
   });
 });
 
+// GET /api/v1/cameras/:id/live.mp4 - Live fMP4 stream proxied through edge agent (HTTP, not WebSocket)
+// This is the reliable path: browser → gateway (HTTP) → ngrok (HTTP) → go2rtc
+// Unlike WebSocket proxying, HTTP streaming through ngrok free tier works.
+streamRoutes.get("/:id/live.mp4", requireAuth("viewer"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+  const supabase = getSupabase();
+
+  const { data: camera, error } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  // Prefer edge agent's ngrok URL, fall back to local go2rtc
+  const edgeUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
+  const go2rtcBase = edgeUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  const mp4Url = `${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
+
+  logger.info("Proxying live MP4 stream", { cameraId, target: mp4Url, viaEdge: !!edgeUrl });
+
+  let upstream: Response;
+  try {
+    upstream = await Promise.race<Response>([
+      fetch(mp4Url, {
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "osp-gateway",
+        },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("connect timeout")), 8000),
+      ),
+    ]);
+  } catch (err) {
+    logger.warn("Live MP4 connect failed", { cameraId, error: String(err) });
+    throw new ApiError("STREAM_ERROR", "Camera stream unavailable", 502);
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    throw new ApiError("STREAM_ERROR", "Camera stream unavailable", 502);
+  }
+
+  return new Response(upstream.body, {
+    headers: {
+      "Content-Type": upstream.headers.get("Content-Type") ?? "video/mp4",
+      "Cache-Control": "no-cache, no-store",
+      "X-Accel-Buffering": "no",
+    },
+  });
+});
+
 // POST /api/v1/cameras/discover - Discover cameras (USB + network scan)
 // Accepts optional body: { subnet?: string, mode?: "all" | "usb" | "network" }
 streamRoutes.post("/discover", requireAuth("admin"), async (c) => {

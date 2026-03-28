@@ -24,7 +24,7 @@ interface StreamInfo {
   }[];
 }
 
-type PlayerState = "loading" | "connecting" | "live" | "fallback" | "error";
+type PlayerState = "loading" | "connecting" | "live" | "fallback" | "fallback-http" | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const WEBRTC_TIMEOUT_MS = 12000;
@@ -302,6 +302,213 @@ function MseFallback({
               strokeLinejoin="round"
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MSE-over-HTTP fallback player.
+// When WebSocket through ngrok fails, this uses go2rtc's /api/stream.mp4
+// endpoint via a plain HTTP request through the gateway. HTTP through ngrok
+// is proven to work (snapshots return 200). The fMP4 data is fed into MSE
+// via fetch() + ReadableStream.
+// ---------------------------------------------------------------------------
+function MseHttpFallback({
+  httpUrl,
+  cameraId,
+  cameraName,
+  className,
+  onError,
+  onReconnect,
+}: {
+  httpUrl: string;
+  cameraId: string;
+  cameraName: string;
+  className?: string;
+  onError: () => void;
+  onReconnect: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let destroyed = false;
+    let errorFired = false;
+    const abortCtrl = new AbortController();
+
+    const fireError = () => {
+      if (!destroyed && !errorFired) {
+        errorFired = true;
+        onErrorRef.current();
+      }
+    };
+
+    const ms = new MediaSource();
+    video.src = URL.createObjectURL(ms);
+
+    ms.addEventListener("sourceopen", async () => {
+      if (destroyed) return;
+
+      try {
+        console.log("[MSE-HTTP] Fetching:", httpUrl);
+        const resp = await fetch(httpUrl, { signal: abortCtrl.signal });
+
+        if (!resp.ok || !resp.body) {
+          console.error("[MSE-HTTP] Fetch failed:", resp.status);
+          fireError();
+          return;
+        }
+
+        // Use Content-Type from go2rtc, fall back to safe default
+        const contentType = resp.headers.get("Content-Type") ?? 'video/mp4; codecs="avc1.42E01E"';
+        // go2rtc returns "video/mp4" without codecs — MSE needs codecs
+        const mimeType = contentType.includes("codecs")
+          ? contentType
+          : 'video/mp4; codecs="avc1.42E01E"';
+
+        let sb: SourceBuffer;
+        try {
+          sb = ms.addSourceBuffer(mimeType);
+          sb.mode = "segments";
+        } catch (err) {
+          console.error("[MSE-HTTP] addSourceBuffer failed:", err);
+          fireError();
+          return;
+        }
+
+        console.log("[MSE-HTTP] Streaming started, MIME:", mimeType);
+
+        const reader = resp.body.getReader();
+        let gotData = false;
+
+        // Timeout: if no data within 8s, assume connection is dead
+        const dataTimeout = setTimeout(() => {
+          if (!gotData && !destroyed) {
+            console.warn("[MSE-HTTP] No data received within 8s");
+            fireError();
+            abortCtrl.abort();
+          }
+        }, 8000);
+
+        const pump = async () => {
+          try {
+            while (!destroyed) {
+              const { done, value } = await reader.read();
+              if (done || destroyed) break;
+
+              if (!gotData) {
+                gotData = true;
+                clearTimeout(dataTimeout);
+                console.log("[MSE-HTTP] First data chunk received, size:", value.byteLength);
+              }
+
+              // Wait for SourceBuffer to be ready
+              if (sb.updating) {
+                await new Promise<void>((resolve) =>
+                  sb.addEventListener("updateend", () => resolve(), { once: true }),
+                );
+              }
+
+              try {
+                sb.appendBuffer(value);
+              } catch {
+                // QuotaExceededError — trim old buffer
+                if (sb.buffered.length > 0) {
+                  const start = sb.buffered.start(0);
+                  const end = sb.buffered.end(sb.buffered.length - 1);
+                  if (end - start > 10) {
+                    try {
+                      if (sb.updating) {
+                        await new Promise<void>((r) =>
+                          sb.addEventListener("updateend", () => r(), { once: true }),
+                        );
+                      }
+                      sb.remove(start, end - 5);
+                    } catch { /* ignore */ }
+                  }
+                }
+              }
+
+              // Wait for append to complete
+              if (sb.updating) {
+                await new Promise<void>((resolve) =>
+                  sb.addEventListener("updateend", () => resolve(), { once: true }),
+                );
+              }
+            }
+          } catch (err) {
+            if (!destroyed && !abortCtrl.signal.aborted) {
+              console.error("[MSE-HTTP] Read error:", err);
+              fireError();
+            }
+          }
+        };
+
+        pump();
+      } catch (err) {
+        if (!destroyed && !abortCtrl.signal.aborted) {
+          console.error("[MSE-HTTP] Stream error:", err);
+          fireError();
+        }
+      }
+    });
+
+    video.play().catch(() => {});
+
+    // Keep playback near the live edge
+    const liveEdge = setInterval(() => {
+      if (video.buffered.length > 0) {
+        const end = video.buffered.end(video.buffered.length - 1);
+        if (end - video.currentTime > 3) {
+          video.currentTime = end - 0.5;
+        }
+      }
+    }, 3000);
+
+    return () => {
+      destroyed = true;
+      clearInterval(liveEdge);
+      abortCtrl.abort();
+      if (ms.readyState === "open") {
+        try { ms.endOfStream(); } catch { /* ignore */ }
+      }
+      URL.revokeObjectURL(video.src);
+    };
+  }, [httpUrl]);
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <video
+        ref={videoRef}
+        className="aspect-video w-full bg-black rounded-lg object-contain"
+        autoPlay
+        muted
+        playsInline
+      />
+      <div className="absolute top-2 left-2 flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+        </span>
+        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded bg-green-600/80 text-white">
+          Live
+        </span>
+      </div>
+      <div className="absolute top-2 right-2">
+        <button
+          onClick={onReconnect}
+          className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
+          title="Retry"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
       </div>
@@ -804,6 +1011,32 @@ export function LiveViewPlayer({
           cameraName={cameraName}
           className={className}
           onError={() => {
+            // WebSocket failed — try HTTP streaming instead
+            console.log("[LiveView] MSE-over-WebSocket failed, trying HTTP streaming");
+            setState("fallback-http");
+          }}
+          onReconnect={handleReconnect}
+        />
+      );
+    }
+
+    // No WebSocket URL — skip straight to HTTP
+    setState("fallback-http");
+  }
+
+  // HTTP-based MSE fallback — uses go2rtc's /api/stream.mp4 via the gateway
+  // HTTP proxy. This avoids WebSocket through the tunnel entirely.
+  if (state === "fallback-http") {
+    const httpUrl = `${API_URL}/api/v1/cameras/${encodeURIComponent(cameraId)}/live.mp4`;
+
+    if (typeof MediaSource !== "undefined") {
+      return (
+        <MseHttpFallback
+          httpUrl={httpUrl}
+          cameraId={cameraId}
+          cameraName={cameraName}
+          className={className}
+          onError={() => {
             streamInfoCache.delete(cameraId);
             setErrorMessage("Stream unavailable");
             setState("error");
@@ -813,9 +1046,8 @@ export function LiveViewPlayer({
       );
     }
 
-    // No WebSocket URL available — show error
     streamInfoCache.delete(cameraId);
-    setErrorMessage("Stream unavailable — no tunnel connection");
+    setErrorMessage("Stream unavailable — browser does not support MediaSource");
     setState("error");
   }
 

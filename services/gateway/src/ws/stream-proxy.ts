@@ -118,7 +118,7 @@ export function attachStreamProxy(httpServer: Server): void {
         // go2rtc sends the MIME type text message immediately on open —
         // without buffering, this first message is lost because
         // handleUpgrade's callback hasn't fired yet.
-        const pendingMessages: { data: unknown; isBinary: boolean }[] = [];
+        const pendingMessages: { data: Buffer | ArrayBuffer | Buffer[]; isBinary: boolean }[] = [];
         let clientWs: InstanceType<typeof WebSocket> | null = null;
 
         upstream.on("message", (data, isBinary) => {
