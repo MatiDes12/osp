@@ -8,6 +8,7 @@ import { StreamService, getStreamService } from "../services/stream.service.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
 import { DiscoveryService } from "../services/discovery.service.js";
+import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
 
 const logger = createLogger("stream-routes");
 
@@ -27,7 +28,8 @@ async function resolveEdgeGo2rtcUrl(
       .order("last_seen_at", { ascending: false })
       .limit(1)
       .single();
-    const url = (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+    const raw = (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+    const url = normalizeEdgeTunnelUrl(raw);
     logger.info("resolveEdgeGo2rtcUrl", {
       tenantId,
       agentId: (data as { agent_id?: string } | null)?.agent_id ?? "none",
@@ -154,7 +156,7 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   } catch { /* ignore */ }
 
   const go2rtcUrl =
-    agentRow?.go2rtc_url ||
+    normalizeEdgeTunnelUrl(agentRow?.go2rtc_url ?? null) ||
     get("GO2RTC_URL") ||
     "http://localhost:1984";
 
@@ -383,8 +385,20 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
       throw new ApiError("SNAPSHOT_FAILED", `Edge fetch failed: ${String(fetchErr)}`, 502);
     }
     if (!resp.ok) {
+      const ct = resp.headers.get("content-type") ?? "";
       const body = await resp.text().catch(() => "");
-      logger.error("Snapshot: non-OK response", { cameraId, snapUrl, status: resp.status, body: body.slice(0, 300) });
+      const looksLikeNgrokHtml =
+        ct.includes("text/html") ||
+        body.trimStart().toLowerCase().startsWith("<!doctype");
+      logger.error("Snapshot: non-OK response", {
+        cameraId,
+        snapUrl,
+        status: resp.status,
+        body: body.slice(0, 300),
+        ...(looksLikeNgrokHtml && {
+          hint: "ngrok interstitial or tunnel error — verify NGROK_AUTHTOKEN, osp-ngrok logs, and edge go2rtc_url",
+        }),
+      });
       throw new ApiError("SNAPSHOT_FAILED", `Edge returned ${resp.status}`, 502);
     }
     imageBuffer = Buffer.from(await resp.arrayBuffer());

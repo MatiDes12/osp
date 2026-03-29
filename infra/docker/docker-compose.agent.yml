@@ -9,8 +9,10 @@
 # ngrok supports WebSocket which is required for live video streaming.
 #
 # Setup:
-#   1. Copy .env.agent.example to .env.agent and fill in your values
-#   2. docker compose -f docker-compose.agent.yml up -d
+#   1. Create infra/docker/.env.agent (see .env.agent.example) and fill in your values
+#   2. Local: docker compose --env-file .env.agent -f docker-compose.agent.yml up -d
+#   Production / CI: inject CLOUD_*, TENANT_ID, NGROK_AUTHTOKEN, TZ (etc.) in the environment
+#   or use `docker compose --env-file /run/secrets/agent.env ...` — same variable names as below.
 #
 # Requirements: Docker + Docker Compose
 # ─────────────────────────────────────────────────────────────────────────────
@@ -38,6 +40,7 @@ services:
   #    the cloud dashboard without any port forwarding or static IP.
   #    Supports WebSocket (required for MSE live streaming).
   #    The edge agent auto-discovers the tunnel URL from ngrok's local API.
+  # NGROK_AUTHTOKEN required (verified ngrok account). Missing → ERR_NGROK_4018, cloud snapshots 502.
   ngrok:
     image: ngrok/ngrok:latest
     container_name: osp-ngrok
@@ -66,7 +69,6 @@ services:
       - TENANT_ID=${TENANT_ID}
       - CLOUD_API_TOKEN=${CLOUD_API_TOKEN}
       - GO2RTC_URL=http://localhost:1984
-      # Auto-discovered from ngrok local API — no need to set manually
       - NGROK_API_URL=http://localhost:4040
       - TZ=${TZ:-UTC}
 

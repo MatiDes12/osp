@@ -21,6 +21,7 @@ import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
+import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
 import { z } from "zod";
 
 const logger = createLogger("edge-routes");
@@ -123,9 +124,12 @@ edgeRoutes.post("/agents/:agentId/heartbeat", async (c) => {
     cameras_active: input.camerasActive,
     last_seen_at: new Date().toISOString(),
   };
-  // Only update go2rtc_url when the agent actually sends one (don't clear existing value)
-  if (input.go2rtcPublicUrl) {
-    updatePayload.go2rtc_url = input.go2rtcPublicUrl;
+  if (input.status === "offline" || input.status === "error") {
+    updatePayload.go2rtc_url = null;
+  } else if (input.go2rtcPublicUrl === "") {
+    updatePayload.go2rtc_url = null;
+  } else if (input.go2rtcPublicUrl) {
+    updatePayload.go2rtc_url = normalizeEdgeTunnelUrl(input.go2rtcPublicUrl);
   }
 
   const { error } = await supabase
@@ -241,7 +245,10 @@ edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
       .order("last_seen_at", { ascending: false })
       .limit(1)
       .single();
-    go2rtcUrl = (data as { go2rtc_url?: string } | null)?.go2rtc_url;
+    go2rtcUrl =
+      normalizeEdgeTunnelUrl(
+        (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null,
+      ) ?? undefined;
   } catch { /* ignore */ }
   if (!go2rtcUrl) {
     return c.json(createSuccessResponse({ status: "not_configured", streams: 0 }));

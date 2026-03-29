@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { validateToken } from "./server.js";
+import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
 
 const logger = createLogger("stream-proxy");
 
@@ -85,8 +86,9 @@ export function attachStreamProxy(httpServer: Server): void {
             .limit(1)
             .single();
 
-          const edgeUrl = (data as { go2rtc_url?: string } | null)
-            ?.go2rtc_url;
+          const edgeUrl = normalizeEdgeTunnelUrl(
+            (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null,
+          );
           if (edgeUrl) {
             // Always use wss:// for external URLs — ngrok 307-redirects ws:// to wss://
             // and the Node.js ws library doesn't follow redirects.
