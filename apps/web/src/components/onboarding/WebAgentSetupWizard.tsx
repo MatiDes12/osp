@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Download,
   Terminal,
+  Package,
 } from "lucide-react";
 import { getTenantIdFromAccessToken } from "@/lib/jwt";
 
@@ -39,8 +40,11 @@ const NGROK_SIGNUP_URL = "https://dashboard.ngrok.com/signup";
 const NGROK_AUTHTOKEN_URL =
   "https://dashboard.ngrok.com/get-started/your-authtoken";
 
+const NGROK_TOKEN_MIN_LEN = 20;
+
 type OS = "windows" | "mac" | "linux";
-type Step = "welcome" | "docker" | "ngrok" | "run" | "waiting" | "done";
+type Step = "welcome" | "docker" | "credentials" | "run" | "waiting" | "done";
+type ApiKeySource = "auto" | "manual";
 /** compose = Docker Compose zip + .env from this wizard (default, non-technical) */
 type SetupMode = "compose" | "download" | "terminal";
 
@@ -145,12 +149,26 @@ const DOCKER_LINKS: Record<OS, string> = {
   linux: "https://docs.docker.com/engine/install/",
 };
 
-function buildCommands(os: OS, tenantId: string, apiToken: string) {
+/** Single-quoted for Unix docker -e KEY=value */
+function sqUnix(val: string): string {
+  return `'${val.replace(/'/g, `'\"'\"'`)}'`;
+}
+
+/** Double-quoted fragment for Windows CMD docker -e "KEY=value" */
+function dqWin(val: string): string {
+  return val.replace(/"/g, '\\"');
+}
+
+function buildCommands(
+  os: OS,
+  tenantId: string,
+  apiToken: string,
+  ngrokToken: string,
+) {
   if (os === "windows") {
-    // Single-line commands — works in both CMD and PowerShell
     const go2rtc = `docker run -d --name osp-go2rtc -p 1984:1984 -p 8554:8554 -p 8555:8555/udp --restart unless-stopped -e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
-    const ngrok = `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped -e NGROK_AUTHTOKEN=%NGROK_AUTHTOKEN% ngrok/ngrok:latest http http://host.docker.internal:1984 --log stdout`;
-    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=http://host.docker.internal:1984 -e NGROK_API_URL=http://host.docker.internal:4040 ghcr.io/matides12/osp-edge-agent:latest`;
+    const ngrok = `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped -e "NGROK_AUTHTOKEN=${dqWin(ngrokToken)}" ngrok/ngrok:latest http http://host.docker.internal:1984 --log stdout`;
+    const agent = `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e "CLOUD_API_TOKEN=${dqWin(apiToken)}" -e GO2RTC_URL=http://host.docker.internal:1984 -e NGROK_API_URL=http://host.docker.internal:4040 ghcr.io/matides12/osp-edge-agent:latest`;
     return { go2rtc, ngrok, agent };
   }
 
@@ -160,12 +178,12 @@ function buildCommands(os: OS, tenantId: string, apiToken: string) {
   const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
   const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
   const ngrokNet = os === "linux" ? "--network host " : "-p 4040:4040 ";
-  const ngrok = `docker run -d --name osp-ngrok ${ngrokNet}${cont}--restart unless-stopped ${cont}-e NGROK_AUTHTOKEN=$NGROK_AUTHTOKEN ${cont}ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
+  const ngrok = `docker run -d --name osp-ngrok ${ngrokNet}${cont}--restart unless-stopped ${cont}-e NGROK_AUTHTOKEN=${sqUnix(ngrokToken)} ${cont}ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
 
   const agentEnv = [
     `-e CLOUD_GATEWAY_URL=${GATEWAY_URL}`,
     `-e TENANT_ID=${tenantId}`,
-    `-e CLOUD_API_TOKEN=${apiToken}`,
+    `-e CLOUD_API_TOKEN=${sqUnix(apiToken)}`,
     `-e GO2RTC_URL=${go2rtcUrl}`,
     `-e NGROK_API_URL=${ngrokApi}`,
   ].join(` ${cont}`);
@@ -180,9 +198,15 @@ function buildSingleLineCommands(
   os: OS,
   tenantId: string,
   apiToken: string,
+  ngrokToken: string,
 ): { go2rtcLine: string; ngrokLine: string; agentLine: string } {
   if (os === "windows") {
-    const { go2rtc, ngrok, agent } = buildCommands(os, tenantId, apiToken);
+    const { go2rtc, ngrok, agent } = buildCommands(
+      os,
+      tenantId,
+      apiToken,
+      ngrokToken,
+    );
     return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
   }
   const go2rtc =
@@ -194,14 +218,14 @@ function buildSingleLineCommands(
       ? `docker run -d --name osp-ngrok --network host --restart unless-stopped`
       : `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped`;
   const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const ngrok = `${ngrokPrefix} -e NGROK_AUTHTOKEN=$NGROK_AUTHTOKEN ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
+  const ngrok = `${ngrokPrefix} -e NGROK_AUTHTOKEN=${sqUnix(ngrokToken)} ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
   const agentPrefix =
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`
       : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
   const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
   const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
-  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} -e NGROK_API_URL=${ngrokApi} ghcr.io/matides12/osp-edge-agent:latest`;
+  const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${sqUnix(apiToken)} -e GO2RTC_URL=${go2rtcUrl} -e NGROK_API_URL=${ngrokApi} ghcr.io/matides12/osp-edge-agent:latest`;
   return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
 }
 
@@ -394,8 +418,11 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const [setupMode, setSetupMode] = useState<SetupMode>("compose");
   const [ngrokToken, setNgrokToken] = useState("");
   const [apiToken, setApiToken] = useState<string | null>(null);
+  const [manualApiToken, setManualApiToken] = useState("");
+  const [apiKeySource, setApiKeySource] = useState<ApiKeySource>("auto");
   const [generatingKey, setGeneratingKey] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
+  const [credentialsHint, setCredentialsHint] = useState<string | null>(null);
   const [agentConnected, setAgentConnected] = useState(false);
   const [pollError, setPollError] = useState(false);
   const [pollCount, setPollCount] = useState(0);
@@ -436,9 +463,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     };
   }, [tenantId]);
 
-  // ── Generate API key early on ngrok step so “run” is instant ─────────────────
   const generateApiKey = useCallback(async () => {
-    if (apiToken) return; // already generated
+    if (apiToken) return true;
     setGeneratingKey(true);
     setKeyError(null);
     try {
@@ -452,18 +478,54 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
       const key = (json.data?.key ?? json.key) as string | undefined;
       if (!key) throw new Error("key missing from response");
       setApiToken(key);
+      return true;
     } catch (e) {
       setKeyError(
         `Could not generate API key — ${e instanceof Error ? e.message : "unknown error"}`,
       );
+      return false;
     } finally {
       setGeneratingKey(false);
     }
   }, [apiToken]);
 
-  useEffect(() => {
-    if (step === "ngrok") void generateApiKey();
-  }, [step, generateApiKey]);
+  const handleCredentialsContinue = useCallback(async () => {
+    setCredentialsHint(null);
+    const ng = ngrokToken.trim();
+    if (ng.length < NGROK_TOKEN_MIN_LEN) {
+      setCredentialsHint(
+        `Ngrok authtoken must be at least ${NGROK_TOKEN_MIN_LEN} characters.`,
+      );
+      return;
+    }
+    if (apiKeySource === "manual") {
+      if (!manualApiToken.trim()) {
+        setCredentialsHint("Paste your API key from Settings → API Keys.");
+        return;
+      }
+    } else {
+      const hasKey = apiToken != null && apiToken.length > 0;
+      if (!hasKey) {
+        const ok = await generateApiKey();
+        if (!ok) return;
+      }
+    }
+    setStep("run");
+  }, [
+    ngrokToken,
+    apiKeySource,
+    manualApiToken,
+    apiToken,
+    generateApiKey,
+  ]);
+
+  const effectiveApiToken =
+    apiKeySource === "auto"
+      ? (apiToken ?? "").trim()
+      : manualApiToken.trim();
+  const ngrokTrimmed = ngrokToken.trim();
+  const ngrokValid = ngrokTrimmed.length >= NGROK_TOKEN_MIN_LEN;
+  const apiTokenReady = effectiveApiToken.length > 0;
 
   // ── Poll for agent connection ─────────────────────────────────────────────────
   const checkForAgent = useCallback(async () => {
@@ -506,29 +568,34 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     };
   }, [step, checkForAgent]);
 
-  const cmds =
-    apiToken && tenantId ? buildCommands(os, tenantId, apiToken) : null;
-  const singleLine =
-    apiToken && tenantId
-      ? buildSingleLineCommands(os, tenantId, apiToken)
-      : null;
+  const secretsReady =
+    !!tenantId && ngrokValid && apiTokenReady && !tenantLoadError;
+  const cmds = secretsReady
+    ? buildCommands(os, tenantId!, effectiveApiToken, ngrokTrimmed)
+    : null;
+  const singleLine = secretsReady
+    ? buildSingleLineCommands(
+        os,
+        tenantId!,
+        effectiveApiToken,
+        ngrokTrimmed,
+      )
+    : null;
   const runStepLoading =
-    step === "run" &&
-    !tenantLoadError &&
-    (!tenantId || generatingKey || !apiToken);
+    step === "run" && !tenantLoadError && !tenantId;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4 overflow-y-auto py-8">
       <div className="w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
         {/* ── Progress dots ── */}
         <div className="flex items-center gap-1.5 px-7 pt-5">
-          {(["welcome", "docker", "ngrok", "run", "waiting"] as const).map(
+          {(["welcome", "docker", "credentials", "run", "waiting"] as const).map(
             (s, i) => (
               <div
                 key={s}
                 className={`h-1 rounded-full transition-all duration-300 ${
                   step === "done" ||
-                  ["welcome", "docker", "ngrok", "run", "waiting"].indexOf(
+                  ["welcome", "docker", "credentials", "run", "waiting"].indexOf(
                     step,
                   ) >= i
                     ? "bg-[var(--color-accent)]"
@@ -548,7 +615,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             <h2 className="text-sm font-semibold text-[var(--color-fg)] leading-tight">
               {step === "welcome" && "Connect Your Cameras"}
               {step === "docker" && "Install Docker"}
-              {step === "ngrok" && "Secure tunnel (one-time)"}
+              {step === "credentials" && "Connect this computer"}
               {step === "run" && "Finish setup in this browser"}
               {step === "waiting" && "Waiting for Agent…"}
               {step === "done" && "Agent Connected!"}
@@ -558,8 +625,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 "Everything below happens here except installing Docker — no coding required"}
               {step === "docker" &&
                 "The only app you install yourself; the rest is guided here"}
-              {step === "ngrok" &&
-                "Free account so cloud and home cameras can connect safely"}
+              {step === "credentials" &&
+                "Ngrok tunnel + API key — we keep them only in your browser until you download"}
               {step === "run" &&
                 (setupMode === "compose"
                   ? "Download two files, then run one command — we fill in your keys"
@@ -709,10 +776,193 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 Back
               </button>
               <button
-                onClick={() => setStep("ngrok")}
+                onClick={() => setStep("credentials")}
                 className="flex-1 py-2.5 rounded-xl bg-[var(--color-accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 I have Docker installed — Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            STEP: credentials
+        ══════════════════════════════════════════════════════════════════════ */}
+        {step === "credentials" && (
+          <div className="px-7 py-6 space-y-4">
+            {tenantLoadError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-red-400 font-medium">
+                    We couldn&apos;t load your organization
+                  </p>
+                  <p className="text-[11px] text-red-400/80 mt-1">
+                    Refresh this page or sign out and sign in again, then reopen
+                    this setup.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="osp-wizard-ngrok"
+                className="text-xs font-medium text-[var(--color-fg)]"
+              >
+                Ngrok authtoken
+              </label>
+              <p className="text-[11px] text-[var(--color-muted)] mt-0.5 mb-2 leading-relaxed">
+                Required for a secure tunnel to your camera proxy.{" "}
+                <a
+                  href={NGROK_SIGNUP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--color-accent)] hover:underline"
+                >
+                  Get free account
+                </a>
+                {" · "}
+                <a
+                  href={NGROK_AUTHTOKEN_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[var(--color-accent)] hover:underline"
+                >
+                  Copy authtoken
+                </a>
+              </p>
+              <input
+                id="osp-wizard-ngrok"
+                type="password"
+                autoComplete="off"
+                value={ngrokToken}
+                onChange={(e) => setNgrokToken(e.target.value)}
+                placeholder="Paste your ngrok authtoken"
+                className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+              />
+            </div>
+
+            <div>
+              <span className="text-xs font-medium text-[var(--color-fg)]">
+                OSP API key
+              </span>
+              <p className="text-[11px] text-[var(--color-muted)] mt-0.5 mb-2">
+                Used so the agent can register with your account. You can create
+                one here or paste an existing key from Settings → API Keys.
+              </p>
+              <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiKeySource("auto");
+                    setCredentialsHint(null);
+                  }}
+                  className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${
+                    apiKeySource === "auto"
+                      ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                  }`}
+                >
+                  Create key for me
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApiKeySource("manual");
+                    setCredentialsHint(null);
+                  }}
+                  className={`flex-1 rounded-lg py-2 text-xs font-medium transition-colors ${
+                    apiKeySource === "manual"
+                      ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
+                      : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                  }`}
+                >
+                  I already have a key
+                </button>
+              </div>
+
+              {apiKeySource === "auto" && (
+                <div className="space-y-2">
+                  {!apiToken ? (
+                    <button
+                      type="button"
+                      onClick={() => void generateApiKey()}
+                      disabled={generatingKey}
+                      className="w-full py-2.5 rounded-xl border border-[var(--color-border)] text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-bg)] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      {generatingKey ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                          Creating key…
+                        </>
+                      ) : (
+                        "Generate API key"
+                      )}
+                    </button>
+                  ) : (
+                    <input
+                      type="password"
+                      readOnly
+                      value={apiToken}
+                      aria-label="API key (masked)"
+                      className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm text-[var(--color-fg)] cursor-default"
+                    />
+                  )}
+                </div>
+              )}
+
+              {apiKeySource === "manual" && (
+                <input
+                  id="osp-wizard-api-manual"
+                  type="password"
+                  autoComplete="off"
+                  value={manualApiToken}
+                  onChange={(e) => setManualApiToken(e.target.value)}
+                  placeholder="Paste API key from Settings → API Keys"
+                  className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/40"
+                />
+              )}
+            </div>
+
+            {keyError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+                <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs text-red-400">{keyError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void generateApiKey()}
+                    className="text-xs text-red-400 underline mt-1"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {credentialsHint && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-400">{credentialsHint}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setStep("docker")}
+                className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCredentialsContinue()}
+                disabled={generatingKey || tenantLoadError}
+                className="flex-1 py-2.5 rounded-xl bg-[var(--color-accent)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+              >
+                Continue
               </button>
             </div>
           </div>
@@ -723,48 +973,70 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
         ══════════════════════════════════════════════════════════════════════ */}
         {step === "run" && (
           <div className="px-7 py-6">
-            <p className="text-xs text-[var(--color-muted)] mb-4">
-              {setupMode === "download" ? (
+            <p className="text-xs text-[var(--color-muted)] mb-4 leading-relaxed">
+              {setupMode === "compose" && (
+                <>
+                  <span className="text-[var(--color-fg)]">Recommended:</span>{" "}
+                  download the official bundle and a filled{" "}
+                  <code className="text-[var(--color-fg)]">.env.agent</code>, then
+                  run one Docker Compose command in the extracted folder. Docker
+                  must be running first.
+                </>
+              )}
+              {setupMode === "download" && (
                 <>
                   Prefer no terminal? Download a small setup file, then
                   double-click it (Windows) or run one command in Terminal
                   (Mac/Linux). Docker must be running first. Or switch to{" "}
                   <span className="text-[var(--color-fg)]">Use terminal</span>{" "}
-                  below to copy-paste instead.
+                  for copy-paste commands instead.
                 </>
-              ) : (
+              )}
+              {setupMode === "terminal" && (
                 <>
                   Open a terminal (Command Prompt or PowerShell on Windows) and
-                  run these two commands. Everything you need is already in the
-                  command — copy and paste as-is. No searching for IDs or codes.
+                  run these three commands in order. Your ngrok and API values are
+                  already embedded — copy and paste as-is.
                 </>
               )}
             </p>
 
-            <div className="flex rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 mb-4">
+            <div className="grid grid-cols-3 gap-0.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-1 mb-4">
+              <button
+                type="button"
+                onClick={() => setSetupMode("compose")}
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg py-2 px-1 text-[10px] sm:text-xs font-medium transition-colors text-center leading-tight ${
+                  setupMode === "compose"
+                    ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
+                    : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
+                }`}
+              >
+                <Package className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                <span>Recommended</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setSetupMode("download")}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg py-2 px-1 text-[10px] sm:text-xs font-medium transition-colors text-center leading-tight ${
                   setupMode === "download"
                     ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
                     : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
                 }`}
               >
                 <Download className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                Download &amp; run
+                <span>Download</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSetupMode("terminal")}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors ${
+                className={`flex flex-col sm:flex-row items-center justify-center gap-1 rounded-lg py-2 px-1 text-[10px] sm:text-xs font-medium transition-colors text-center leading-tight ${
                   setupMode === "terminal"
                     ? "bg-[var(--color-surface)] text-[var(--color-fg)] shadow-sm"
                     : "text-[var(--color-muted)] hover:text-[var(--color-fg)]"
                 }`}
               >
                 <Terminal className="w-3.5 h-3.5 shrink-0" aria-hidden />
-                Use terminal
+                <span>Terminal</span>
               </button>
             </div>
 
@@ -790,13 +1062,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             {runStepLoading && (
               <div className="flex flex-col items-center gap-2 text-[var(--color-muted)] text-xs py-6 justify-center">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>
-                  {!tenantId
-                    ? "Preparing your account…"
-                    : !apiToken
-                      ? "Creating your secure key…"
-                      : "Almost ready…"}
-                </span>
+                <span>Preparing your account…</span>
               </div>
             )}
 
@@ -815,20 +1081,62 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               </div>
             )}
 
-            {keyError && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-3 mb-4">
-                <AlertCircle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs text-red-400">{keyError}</p>
+            {!runStepLoading &&
+              !tenantLoadError &&
+              setupMode === "compose" &&
+              tenantId && (
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5 space-y-4">
+                  <ol className="text-[11px] text-[var(--color-muted)] list-decimal pl-4 space-y-2 leading-relaxed">
+                    <li>
+                      Download{" "}
+                      <a
+                        href={EDGE_BUNDLE_ZIP_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--color-accent)] hover:underline inline-flex items-center gap-0.5"
+                      >
+                        osp-edge-bundle.zip
+                        <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>{" "}
+                      and extract it to a folder on this computer.
+                    </li>
+                    <li>
+                      Save{" "}
+                      <code className="text-[var(--color-fg)]">.env.agent</code>{" "}
+                      in that same folder (next to the compose file). Use the
+                      button below — values are filled from this wizard.
+                    </li>
+                    <li>
+                      Open a terminal in that folder and run the compose command
+                      below.
+                    </li>
+                  </ol>
                   <button
-                    onClick={generateApiKey}
-                    className="text-xs text-red-400 underline mt-1"
+                    type="button"
+                    disabled={!secretsReady}
+                    onClick={() =>
+                      downloadTextFile(
+                        ".env.agent",
+                        buildEnvAgentFileContent({
+                          gatewayUrl: GATEWAY_URL,
+                          tenantId,
+                          apiToken: effectiveApiToken,
+                          ngrokToken: ngrokTrimmed,
+                        }),
+                      )
+                    }
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Retry
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    Download .env.agent
                   </button>
+                  <CommandBlock
+                    label="Docker Compose"
+                    description="Run this from the folder that contains docker-compose.agent*.yml and your .env.agent file."
+                    command={composeUpCommand(os)}
+                  />
                 </div>
-              </div>
-            )}
+              )}
 
             {cmds && singleLine && !tenantLoadError && setupMode === "download" && (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5 space-y-3">
@@ -838,8 +1146,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                       Save the file to your computer, then double-click it. If
                       Windows SmartScreen or PowerShell asks for permission,
                       choose <span className="text-[var(--color-fg)]">Run</span>{" "}
-                      — this only runs the same two Docker commands shown in the
-                      terminal option.
+                      — this only runs the same three Docker commands shown in
+                      the terminal option.
                     </>
                   ) : (
                     <>
@@ -921,7 +1229,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 />
                 <CommandBlock
                   label="Step 3 — Start OSP agent"
-                  description="What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using the secure key we created for you. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer."
+                  description="What this does: starts the official OSP agent so this machine can talk to your OSP account (the same account you used to sign in here) using your API key. It connects your cameras to your dashboard — it does not steal files, passwords, or give anyone else access to your computer."
                   command={cmds.agent}
                 />
               </div>
@@ -929,17 +1237,21 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep("docker")}
+                type="button"
+                onClick={() => setStep("credentials")}
                 className="px-4 py-2.5 rounded-xl border border-[var(--color-border)] text-[var(--color-muted)] text-sm hover:text-[var(--color-fg)] transition-colors"
               >
                 Back
               </button>
               <button
+                type="button"
                 onClick={() => setStep("waiting")}
                 disabled={!cmds || tenantLoadError}
                 className="flex-1 py-2.5 rounded-xl bg-[var(--color-accent)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
               >
-                I've run the commands — Connect
+                {setupMode === "compose"
+                  ? "I've run Compose — Connect"
+                  : "I've run the commands — Connect"}
               </button>
             </div>
           </div>
@@ -1008,9 +1320,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                       Agent not detected yet
                     </p>
                     <p className="text-[11px] text-amber-400/80 mt-0.5">
-                      Make sure both Docker commands ran without errors. The
-                      agent can take up to 60 seconds on first run while it
-                      pulls the image.
+                      Make sure Docker finished the setup (Compose, script, or
+                      commands) without errors. The agent can take up to 60
+                      seconds on first run while it pulls the image.
                     </p>
                   </div>
                 </div>
