@@ -10,6 +10,7 @@ import { createLogger } from "../lib/logger.js";
 import { DiscoveryService } from "../services/discovery.service.js";
 import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
 import { ngrokTunnelRequestHeaders } from "../lib/ngrok-tunnel-headers.js";
+import { describeNgrokErrorPage } from "../lib/ngrok-error-page.js";
 
 const logger = createLogger("stream-routes");
 
@@ -263,9 +264,25 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   }
 
   if (!go2rtcResponse || !go2rtcResponse.ok) {
+    const ngrokHint = describeNgrokErrorPage(lastError);
+    if (ngrokHint) {
+      const isBandwidth =
+        lastError.includes("ERR_NGROK_725") ||
+        lastError.toLowerCase().includes("bandwidth limit");
+      logger.error("go2rtc WHEP failed: ngrok error page", {
+        cameraId,
+        code: isBandwidth ? "ERR_NGROK_725" : "ngrok_html",
+        snippet: lastError.slice(0, 200),
+      });
+      throw new ApiError(
+        isBandwidth ? "TUNNEL_QUOTA_EXCEEDED" : "TUNNEL_UPSTREAM_ERROR",
+        ngrokHint,
+        503,
+      );
+    }
     logger.error("go2rtc WHEP failed after retries", {
       cameraId,
-      lastError,
+      lastError: lastError.slice(0, 500),
     });
     throw new ApiError(
       "STREAM_ERROR",
@@ -390,6 +407,23 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
       const looksLikeNgrokHtml =
         ct.includes("text/html") ||
         body.trimStart().toLowerCase().startsWith("<!doctype");
+      const ngrokHint = describeNgrokErrorPage(body);
+      if (ngrokHint) {
+        const isBandwidth =
+          body.includes("ERR_NGROK_725") ||
+          body.toLowerCase().includes("bandwidth limit");
+        logger.error("Snapshot: ngrok error page", {
+          cameraId,
+          snapUrl,
+          status: resp.status,
+          code: isBandwidth ? "ERR_NGROK_725" : "ngrok_html",
+        });
+        throw new ApiError(
+          isBandwidth ? "TUNNEL_QUOTA_EXCEEDED" : "TUNNEL_UPSTREAM_ERROR",
+          ngrokHint,
+          503,
+        );
+      }
       logger.error("Snapshot: non-OK response", {
         cameraId,
         snapUrl,

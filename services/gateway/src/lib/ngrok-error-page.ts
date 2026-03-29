@@ -3,7 +3,7 @@
  * or policies block traffic. Parse the body so operators see the real reason.
  */
 export function describeNgrokErrorPage(body: string): string | null {
-  if (!body || body.length < 50) return null;
+  if (!body?.trim()) return null;
   const lower = body.toLowerCase();
   if (!lower.includes("ngrok") && !body.includes("ERR_NGROK")) return null;
 

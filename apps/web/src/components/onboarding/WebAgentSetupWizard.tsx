@@ -18,6 +18,11 @@ import {
   Package,
 } from "lucide-react";
 import { getTenantIdFromAccessToken } from "@/lib/jwt";
+import {
+  getLocalNgrokAuthtoken,
+  setLocalNgrokAuthtoken,
+  NGROK_AUTHTOKEN_MIN_LEN,
+} from "@/lib/local-agent-credentials";
 
 export const WEB_SETUP_KEY = "osp_web_agent_setup_complete";
 
@@ -39,8 +44,6 @@ const EDGE_BUNDLE_ZIP_URL =
 const NGROK_SIGNUP_URL = "https://dashboard.ngrok.com/signup";
 const NGROK_AUTHTOKEN_URL =
   "https://dashboard.ngrok.com/get-started/your-authtoken";
-
-const NGROK_TOKEN_MIN_LEN = 20;
 
 type OS = "windows" | "mac" | "linux";
 type Step = "welcome" | "docker" | "credentials" | "run" | "waiting" | "done";
@@ -416,7 +419,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const [os, setOs] = useState<OS>(detectOS);
   /** Default: Compose + zip — everything else is “advanced”. */
   const [setupMode, setSetupMode] = useState<SetupMode>("compose");
-  const [ngrokToken, setNgrokToken] = useState("");
+  const [ngrokToken, setNgrokToken] = useState(() =>
+    typeof window === "undefined" ? "" : getLocalNgrokAuthtoken(),
+  );
   const [apiToken, setApiToken] = useState<string | null>(null);
   const [manualApiToken, setManualApiToken] = useState("");
   const [apiKeySource, setApiKeySource] = useState<ApiKeySource>("auto");
@@ -492,9 +497,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const handleCredentialsContinue = useCallback(async () => {
     setCredentialsHint(null);
     const ng = ngrokToken.trim();
-    if (ng.length < NGROK_TOKEN_MIN_LEN) {
+    if (ng.length < NGROK_AUTHTOKEN_MIN_LEN) {
       setCredentialsHint(
-        `Ngrok authtoken must be at least ${NGROK_TOKEN_MIN_LEN} characters.`,
+        `Ngrok authtoken must be at least ${NGROK_AUTHTOKEN_MIN_LEN} characters.`,
       );
       return;
     }
@@ -510,6 +515,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
         if (!ok) return;
       }
     }
+    setLocalNgrokAuthtoken(ng);
     setStep("run");
   }, [
     ngrokToken,
@@ -524,7 +530,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
       ? (apiToken ?? "").trim()
       : manualApiToken.trim();
   const ngrokTrimmed = ngrokToken.trim();
-  const ngrokValid = ngrokTrimmed.length >= NGROK_TOKEN_MIN_LEN;
+  const ngrokValid = ngrokTrimmed.length >= NGROK_AUTHTOKEN_MIN_LEN;
   const apiTokenReady = effectiveApiToken.length > 0;
 
   // ── Poll for agent connection ─────────────────────────────────────────────────

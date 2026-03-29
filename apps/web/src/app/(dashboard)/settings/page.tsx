@@ -17,6 +17,13 @@ import {
   showNativeNotification,
 } from "@/lib/tauri";
 import {
+  getLocalNgrokAuthtoken,
+  setLocalNgrokAuthtoken,
+  clearLocalNgrokAuthtoken,
+  NGROK_AUTHTOKEN_MIN_LEN,
+  NGROK_AUTHTOKEN_DASHBOARD_URL,
+} from "@/lib/local-agent-credentials";
+import {
   Camera as CameraIcon,
   Users,
   Shield,
@@ -49,6 +56,7 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -2036,6 +2044,105 @@ function LprTab() {
 
 // ─── Edge Agents Tab ────────────────────────────────────────────────────────
 
+function LocalPcAgentNgrokSettings() {
+  const [draft, setDraft] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+
+  useEffect(() => {
+    setDraft(getLocalNgrokAuthtoken());
+  }, []);
+
+  const handleSave = () => {
+    const t = draft.trim();
+    if (t.length > 0 && t.length < NGROK_AUTHTOKEN_MIN_LEN) {
+      showToast(
+        `Ngrok authtoken should be at least ${NGROK_AUTHTOKEN_MIN_LEN} characters.`,
+        "error",
+      );
+      return;
+    }
+    setLocalNgrokAuthtoken(t);
+    showToast(
+      t.length > 0
+        ? "Ngrok authtoken saved in this browser"
+        : "Ngrok authtoken cleared from this browser",
+      "success",
+    );
+  };
+
+  const handleClear = () => {
+    clearLocalNgrokAuthtoken();
+    setDraft("");
+    showToast("Ngrok authtoken removed from this browser", "success");
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <h4 className="mb-1 text-sm font-medium text-zinc-200">
+        PC agent — ngrok authtoken
+      </h4>
+      <p className="mb-3 text-xs text-zinc-500 leading-relaxed">
+        Saved only in this browser (not on OSP servers). It pre-fills the
+        camera connection wizard and the values used when you download{" "}
+        <code className="text-zinc-400">.env.agent</code>. After you change it
+        here, update <code className="text-zinc-400">NGROK_AUTHTOKEN</code> in
+        your local Docker / Compose files and restart the{" "}
+        <code className="text-zinc-400">osp-ngrok</code> container so the tunnel
+        uses the new token.
+      </p>
+      <p className="mb-2 text-xs text-zinc-500">
+        <a
+          href={NGROK_AUTHTOKEN_DASHBOARD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300"
+        >
+          Get or rotate your authtoken in ngrok
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </p>
+      <div className="relative">
+        <input
+          type={showSecret ? "text" : "password"}
+          autoComplete="off"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Paste ngrok authtoken"
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 py-2 pl-3 pr-10 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => setShowSecret((s) => !s)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 hover:text-zinc-300"
+          aria-label={showSecret ? "Hide token" : "Show token"}
+        >
+          {showSecret ? (
+            <EyeOff className="h-4 w-4" />
+          ) : (
+            <Eye className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={handleClear}
+          className="rounded-md border border-zinc-600 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface EdgeAgent {
   id: string;
   agent_id: string;
@@ -2129,6 +2236,8 @@ function EdgeAgentsTab() {
           Refresh
         </button>
       </div>
+
+      <LocalPcAgentNgrokSettings />
 
       {/* Setup instructions */}
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
