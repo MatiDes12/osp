@@ -118,6 +118,67 @@ streamRoutes.get("/:id/stream", requireAuth("viewer"), async (c) => {
   );
 });
 
+// ── Shared helper: ensure go2rtc has an active producer for a stream ─────────
+// Checks whether go2rtc has a live RTSP connection for the given stream.
+// If not, registers it and waits up to 3s for a producer to appear.
+// Always resolves (non-throwing) — callers should proceed regardless.
+async function ensureStreamActive(
+  go2rtcUrl: string,
+  cameraId: string,
+  connectionUri: string | null,
+): Promise<void> {
+  try {
+    const checkRes = await fetch(
+      `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
+      { signal: AbortSignal.timeout(3000), headers: ngrokTunnelRequestHeaders },
+    ).catch(() => null);
+
+    // Consider the stream missing if the check fails or returns 404
+    const data = checkRes?.ok
+      ? ((await checkRes.json().catch(() => ({}))) as Record<string, unknown>)
+      : {};
+    const hasProducer =
+      Array.isArray(data?.producers) && (data.producers as unknown[]).length > 0;
+
+    if (!hasProducer && connectionUri) {
+      logger.info("ensureStreamActive: no producer, auto-registering", {
+        cameraId,
+      });
+      const streamService = getStreamService();
+      await streamService.addStream(cameraId, connectionUri);
+
+      // Wait up to 3s for a producer to appear (6 × 500ms)
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        const poll = await fetch(
+          `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
+          {
+            signal: AbortSignal.timeout(2000),
+            headers: ngrokTunnelRequestHeaders,
+          },
+        ).catch(() => null);
+        if (poll?.ok) {
+          const pollData = (await poll
+            .json()
+            .catch(() => ({}))) as Record<string, unknown>;
+          if (
+            Array.isArray(pollData?.producers) &&
+            (pollData.producers as unknown[]).length > 0
+          ) {
+            logger.info("ensureStreamActive: producer connected", { cameraId });
+            break;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn("ensureStreamActive failed, continuing anyway", {
+      cameraId,
+      error: String(err),
+    });
+  }
+}
+
 // POST /api/v1/cameras/:id/whep - Proxy WHEP SDP offer to go2rtc
 streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   const cameraId = c.req.param("id");
@@ -173,49 +234,11 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   // Check if the stream is registered in go2rtc. If not, register it now.
   // This handles the case where go2rtc was restarted and lost its dynamic streams.
-  const ngrokHeaders = { ...ngrokTunnelRequestHeaders };
-
-  const streamCheckRes = await fetch(
-    `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-    { signal: AbortSignal.timeout(3000), headers: ngrokHeaders },
-  ).catch(() => null);
-
-  const streamMissing = !streamCheckRes || streamCheckRes.status === 404;
-  const connectionUri = camera.connection_uri as string | null;
-
-  if (streamMissing && connectionUri) {
-    logger.info("Stream not in go2rtc, auto-registering", { cameraId });
-    const streamService = getStreamService();
-    try {
-      await streamService.addStream(cameraId, connectionUri);
-      // Give go2rtc up to 3s to connect to the source
-      for (let i = 0; i < 6; i++) {
-        await new Promise((r) => setTimeout(r, 500));
-        const check = await fetch(
-          `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-          { signal: AbortSignal.timeout(2000), headers: ngrokHeaders },
-        ).catch(() => null);
-        if (check?.ok) {
-          const data = (await check.json().catch(() => ({}))) as Record<
-            string,
-            unknown
-          >;
-          const producers = data?.producers;
-          if (Array.isArray(producers) && producers.length > 0) {
-            logger.info("Stream connected after auto-registration", {
-              cameraId,
-            });
-            break;
-          }
-        }
-      }
-    } catch (err) {
-      logger.warn("Auto-registration failed, proceeding anyway", {
-        cameraId,
-        error: String(err),
-      });
-    }
-  }
+  await ensureStreamActive(
+    go2rtcUrl,
+    cameraId,
+    camera.connection_uri as string | null,
+  );
 
   // go2rtc may need a moment to connect to the RTSP source on first request.
   // Retry up to 3 times with a short delay.
@@ -704,7 +727,7 @@ streamRoutes.get("/:id/live.mp4", requireAuth("viewer"), async (c) => {
 
   const { data: camera, error } = await supabase
     .from("cameras")
-    .select("id")
+    .select("id, connection_uri")
     .eq("id", cameraId)
     .eq("tenant_id", tenantId)
     .single();
@@ -716,6 +739,16 @@ streamRoutes.get("/:id/live.mp4", requireAuth("viewer"), async (c) => {
   // Prefer edge agent's ngrok URL, fall back to local go2rtc
   const edgeUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
   const go2rtcBase = edgeUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+
+  // Pre-connect: ensure go2rtc has an active RTSP producer before we start
+  // streaming fMP4. Without this, go2rtc would reconnect mid-request, adding
+  // 2-5s of idle-reconnect delay on top of the keyframe wait.
+  await ensureStreamActive(
+    go2rtcBase,
+    cameraId,
+    camera.connection_uri as string | null,
+  );
+
   const mp4Url = `${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
 
   logger.info("Proxying live MP4 stream", { cameraId, target: mp4Url, viaEdge: !!edgeUrl });

@@ -453,7 +453,7 @@ function MseHttpFallback({
               if (!initialSeekDone && video.buffered.length > 0) {
                 initialSeekDone = true;
                 const liveEnd = video.buffered.end(video.buffered.length - 1);
-                video.currentTime = Math.max(0, liveEnd - 0.1);
+                video.currentTime = liveEnd; // snap to absolute latest on first chunk
                 console.log("[MSE-HTTP] Initial seek to live edge:", liveEnd.toFixed(2));
               }
             }
@@ -474,21 +474,34 @@ function MseHttpFallback({
       }
     });
 
-    video.play().catch(() => {});
+        video.play().catch(() => {});
+
+    // Every 3s: trim old buffer so we never accumulate more than 5s behind live edge.
+    // Without this the SourceBuffer grows unboundedly, causing QuotaExceededError and
+    // increasing live-edge lag over time.
+    const proactiveTrim = setInterval(() => {
+      if (!sb || sb.updating || !video.buffered.length) return;
+      const start = video.buffered.start(0);
+      const end = video.buffered.end(video.buffered.length - 1);
+      if (end - start > 5) {
+        try { sb.remove(start, end - 3); } catch { /* ignore */ }
+      }
+    }, 3000);
 
     // Keep playback near the live edge — very aggressive for low latency
     const liveEdge = setInterval(() => {
       if (video.buffered.length > 0) {
         const end = video.buffered.end(video.buffered.length - 1);
         const behind = end - video.currentTime;
-        if (behind > 0.8) {
-          video.currentTime = end - 0.1;
+        if (behind > 0.5) {
+          video.currentTime = end - 0.05;
         }
       }
-    }, 500);
+    }, 250);
 
     return () => {
       destroyed = true;
+      clearInterval(proactiveTrim);
       clearInterval(liveEdge);
       abortCtrl.abort();
       if (ms.readyState === "open") {
