@@ -265,11 +265,45 @@ edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
       },
     });
     const latency = Date.now() - start;
+
     if (!resp.ok) {
-      return c.json(createSuccessResponse({ status: "down", latency_ms: latency, error: `HTTP ${resp.status}` }));
+      const body = await resp.text().catch(() => "");
+      const ct = resp.headers.get("content-type") ?? "";
+      const isHtml = ct.includes("text/html") || body.trimStart().toLowerCase().startsWith("<!doctype");
+
+      if (isHtml && body.includes("ERR_NGROK_725")) {
+        return c.json(createSuccessResponse({
+          status: "tunnel_quota_exceeded",
+          latency_ms: latency,
+          error: "Monthly bandwidth limit reached (ERR_NGROK_725)",
+          error_code: "ERR_NGROK_725",
+          upgrade_url: "https://dashboard.ngrok.com/billing",
+        }));
+      }
+
+      if (isHtml && body.includes("ERR_NGROK_")) {
+        const m = body.match(/ERR_NGROK_\d+/);
+        return c.json(createSuccessResponse({
+          status: "tunnel_error",
+          latency_ms: latency,
+          error: `Ngrok error page returned (${m?.[0] ?? "unknown"})`,
+          error_code: m?.[0] ?? "ERR_NGROK_UNKNOWN",
+        }));
+      }
+
+      return c.json(createSuccessResponse({
+        status: "down",
+        latency_ms: latency,
+        error: `HTTP ${resp.status}`,
+      }));
     }
+
     const streams = (await resp.json()) as Record<string, unknown>;
-    return c.json(createSuccessResponse({ status: "up", latency_ms: latency, streams: Object.keys(streams).length }));
+    return c.json(createSuccessResponse({
+      status: "up",
+      latency_ms: latency,
+      streams: Object.keys(streams).length,
+    }));
   } catch (err) {
     return c.json(createSuccessResponse({
       status: "down",

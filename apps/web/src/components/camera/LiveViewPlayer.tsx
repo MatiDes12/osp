@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { isTauri } from "@/lib/tauri";
+import { getUseMeteredTurn } from "@/lib/webrtc-prefs";
 
 interface LiveViewPlayerProps {
   readonly cameraId: string;
@@ -29,10 +30,31 @@ type PlayerState = "loading" | "connecting" | "live" | "fallback" | "fallback-ht
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const WEBRTC_TIMEOUT_MS = 12000;
 
-// Per-camera session cache so repeat visits skip the API fetch and know
-// whether WebRTC is viable (it never is through a Cloudflare tunnel).
+// Per-camera + ICE-mode session cache so repeat visits skip the API fetch.
 const streamInfoCache = new Map<string, StreamInfo>();
-const webrtcFailed = new Set<string>(); // cameras where WebRTC failed this session
+// Cameras where WebRTC failed this session (key includes STUN-only vs TURN mode).
+const webrtcFailed = new Set<string>();
+
+const STUN_ONLY_ICE: StreamInfo["iceServers"] = [
+  { urls: ["stun:stun.l.google.com:19302"] },
+];
+
+function streamCacheKey(cameraId: string): string {
+  return `${cameraId}\0${getUseMeteredTurn() ? "turn" : "direct"}`;
+}
+
+function iceServersForLiveView(
+  apiServers: StreamInfo["iceServers"],
+): StreamInfo["iceServers"] {
+  if (getUseMeteredTurn()) {
+    return apiServers.map((s) => ({
+      urls: s.urls,
+      username: s.username,
+      credential: s.credential,
+    }));
+  }
+  return STUN_ONLY_ICE;
+}
 
 // ---------------------------------------------------------------------------
 // Module-level connection pool — survives React component unmounts.
@@ -45,6 +67,7 @@ interface PoolEntry {
   stream: MediaStream;
   streamInfo: StreamInfo;
   lastActiveAt: number;
+  useMeteredTurn: boolean;
 }
 
 const connectionPool = new Map<string, PoolEntry>();
@@ -70,6 +93,11 @@ if (typeof window !== "undefined") {
 function getPoolEntry(cameraId: string): PoolEntry | null {
   const entry = connectionPool.get(cameraId);
   if (!entry) return null;
+  if (entry.useMeteredTurn !== getUseMeteredTurn()) {
+    entry.pc.close();
+    connectionPool.delete(cameraId);
+    return null;
+  }
   // Only reuse if the connection is healthy and has live video
   const pcOk =
     entry.pc.connectionState === "connected" ||
@@ -566,6 +594,10 @@ export function LiveViewPlayer({
   const [state, setState] = useState<PlayerState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<StreamInfo | null>(null);
+  // Incremented on each MSE-HTTP drop to force MseHttpFallback to re-mount.
+  // After MSE_HTTP_MAX_RETRIES consecutive drops, we give up and show an error.
+  const [mseHttpRetry, setMseHttpRetry] = useState(0);
+  const MSE_HTTP_MAX_RETRIES = 3;
 
   // Snapshot shown while WebRTC is connecting (instant visual feedback)
   const [snapshotDataUrl, setSnapshotDataUrl] = useState<string | null>(null);
@@ -655,8 +687,8 @@ export function LiveViewPlayer({
   const fallbackToHLS = useCallback(
     (info: StreamInfo) => {
       teardown();
-      // Remember that WebRTC failed for this camera so next visit skips straight to fallback
-      webrtcFailed.add(cameraId);
+      // Remember that WebRTC failed for this camera + ICE mode
+      webrtcFailed.add(streamCacheKey(cameraId));
 
       // On HTTPS, skip WebSocket MSE (ngrok doesn't relay WS frames reliably)
       // and go straight to HTTP-based MSE streaming
@@ -726,6 +758,7 @@ export function LiveViewPlayer({
                 stream: pendingStream,
                 streamInfo: info,
                 lastActiveAt: Date.now(),
+                useMeteredTurn: getUseMeteredTurn(),
               });
 
               // Verify actual video frames are rendering — ICE may report
@@ -815,7 +848,8 @@ export function LiveViewPlayer({
     setErrorMessage(null);
     try {
       // Use cached stream info if available — avoids API round-trip on repeat visits
-      let info: StreamInfo | undefined = streamInfoCache.get(cameraId);
+      const cacheKey = streamCacheKey(cameraId);
+      let info: StreamInfo | undefined = streamInfoCache.get(cacheKey);
 
       if (!info) {
         if (isTauri()) {
@@ -865,15 +899,20 @@ export function LiveViewPlayer({
             info = json.data ?? json;
           }
         }
-        streamInfoCache.set(cameraId, info as StreamInfo);
+        const raw = info as StreamInfo;
+        info = {
+          ...raw,
+          iceServers: iceServersForLiveView(raw.iceServers),
+        };
+        streamInfoCache.set(cacheKey, info);
       }
 
       const resolvedInfo = info as StreamInfo;
       setStreamInfo(resolvedInfo);
       streamInfoRef.current = resolvedInfo;
 
-      // If WebRTC already failed for this camera this session, skip straight to fallback
-      if (webrtcFailed.has(cameraId)) {
+      // If WebRTC already failed for this camera + ICE mode this session, skip fallback path
+      if (webrtcFailed.has(streamCacheKey(cameraId))) {
         setState(
           typeof window !== "undefined" && window.location.protocol === "https:"
             ? "fallback-http"
@@ -882,8 +921,8 @@ export function LiveViewPlayer({
         return;
       }
 
-      // Try WebRTC first — with a TURN server, it works even on HTTPS
-      // through tunnel/Docker networking. Falls back to HTTP MSE if it fails.
+      // Try WebRTC first (ICE from Settings: TURN off = STUN-only by default).
+      // Falls back to HTTP MSE if it fails.
       await connectWebRTC(resolvedInfo);
     } catch (err) {
       const message =
@@ -938,6 +977,7 @@ export function LiveViewPlayer({
           stream,
           streamInfo: info,
           lastActiveAt: Date.now(),
+          useMeteredTurn: getUseMeteredTurn(),
         });
         detachFromDom();
         pcRef.current = null;
@@ -977,7 +1017,8 @@ export function LiveViewPlayer({
       connectionPool.delete(cameraId);
     }
     // Clear failure flag so manual reconnect retries WebRTC
-    webrtcFailed.delete(cameraId);
+    webrtcFailed.delete(streamCacheKey(cameraId));
+    setMseHttpRetry(0); // reset drop counter on manual reconnect
     teardown();
     void fetchStreamAndConnect();
   }, [cameraId, teardown, fetchStreamAndConnect]);
@@ -1067,21 +1108,28 @@ export function LiveViewPlayer({
     if (typeof MediaSource !== "undefined") {
       return (
         <MseHttpFallback
+          key={mseHttpRetry}
           httpUrl={httpUrl}
           cameraId={cameraId}
           cameraName={cameraName}
           className={className}
           onError={() => {
-            streamInfoCache.delete(cameraId);
-            setErrorMessage("Stream unavailable");
-            setState("error");
+            if (mseHttpRetry < MSE_HTTP_MAX_RETRIES) {
+              // Stream dropped (connection reset / ngrok hiccup) — re-mount after a short pause
+              console.log(`[LiveView] MSE-HTTP drop #${mseHttpRetry + 1}, retrying...`);
+              setTimeout(() => setMseHttpRetry((n) => n + 1), 1500);
+            } else {
+              streamInfoCache.delete(streamCacheKey(cameraId));
+              setErrorMessage("Stream unavailable");
+              setState("error");
+            }
           }}
           onReconnect={handleReconnect}
         />
       );
     }
 
-    streamInfoCache.delete(cameraId);
+    streamInfoCache.delete(streamCacheKey(cameraId));
     setErrorMessage("Stream unavailable — browser does not support MediaSource");
     setState("error");
   }

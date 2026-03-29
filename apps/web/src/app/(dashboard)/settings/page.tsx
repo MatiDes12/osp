@@ -24,6 +24,10 @@ import {
   NGROK_AUTHTOKEN_DASHBOARD_URL,
 } from "@/lib/local-agent-credentials";
 import {
+  getUseMeteredTurn,
+  setUseMeteredTurn,
+} from "@/lib/webrtc-prefs";
+import {
   Camera as CameraIcon,
   Users,
   Shield,
@@ -41,6 +45,8 @@ import {
   X,
   Check,
   AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
   Loader2,
   Bell,
   Clock,
@@ -2044,6 +2050,222 @@ function LprTab() {
 
 // ─── Edge Agents Tab ────────────────────────────────────────────────────────
 
+type TunnelStatus =
+  | "loading"
+  | "not_configured"
+  | "up"
+  | "down"
+  | "tunnel_error"
+  | "tunnel_quota_exceeded";
+
+interface TunnelHealth {
+  status: TunnelStatus;
+  latency_ms?: number;
+  streams?: number;
+  error?: string;
+  error_code?: string;
+  upgrade_url?: string;
+}
+
+function TunnelHealthCard() {
+  const [health, setHealth] = useState<TunnelHealth>({ status: "loading" });
+  const [checking, setChecking] = useState(false);
+
+  const check = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setChecking(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/edge/agents/go2rtc-status`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { data: TunnelHealth };
+        setHealth(json.data ?? { status: "down" });
+      } else {
+        setHealth({ status: "down", error: `Gateway returned ${res.status}` });
+      }
+    } catch {
+      setHealth({ status: "down", error: "Could not reach gateway" });
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+
+  // Poll every 30s automatically
+  useEffect(() => {
+    void check(false);
+    const iv = setInterval(() => void check(false), 30_000);
+    return () => clearInterval(iv);
+  }, [check]);
+
+  const { status, latency_ms, streams, error, error_code, upgrade_url } = health;
+
+  const isQuotaExceeded = status === "tunnel_quota_exceeded";
+  const isTunnelError = status === "tunnel_error";
+  const isDown = status === "down";
+  const isUp = status === "up";
+  const isNotConfigured = status === "not_configured";
+
+  const borderColor = isQuotaExceeded
+    ? "border-red-700"
+    : isTunnelError || isDown
+      ? "border-amber-700"
+      : isUp
+        ? "border-green-800"
+        : "border-zinc-800";
+
+  return (
+    <div className={`rounded-lg border ${borderColor} bg-zinc-900 p-4`}>
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="text-sm font-medium text-zinc-200 flex items-center gap-2">
+          {status === "loading" && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+          {isUp && <CheckCircle2 className="h-4 w-4 text-green-400" />}
+          {(isDown || isTunnelError) && <AlertCircle className="h-4 w-4 text-amber-400" />}
+          {isQuotaExceeded && <AlertTriangle className="h-4 w-4 text-red-400" />}
+          {isNotConfigured && <WifiOff className="h-4 w-4 text-zinc-500" />}
+          Tunnel health
+        </h4>
+        <button
+          type="button"
+          onClick={() => void check(true)}
+          disabled={checking}
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3 w-3 ${checking ? "animate-spin" : ""}`} />
+          Check now
+        </button>
+      </div>
+
+      {/* Status row */}
+      {status === "loading" && (
+        <p className="text-xs text-zinc-500">Checking tunnel…</p>
+      )}
+
+      {isNotConfigured && (
+        <p className="text-xs text-zinc-500">
+          No online edge agent found. Start the agent and it will appear here.
+        </p>
+      )}
+
+      {isUp && (
+        <div className="flex flex-wrap gap-4 text-xs">
+          <span className="flex items-center gap-1 text-green-400">
+            <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
+            Tunnel OK
+          </span>
+          {latency_ms !== undefined && (
+            <span className="text-zinc-400">Latency: <span className="text-zinc-200">{latency_ms} ms</span></span>
+          )}
+          {streams !== undefined && (
+            <span className="text-zinc-400">Active streams: <span className="text-zinc-200">{streams}</span></span>
+          )}
+        </div>
+      )}
+
+      {(isDown || isTunnelError) && (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-amber-400">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+            Tunnel unreachable
+            {error_code && <span className="ml-1 font-mono text-amber-300">({error_code})</span>}
+          </div>
+          {error && <p className="text-xs text-zinc-400">{error}</p>}
+        </div>
+      )}
+
+      {isQuotaExceeded && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-xs text-red-400 font-medium">
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            Monthly bandwidth limit reached
+            <span className="ml-1 font-mono">(ERR_NGROK_725)</span>
+          </div>
+          <p className="text-xs text-zinc-300 leading-relaxed">
+            Your ngrok free-tier account has used its monthly data allowance.
+            Live video streams are paused until the limit resets or you upgrade.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <a
+              href={upgrade_url ?? "https://dashboard.ngrok.com/billing"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md bg-red-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600"
+            >
+              Upgrade ngrok plan
+              <ExternalLink className="h-3 w-3" />
+            </a>
+            <a
+              href="https://dashboard.ngrok.com/get-started/your-authtoken"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-600 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800"
+            >
+              Get a new authtoken
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeteredTurnRelaySettings() {
+  const [useTurn, setUseTurn] = useState(false);
+
+  useEffect(() => {
+    setUseTurn(getUseMeteredTurn());
+  }, []);
+
+  const handleToggle = () => {
+    const next = !useTurn;
+    setUseTurn(next);
+    setUseMeteredTurn(next);
+    showToast(
+      next
+        ? "TURN relay enabled. Open or refresh a live camera view to apply."
+        : "STUN-only mode (default). Open or refresh a live camera view to apply.",
+      "success",
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Globe className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-zinc-200">
+              WebRTC TURN relay (Metered)
+            </p>
+            <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+              Off by default for lower latency when your network and tunnel allow
+              direct WebRTC. Turn on if live video fails behind strict NAT or
+              firewalls (uses your gateway&apos;s TURN credentials when
+              configured).
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleToggle}
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-150 cursor-pointer ${
+            useTurn ? "bg-sky-600" : "bg-zinc-700"
+          }`}
+          role="switch"
+          aria-checked={useTurn}
+          aria-label="Use TURN relay for WebRTC"
+        >
+          <span
+            className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 ${
+              useTurn ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LocalPcAgentNgrokSettings() {
   const [draft, setDraft] = useState("");
   const [showSecret, setShowSecret] = useState(false);
@@ -2236,6 +2458,10 @@ function EdgeAgentsTab() {
           Refresh
         </button>
       </div>
+
+      <TunnelHealthCard />
+
+      <MeteredTurnRelaySettings />
 
       <LocalPcAgentNgrokSettings />
 
