@@ -683,7 +683,7 @@ Core E2E flows: login -> camera grid · add camera -> live view · create rule -
 
 **Dev**: `infra/docker/docker-compose.yml` — Supabase local stack, Redis, ClickHouse, go2rtc.
 
-**Edge agent**: `infra/docker/docker-compose.agent.yml` — go2rtc + osp-agent.
+**Edge agent**: `infra/docker/docker-compose.agent.yml` — go2rtc + ngrok + osp-agent. **Production client install (no repo):** [`infra/docker/edge/README.md`](../infra/docker/edge/README.md) · [`docs/CLIENT_SETUP.md`](CLIENT_SETUP.md) Option B.
 
 **Prod**: `infra/k8s/` — HPA, resource limits, pod disruption budgets.
 

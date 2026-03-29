@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSP Agent — Docker Desktop (Windows / Mac) ONLY
+#
+# Use this file alone (do not merge with docker-compose.agent.yml — merge breaks).
+# Publishes go2rtc :1984 and ngrok API :4040 to localhost so your browser can open
+# http://localhost:1984/ . Default docker-compose.agent.yml uses host networking,
+# which Docker Desktop does not map to your PC's localhost (ERR_CONNECTION_REFUSED).
+#
+# Tradeoff vs Linux host network: ONVIF / mDNS camera discovery may be limited.
+#
+#   docker compose --env-file .env.agent -f docker-compose.agent.win.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: osp-go2rtc
+    restart: unless-stopped
+    ports:
+      - "1984:1984"
+    volumes:
+      - ./go2rtc.agent.yaml:/config/go2rtc.yaml:ro
+      - go2rtc-data:/data
+    environment:
+      - TZ=${TZ:-UTC}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:1984/api/streams"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - osp-agent
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: osp-ngrok
+    restart: unless-stopped
+    command: http go2rtc:1984 --log stdout
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    depends_on:
+      go2rtc:
+        condition: service_healthy
+    networks:
+      - osp-agent
+
+  osp-agent:
+    image: ${OSP_EDGE_AGENT_IMAGE:-ghcr.io/matides12/osp-edge-agent:latest}
+    container_name: osp-agent
+    restart: unless-stopped
+    depends_on:
+      go2rtc:
+        condition: service_healthy
+      ngrok:
+        condition: service_started
+    environment:
+      - CLOUD_GATEWAY_URL=${CLOUD_GATEWAY_URL:-https://osp-gateway.fly.dev}
+      - TENANT_ID=${TENANT_ID}
+      - CLOUD_API_TOKEN=${CLOUD_API_TOKEN}
+      - GO2RTC_URL=http://go2rtc:1984
+      - NGROK_API_URL=http://ngrok:4040
+      - TZ=${TZ:-UTC}
+    networks:
+      - osp-agent
+
+networks:
+  osp-agent:
+    driver: bridge
+
+volumes:
+  go2rtc-data:

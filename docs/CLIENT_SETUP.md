@@ -33,10 +33,17 @@ That's it. The camera engine starts automatically every time you open OSP.
 
 Use this option if you want the agent running on a home server, NAS (Synology, QNAP, Unraid), or any machine without a desktop.
 
+**You do not need the OSP source code.** Production install uses Docker Compose plus a few config files — either downloaded with `curl` from GitHub or from a ZIP your operator provides.
+
+Full step-by-step (credentials, ngrok, Linux vs Windows compose files): **[`infra/docker/edge/README.md`](../infra/docker/edge/README.md)** (also packaged as `README.md` inside the edge bundle).
+
+**Easiest for customers:** download **`osp-edge-bundle.zip`** from [GitHub Releases](https://github.com/MatiDes12/osp/releases) (built automatically on every `v*` tag).
+
 ### Requirements
 
 - A computer or NAS on the **same local network** as your cameras
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows / macOS) or [Docker Engine](https://docs.docker.com/engine/install/) (Linux / NAS)
+- A free [ngrok](https://dashboard.ngrok.com/signup) account and [authtoken](https://dashboard.ngrok.com/get-started/your-authtoken) (tunnel so the cloud can reach your local camera proxy)
 
 ---
 
@@ -46,6 +53,8 @@ Log in to your OSP dashboard, then:
 
 1. Go to **Settings → General** and copy your **Tenant ID**.
 2. Go to **Settings → API Keys**, click **New Key**, give it a name like `home-agent`, and copy the key. You will only see it once.
+
+If you use a **private or white-label** deployment, note your **gateway base URL** (e.g. `https://api.yourcompany.com`) for the `.env` file below.
 
 ---
 
@@ -68,35 +77,49 @@ Open **Package Center** → search for **Container Manager** → install it.
 
 ---
 
-### Step 3 — Run the agent
+### Step 3 — Download and run the stack (production)
 
-Open a terminal (Command Prompt or PowerShell on Windows) and run these two commands. Replace the placeholder values with your credentials from Step 1.
-
-**Start the camera proxy**
+**Option 1 — Release ZIP (recommended)** — from [Releases](https://github.com/MatiDes12/osp/releases), download **`osp-edge-bundle.zip`**, unzip, `cd osp-edge-bundle`, then:
 
 ```bash
-docker run -d --name osp-go2rtc --network host \
-  --restart unless-stopped \
-  alexxit/go2rtc
+cp env.example .env.agent
+# Edit .env.agent: CLOUD_GATEWAY_URL, TENANT_ID, CLOUD_API_TOKEN, NGROK_AUTHTOKEN, TZ
 ```
 
-> On Windows / macOS, replace `--network host` with `-p 1984:1984 -p 8554:8554 -p 8555:8555/udp`
-
-**Start the OSP agent**
+**Option 2 — `curl` raw files** (same content as the ZIP; use a **release tag** in `OSP_REF` when possible):
 
 ```bash
-docker run -d --name osp-agent --network host \
-  --restart unless-stopped \
-  -e GATEWAY_URL=https://osp-gateway.fly.dev \
-  -e TENANT_ID=YOUR_TENANT_ID \
-  -e API_TOKEN=YOUR_API_TOKEN \
-  -e GO2RTC_URL=http://localhost:1984 \
-  ghcr.io/matides12/osp-camera-ingest:latest
+mkdir osp-edge && cd osp-edge
+export OSP_REF=main
+
+curl -fsSL -o docker-compose.agent.yml \
+  "https://raw.githubusercontent.com/MatiDes12/osp/${OSP_REF}/infra/docker/docker-compose.agent.yml"
+curl -fsSL -o docker-compose.agent.win.yml \
+  "https://raw.githubusercontent.com/MatiDes12/osp/${OSP_REF}/infra/docker/docker-compose.agent.win.yml"
+curl -fsSL -o go2rtc.agent.yaml \
+  "https://raw.githubusercontent.com/MatiDes12/osp/${OSP_REF}/infra/docker/go2rtc.agent.yaml"
+curl -fsSL -o env.example \
+  "https://raw.githubusercontent.com/MatiDes12/osp/${OSP_REF}/infra/docker/.env.agent.example"
+
+cp env.example .env.agent
+# Edit .env.agent as above
 ```
 
-> On Windows / macOS, remove the `--network host` flag from the agent command.
+**Linux / NAS** (host networking — best for camera discovery):
 
-Both containers will restart automatically if your machine reboots.
+```bash
+docker compose --env-file .env.agent -f docker-compose.agent.yml up -d
+```
+
+**Windows / macOS (Docker Desktop)** — use this compose file so `http://localhost:1984` and the ngrok API port work:
+
+```bash
+docker compose --env-file .env.agent -f docker-compose.agent.win.yml up -d
+```
+
+This starts **go2rtc** (cameras), **ngrok** (tunnel), and **osp-agent** (`ghcr.io/matides12/osp-edge-agent`). Containers restart automatically after reboot when Docker is configured to do so.
+
+Maintainers can build a ZIP for customers: `./scripts/package-edge-bundle.sh` → `dist/osp-edge-bundle/`.
 
 ---
 
@@ -131,9 +154,10 @@ Once the agent is online, click **Add Camera** in the dashboard and enter your c
 
 ### Agent shows as offline
 
-- Make sure Docker is running (`docker ps` should list `osp-agent` and `osp-go2rtc`)
-- Check that your Tenant ID and API Token are correct (no extra spaces)
-- Restart the containers: `docker restart osp-agent osp-go2rtc`
+- Make sure Docker is running (`docker ps` should list `osp-agent`, `osp-go2rtc`, and `osp-ngrok`)
+- Check **Tenant ID**, **CLOUD_API_TOKEN**, and **NGROK_AUTHTOKEN** in `.env.agent` (no extra spaces; ngrok token must be real)
+- `docker logs osp-ngrok --tail 20` — look for `ERR_NGROK_4018` (bad/missing token)
+- Restart: `docker compose --env-file .env.agent -f docker-compose.agent.yml restart` (or `.win.yml` on Docker Desktop)
 
 ### Can't see camera stream
 
@@ -154,19 +178,20 @@ Then update `GO2RTC_URL=http://localhost:1985` in the agent command.
 ### Updating the agent
 
 ```bash
-docker pull ghcr.io/matides12/osp-camera-ingest:latest
-docker pull alexxit/go2rtc
-docker restart osp-agent osp-go2rtc
+docker compose --env-file .env.agent -f docker-compose.agent.yml pull
+docker compose --env-file .env.agent -f docker-compose.agent.yml up -d
 ```
+
+(On Docker Desktop, use `docker-compose.agent.win.yml` instead.)
 
 ---
 
 ## Uninstalling
 
 ```bash
-docker stop osp-agent osp-go2rtc
-docker rm osp-agent osp-go2rtc
-docker rmi ghcr.io/matides12/osp-camera-ingest:latest alexxit/go2rtc
+docker compose --env-file .env.agent -f docker-compose.agent.yml down
+# or: -f docker-compose.agent.win.yml
+docker rmi ghcr.io/matides12/osp-edge-agent:latest alexxit/go2rtc:latest ngrok/ngrok:latest 2>/dev/null || true
 ```
 
 The desktop app can be uninstalled through your system's normal app uninstaller.

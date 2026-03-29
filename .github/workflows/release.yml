@@ -77,6 +77,27 @@ jobs:
           name: ${{ matrix.service }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/${{ matrix.service }}-${{ matrix.goos }}-${{ matrix.goarch }}
 
+  # ─── Edge agent Docker bundle (ZIP for customers, no repo clone) ──
+  edge-bundle:
+    name: Edge agent bundle
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build osp-edge-bundle.zip
+        run: |
+          chmod +x scripts/package-edge-bundle.sh
+          ./scripts/package-edge-bundle.sh "${GITHUB_WORKSPACE}/dist/osp-edge-bundle"
+          (cd dist && zip -rq osp-edge-bundle.zip osp-edge-bundle)
+          ls -la dist/osp-edge-bundle.zip
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: osp-edge-bundle-zip
+          path: dist/osp-edge-bundle.zip
+
   # ─── Docker images (production tagged) ─────────────
   docker-release:
     name: Docker Release Images
@@ -87,7 +108,7 @@ jobs:
   # ─── Create GitHub Release ─────────────────────────
   github-release:
     name: Create Release
-    needs: [build-binaries, docker-release]
+    needs: [build-binaries, docker-release, edge-bundle]
     # Desktop installers are built and uploaded by desktop.yml in parallel.
     # That workflow appends its artifacts to the same release this job creates,
     # so no explicit dependency needed — both use upsert-style release actions.
@@ -140,6 +161,10 @@ jobs:
             ## Binaries
 
             Download the appropriate binary for your platform from the assets below.
+
+            ## Edge agent (on-prem Docker)
+
+            Download **`osp-edge-bundle.zip`** from the assets below. It contains Compose files, go2rtc config, and `README.md` for production install without cloning this repo. Set `OSP_REF=${{ github.ref_name }}` when using `curl` install URLs from [`infra/docker/edge/README.md`](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/infra/docker/edge/README.md).
           files: dist/*
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}

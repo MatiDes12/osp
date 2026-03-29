@@ -10,11 +10,15 @@
 #
 # Setup:
 #   1. Create infra/docker/.env.agent (see .env.agent.example) and fill in your values
-#   2. Local: docker compose --env-file .env.agent -f docker-compose.agent.yml up -d
+#   2. Linux / NAS: docker compose --env-file .env.agent -f docker-compose.agent.yml up -d
+#   3. Docker Desktop (Windows/Mac): use docker-compose.agent.win.yml instead of this file
+#      (host networking does not publish :1984 to your PC). Then http://localhost:1984/ works.
 #   Production / CI: inject CLOUD_*, TENANT_ID, NGROK_AUTHTOKEN, TZ (etc.) in the environment
 #   or use `docker compose --env-file /run/secrets/agent.env ...` — same variable names as below.
 #
 # Requirements: Docker + Docker Compose
+#
+# Production clients (no repo clone): see edge/README.md in this folder.
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -55,7 +59,7 @@ services:
 
   # ── OSP Agent: registers cameras with cloud gateway ──────────────────────
   osp-agent:
-    image: ghcr.io/matides12/osp-edge-agent:latest
+    image: ${OSP_EDGE_AGENT_IMAGE:-ghcr.io/matides12/osp-edge-agent:latest}
     container_name: osp-agent
     network_mode: host
     restart: unless-stopped

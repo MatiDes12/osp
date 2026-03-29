@@ -10,7 +10,8 @@
     "test:integration": "turbo test:integration",
     "smoke:motion": "./scripts/smoke-motion.sh",
     "clean": "turbo clean",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "package:edge": "bash scripts/package-edge-bundle.sh"
   },
   "devDependencies": {
     "prettier": "^3.5.0",

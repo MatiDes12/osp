@@ -30,9 +30,19 @@ const GATEWAY_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "https://osp-gateway.fly.dev";
 
+/** Official edge bundle from GitHub Releases (`osp-edge-bundle.zip`). Override for forks / private mirrors. */
+const EDGE_BUNDLE_ZIP_URL =
+  process.env.NEXT_PUBLIC_EDGE_BUNDLE_ZIP_URL ??
+  `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO ?? "MatiDes12/osp"}/releases/latest/download/osp-edge-bundle.zip`;
+
+const NGROK_SIGNUP_URL = "https://dashboard.ngrok.com/signup";
+const NGROK_AUTHTOKEN_URL =
+  "https://dashboard.ngrok.com/get-started/your-authtoken";
+
 type OS = "windows" | "mac" | "linux";
-type Step = "welcome" | "docker" | "run" | "waiting" | "done";
-type SetupMode = "download" | "terminal";
+type Step = "welcome" | "docker" | "ngrok" | "run" | "waiting" | "done";
+/** compose = Docker Compose zip + .env from this wizard (default, non-technical) */
+type SetupMode = "compose" | "download" | "terminal";
 
 interface WebAgentSetupWizardProps {
   readonly onComplete: () => void;
@@ -193,6 +203,30 @@ function buildSingleLineCommands(
   const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
   const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${apiToken} -e GO2RTC_URL=${go2rtcUrl} -e NGROK_API_URL=${ngrokApi} ghcr.io/matides12/osp-edge-agent:latest`;
   return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
+}
+
+function buildEnvAgentFileContent(params: {
+  gatewayUrl: string;
+  tenantId: string;
+  apiToken: string;
+  ngrokToken: string;
+  tz?: string;
+}): string {
+  const tz = params.tz ?? "UTC";
+  return `# OSP — generated from your dashboard (keep secret; do not share)
+CLOUD_GATEWAY_URL=${params.gatewayUrl}
+TENANT_ID=${params.tenantId}
+CLOUD_API_TOKEN=${params.apiToken}
+NGROK_AUTHTOKEN=${params.ngrokToken}
+TZ=${tz}
+`;
+}
+
+function composeUpCommand(os: OS): string {
+  if (os === "windows" || os === "mac") {
+    return "docker compose --env-file .env.agent -f docker-compose.agent.win.yml up -d";
+  }
+  return "docker compose --env-file .env.agent -f docker-compose.agent.yml up -d";
 }
 
 function downloadTextFile(filename: string, content: string): void {
@@ -356,13 +390,9 @@ echo "Done. Return to OSP in your browser."
 export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   const [step, setStep] = useState<Step>("welcome");
   const [os, setOs] = useState<OS>(detectOS);
-  const [setupMode, setSetupMode] = useState<SetupMode>(() =>
-    detectOS() === "windows" ? "download" : "terminal",
-  );
-
-  useEffect(() => {
-    setSetupMode(os === "windows" ? "download" : "terminal");
-  }, [os]);
+  /** Default: Compose + zip — everything else is “advanced”. */
+  const [setupMode, setSetupMode] = useState<SetupMode>("compose");
+  const [ngrokToken, setNgrokToken] = useState("");
   const [apiToken, setApiToken] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
   const [keyError, setKeyError] = useState<string | null>(null);
@@ -406,7 +436,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     };
   }, [tenantId]);
 
-  // ── Generate API key when user reaches "run" step ────────────────────────────
+  // ── Generate API key early on ngrok step so “run” is instant ─────────────────
   const generateApiKey = useCallback(async () => {
     if (apiToken) return; // already generated
     setGeneratingKey(true);
@@ -432,7 +462,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
   }, [apiToken]);
 
   useEffect(() => {
-    if (step === "run") void generateApiKey();
+    if (step === "ngrok") void generateApiKey();
   }, [step, generateApiKey]);
 
   // ── Poll for agent connection ─────────────────────────────────────────────────
@@ -488,21 +518,25 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     (!tenantId || generatingKey || !apiToken);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4 overflow-y-auto py-8">
+      <div className="w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
         {/* ── Progress dots ── */}
         <div className="flex items-center gap-1.5 px-7 pt-5">
-          {(["welcome", "docker", "run", "waiting"] as Step[]).map((s, i) => (
-            <div
-              key={s}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                step === "done" ||
-                ["welcome", "docker", "run", "waiting"].indexOf(step) >= i
-                  ? "bg-[var(--color-accent)]"
-                  : "bg-[var(--color-border)]"
-              } ${s === step ? "w-6" : "w-3"}`}
-            />
-          ))}
+          {(["welcome", "docker", "ngrok", "run", "waiting"] as const).map(
+            (s, i) => (
+              <div
+                key={s}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  step === "done" ||
+                  ["welcome", "docker", "ngrok", "run", "waiting"].indexOf(
+                    step,
+                  ) >= i
+                    ? "bg-[var(--color-accent)]"
+                    : "bg-[var(--color-border)]"
+                } ${s === step ? "w-6" : "w-3"}`}
+              />
+            ),
+          )}
         </div>
 
         {/* ── Header ── */}
@@ -514,18 +548,24 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             <h2 className="text-sm font-semibold text-[var(--color-fg)] leading-tight">
               {step === "welcome" && "Connect Your Cameras"}
               {step === "docker" && "Install Docker"}
-              {step === "run" && "Start the OSP agent"}
+              {step === "ngrok" && "Secure tunnel (one-time)"}
+              {step === "run" && "Finish setup in this browser"}
               {step === "waiting" && "Waiting for Agent…"}
               {step === "done" && "Agent Connected!"}
             </h2>
             <p className="text-xs text-[var(--color-muted)] mt-0.5">
               {step === "welcome" &&
-                "A lightweight agent runs on your network to stream cameras"}
-              {step === "docker" && "Docker runs the agent on your computer"}
+                "Everything below happens here except installing Docker — no coding required"}
+              {step === "docker" &&
+                "The only app you install yourself; the rest is guided here"}
+              {step === "ngrok" &&
+                "Free account so cloud and home cameras can connect safely"}
               {step === "run" &&
-                (setupMode === "download"
-                  ? "Download a script or paste commands in a terminal"
-                  : "Run these two commands in a terminal")}
+                (setupMode === "compose"
+                  ? "Download two files, then run one command — we fill in your keys"
+                  : setupMode === "download"
+                    ? "Download a script or use advanced terminal commands"
+                    : "Copy-paste commands if you prefer the terminal")}
               {step === "waiting" && "Checking every 5 seconds…"}
               {step === "done" && "Your agent is online and ready"}
             </p>
@@ -555,9 +595,11 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
             </div>
 
             <p className="text-sm text-[var(--color-muted)] mb-5">
-              To view your cameras in OSP, a small agent needs to run on a PC or
-              server on the same network as your cameras. It takes about 2
-              minutes to set up and runs automatically in the background.
+              To view cameras in OSP, a small program runs on a PC or NAS on the
+              same Wi‑Fi as your cameras. You will only install{" "}
+              <span className="text-[var(--color-fg)]">Docker</span> yourself;
+              we&apos;ll create your keys, tunnel, and copy-paste instructions
+              here — no project folder or GitHub required.
             </p>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
@@ -667,7 +709,7 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 Back
               </button>
               <button
-                onClick={() => setStep("run")}
+                onClick={() => setStep("ngrok")}
                 className="flex-1 py-2.5 rounded-xl bg-[var(--color-accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 I have Docker installed — Continue
