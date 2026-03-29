@@ -152,7 +152,12 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   const whepUrl = `${go2rtcUrl}/api/webrtc?src=${encodeURIComponent(cameraId)}`;
 
-  logger.info("Proxying WHEP offer to go2rtc", { cameraId, whepUrl });
+  logger.info("Proxying WHEP offer to go2rtc", {
+    cameraId,
+    whepUrl,
+    edgeAgentUrl: agentRow?.go2rtc_url ?? "none",
+    usingFallback: !agentRow?.go2rtc_url,
+  });
 
   // Check if the stream is registered in go2rtc. If not, register it now.
   // This handles the case where go2rtc was restarted and lost its dynamic streams.
@@ -207,15 +212,30 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   const MAX_RETRIES = 3;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    go2rtcResponse = await fetch(whepUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true",
-        "User-Agent": "osp-gateway",
-      },
-      body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
-    });
+    try {
+      go2rtcResponse = await fetch(whepUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "osp-gateway",
+        },
+        body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch (fetchErr) {
+      lastError = String(fetchErr);
+      logger.warn("go2rtc WHEP fetch failed", {
+        cameraId,
+        attempt,
+        error: lastError,
+        whepUrl,
+      });
+      if (attempt < MAX_RETRIES) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      continue;
+    }
 
     if (go2rtcResponse.ok) break;
 
@@ -224,11 +244,10 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
       cameraId,
       attempt,
       status: go2rtcResponse.status,
-      body: lastError,
+      body: lastError.slice(0, 500),
     });
 
     if (attempt < MAX_RETRIES) {
-      // Wait 1s before retry — gives go2rtc time to connect to RTSP source
       await new Promise((r) => setTimeout(r, 1000));
     }
   }

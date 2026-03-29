@@ -302,20 +302,28 @@ function buildIceServers(): {
     credential?: string;
   }[] = [];
 
-  // Default STUN server
-  servers.push({ urls: ["stun:stun.l.google.com:19302"] });
-
-  // Optional TURN server from environment
-  const turnUrl = get("TURN_SERVER_URL");
   const turnUser = get("TURN_SERVER_USERNAME");
   const turnCredential = get("TURN_SERVER_CREDENTIAL");
 
-  if (turnUrl && turnUser && turnCredential) {
+  if (turnUser && turnCredential) {
+    // Metered.ca STUN server
+    servers.push({ urls: ["stun:stun.relay.metered.ca:80"] });
+
+    // All TURN transports for maximum connectivity:
+    // UDP (fastest), TCP (firewall-friendly), TLS (most compatible)
     servers.push({
-      urls: [turnUrl],
+      urls: [
+        "turn:standard.relay.metered.ca:80",
+        "turn:standard.relay.metered.ca:80?transport=tcp",
+        "turn:standard.relay.metered.ca:443",
+        "turns:standard.relay.metered.ca:443?transport=tcp",
+      ],
       username: turnUser,
       credential: turnCredential,
     });
+  } else {
+    // Fallback: Google STUN only (no relay)
+    servers.push({ urls: ["stun:stun.l.google.com:19302"] });
   }
 
   return servers;
