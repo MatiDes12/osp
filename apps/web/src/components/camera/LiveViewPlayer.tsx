@@ -481,13 +481,16 @@ function MseHttpFallback({
                 );
               }
 
-              // After first successful append, immediately jump to live edge
-              // This eliminates the initial 3-5s of stale buffered data
+              // Jump to live edge once the buffer has real duration. If we seek when
+              // liveEnd≈0 (init segment only), playhead stays at 0 and latency grows
+              // with every appended fragment (minutes behind).
               if (!initialSeekDone && video.buffered.length > 0) {
-                initialSeekDone = true;
                 const liveEnd = video.buffered.end(video.buffered.length - 1);
-                video.currentTime = liveEnd; // snap to absolute latest on first chunk
-                console.log("[MSE-HTTP] Initial seek to live edge:", liveEnd.toFixed(2));
+                if (liveEnd >= 0.5) {
+                  initialSeekDone = true;
+                  video.currentTime = Math.max(0, liveEnd - 0.1);
+                  console.log("[MSE-HTTP] Initial seek to live edge:", liveEnd.toFixed(2));
+                }
               }
             }
           } catch (err) {
@@ -509,28 +512,35 @@ function MseHttpFallback({
 
         video.play().catch(() => {});
 
-    // Every 3s: trim old buffer so we never accumulate more than 5s behind live edge.
-    // Without this the SourceBuffer grows unboundedly, causing QuotaExceededError and
-    // increasing live-edge lag over time.
+    // Periodically drop buffer *behind* the playhead only. Trimming with remove(start, end-3)
+    // while currentTime was still near 0 caused timeline jumps and stutter.
     const proactiveTrim = setInterval(() => {
       if (!sbRef || sbRef.updating || !video.buffered.length) return;
       const start = video.buffered.start(0);
       const end = video.buffered.end(video.buffered.length - 1);
-      if (end - start > 5) {
-        try { sbRef.remove(start, end - 3); } catch { /* ignore */ }
+      const ct = video.currentTime;
+      if (end - start <= 12) return;
+      const removeEnd = Math.min(end - 6, ct - 2);
+      if (removeEnd > start + 0.25) {
+        try {
+          sbRef.remove(start, removeEnd);
+        } catch {
+          /* ignore */
+        }
       }
-    }, 3000);
+    }, 5000);
 
-    // Keep playback near the live edge — very aggressive for low latency
+    // Live edge: match pre–TURN-tuning feel — aggressive enough for low latency,
+    // not so often that seeks fight decoding (250ms + end-0.05 felt choppy).
     const liveEdge = setInterval(() => {
       if (video.buffered.length > 0) {
         const end = video.buffered.end(video.buffered.length - 1);
         const behind = end - video.currentTime;
-        if (behind > 0.5) {
-          video.currentTime = end - 0.05;
+        if (behind > 0.8) {
+          video.currentTime = end - 0.1;
         }
       }
-    }, 250);
+    }, 500);
 
     return () => {
       destroyed = true;
