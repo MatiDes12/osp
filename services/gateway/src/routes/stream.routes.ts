@@ -156,9 +156,11 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   // Check if the stream is registered in go2rtc. If not, register it now.
   // This handles the case where go2rtc was restarted and lost its dynamic streams.
+  const ngrokHeaders = { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" };
+
   const streamCheckRes = await fetch(
     `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-    { signal: AbortSignal.timeout(3000) },
+    { signal: AbortSignal.timeout(3000), headers: ngrokHeaders },
   ).catch(() => null);
 
   const streamMissing = !streamCheckRes || streamCheckRes.status === 404;
@@ -174,7 +176,7 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
         await new Promise((r) => setTimeout(r, 500));
         const check = await fetch(
           `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-          { signal: AbortSignal.timeout(2000) },
+          { signal: AbortSignal.timeout(2000), headers: ngrokHeaders },
         ).catch(() => null);
         if (check?.ok) {
           const data = (await check.json().catch(() => ({}))) as Record<
@@ -207,7 +209,11 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     go2rtcResponse = await fetch(whepUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+        "User-Agent": "osp-gateway",
+      },
       body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
     });
 

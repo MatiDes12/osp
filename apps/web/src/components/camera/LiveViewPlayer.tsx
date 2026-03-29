@@ -637,8 +637,17 @@ export function LiveViewPlayer({
   const fallbackToHLS = useCallback(
     (info: StreamInfo) => {
       teardown();
-      // Remember that WebRTC failed for this camera so next visit skips straight to MJPEG
+      // Remember that WebRTC failed for this camera so next visit skips straight to fallback
       webrtcFailed.add(cameraId);
+
+      // On HTTPS, skip WebSocket MSE (ngrok doesn't relay WS frames reliably)
+      // and go straight to HTTP-based MSE streaming
+      if (typeof window !== "undefined" && window.location.protocol === "https:") {
+        console.log("[LiveViewPlayer] WebRTC failed on HTTPS, falling back to HTTP MSE");
+        setState("fallback-http");
+        return;
+      }
+
       if (info.fallbackHlsUrl) {
         setState("fallback");
       } else {
@@ -845,25 +854,18 @@ export function LiveViewPlayer({
       setStreamInfo(resolvedInfo);
       streamInfoRef.current = resolvedInfo;
 
-      // If WebRTC already failed for this camera this session, skip straight to MSE
+      // If WebRTC already failed for this camera this session, skip straight to fallback
       if (webrtcFailed.has(cameraId)) {
-        setState("fallback");
+        setState(
+          typeof window !== "undefined" && window.location.protocol === "https:"
+            ? "fallback-http"
+            : "fallback",
+        );
         return;
       }
 
-      // On HTTPS (cloud deployment), skip WebRTC and WebSocket entirely.
-      // WebRTC: UDP blocked by tunnel/Docker networking.
-      // WebSocket: ngrok free tier doesn't reliably forward WS frames.
-      // Go straight to HTTP-based MSE streaming (proven to work through ngrok).
-      if (
-        !isTauri() &&
-        typeof window !== "undefined" &&
-        window.location.protocol === "https:"
-      ) {
-        setState("fallback-http");
-        return;
-      }
-
+      // Try WebRTC first — with a TURN server, it works even on HTTPS
+      // through tunnel/Docker networking. Falls back to HTTP MSE if it fails.
       await connectWebRTC(resolvedInfo);
     } catch (err) {
       const message =
