@@ -465,15 +465,15 @@ function MseHttpFallback({
 
     video.play().catch(() => {});
 
-    // Keep playback near the live edge
+    // Keep playback near the live edge — aggressive for low latency
     const liveEdge = setInterval(() => {
       if (video.buffered.length > 0) {
         const end = video.buffered.end(video.buffered.length - 1);
-        if (end - video.currentTime > 3) {
-          video.currentTime = end - 0.5;
+        if (end - video.currentTime > 1.5) {
+          video.currentTime = end - 0.3;
         }
       }
-    }, 3000);
+    }, 1000);
 
     return () => {
       destroyed = true;
@@ -839,16 +839,16 @@ export function LiveViewPlayer({
         return;
       }
 
-      // On HTTPS (cloud deployment), skip WebRTC entirely — Cloudflare tunnel
-      // blocks UDP media transport, and Docker bridge networking blocks dynamic
-      // RTP ports. WebRTC signaling succeeds but no video frames arrive.
-      // Go straight to MSE-over-WebSocket which proxies through the gateway.
+      // On HTTPS (cloud deployment), skip WebRTC and WebSocket entirely.
+      // WebRTC: UDP blocked by tunnel/Docker networking.
+      // WebSocket: ngrok free tier doesn't reliably forward WS frames.
+      // Go straight to HTTP-based MSE streaming (proven to work through ngrok).
       if (
         !isTauri() &&
         typeof window !== "undefined" &&
         window.location.protocol === "https:"
       ) {
-        setState("fallback");
+        setState("fallback-http");
         return;
       }
 
