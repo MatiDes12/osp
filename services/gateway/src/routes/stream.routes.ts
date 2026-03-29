@@ -9,6 +9,7 @@ import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
 import { DiscoveryService } from "../services/discovery.service.js";
 import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
+import { ngrokTunnelRequestHeaders } from "../lib/ngrok-tunnel-headers.js";
 
 const logger = createLogger("stream-routes");
 
@@ -171,7 +172,7 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
 
   // Check if the stream is registered in go2rtc. If not, register it now.
   // This handles the case where go2rtc was restarted and lost its dynamic streams.
-  const ngrokHeaders = { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" };
+  const ngrokHeaders = { ...ngrokTunnelRequestHeaders };
 
   const streamCheckRes = await fetch(
     `${go2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
@@ -226,9 +227,8 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
       go2rtcResponse = await fetch(whepUrl, {
         method: "POST",
         headers: {
+          ...ngrokTunnelRequestHeaders,
           "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "osp-gateway",
         },
         body: JSON.stringify({ type: "offer", sdp: sdpOffer }),
         signal: AbortSignal.timeout(8000),
@@ -322,7 +322,7 @@ streamRoutes.get("/:id/mjpeg", requireAuth("viewer"), async (c) => {
   let upstream: Response;
   try {
     upstream = await Promise.race<Response>([
-      fetch(mjpegUrl, { headers: { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" } }),
+      fetch(mjpegUrl, { headers: { ...ngrokTunnelRequestHeaders } }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("connect timeout")), 6000),
       ),
@@ -375,8 +375,8 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
     try {
       resp = await fetch(snapUrl, {
         headers: {
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "osp-gateway",
+          ...ngrokTunnelRequestHeaders,
+          Accept: "image/jpeg,*/*",
         },
         signal: AbortSignal.timeout(5000),
       });
@@ -455,7 +455,7 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
     // Edge agent mode: call go2rtc directly via tunnel — skip gRPC entirely
     const connectionUri = camera.connection_uri as string;
     try {
-      const tunnelHeaders = { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" };
+      const tunnelHeaders = { ...ngrokTunnelRequestHeaders };
 
       // Remove existing stream
       await fetch(
@@ -690,10 +690,7 @@ streamRoutes.get("/:id/live.mp4", requireAuth("viewer"), async (c) => {
   try {
     upstream = await Promise.race<Response>([
       fetch(mp4Url, {
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-          "User-Agent": "osp-gateway",
-        },
+        headers: { ...ngrokTunnelRequestHeaders },
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("connect timeout")), 8000),

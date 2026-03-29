@@ -4,6 +4,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { createLogger } from "../lib/logger.js";
 import { validateToken } from "./server.js";
 import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
+import { ngrokTunnelRequestHeaders } from "../lib/ngrok-tunnel-headers.js";
 
 const logger = createLogger("stream-proxy");
 
@@ -107,13 +108,9 @@ export function attachStreamProxy(httpServer: Server): void {
         });
 
         // Connect to go2rtc upstream first.
-        // Add ngrok-skip-browser-warning header to bypass ngrok free tier
-        // interstitial page (only applies to HTTP connections).
+        // Bypass ngrok free-tier HTML interstitial on the WebSocket upgrade.
         const upstream = new WebSocket(go2rtcWsUrl, {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-            "User-Agent": "osp-gateway",
-          },
+          headers: { ...ngrokTunnelRequestHeaders },
         });
 
         // Buffer upstream messages that arrive before client WS is ready.

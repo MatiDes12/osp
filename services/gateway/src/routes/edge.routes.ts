@@ -22,6 +22,7 @@ import { getSupabase } from "../lib/supabase.js";
 import { createSuccessResponse } from "@osp/shared";
 import { createLogger } from "../lib/logger.js";
 import { normalizeEdgeTunnelUrl } from "../lib/tunnel-url.js";
+import { ngrokTunnelRequestHeaders } from "../lib/ngrok-tunnel-headers.js";
 import { z } from "zod";
 
 const logger = createLogger("edge-routes");
@@ -258,7 +259,10 @@ edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
   try {
     const resp = await fetch(`${go2rtcUrl}/api/streams`, {
       signal: AbortSignal.timeout(4000),
-      headers: { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" },
+      headers: {
+        ...ngrokTunnelRequestHeaders,
+        Accept: "application/json,*/*",
+      },
     });
     const latency = Date.now() - start;
     if (!resp.ok) {
