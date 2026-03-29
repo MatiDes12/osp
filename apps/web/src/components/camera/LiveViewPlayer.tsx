@@ -353,6 +353,10 @@ function MseHttpFallback({
     const ms = new MediaSource();
     video.src = URL.createObjectURL(ms);
 
+    // Declared here so the proactiveTrim interval (registered after sourceopen)
+    // can reference the SourceBuffer without a closure scope issue.
+    let sbRef: SourceBuffer | null = null;
+
     ms.addEventListener("sourceopen", async () => {
       if (destroyed) return;
 
@@ -379,6 +383,7 @@ function MseHttpFallback({
         let sb: SourceBuffer;
         try {
           sb = ms.addSourceBuffer(mimeType);
+          sbRef = sb;
           sb.mode = "segments";
         } catch (err) {
           console.error("[MSE-HTTP] addSourceBuffer failed:", err);
@@ -480,11 +485,11 @@ function MseHttpFallback({
     // Without this the SourceBuffer grows unboundedly, causing QuotaExceededError and
     // increasing live-edge lag over time.
     const proactiveTrim = setInterval(() => {
-      if (!sb || sb.updating || !video.buffered.length) return;
+      if (!sbRef || sbRef.updating || !video.buffered.length) return;
       const start = video.buffered.start(0);
       const end = video.buffered.end(video.buffered.length - 1);
       if (end - start > 5) {
-        try { sb.remove(start, end - 3); } catch { /* ignore */ }
+        try { sbRef.remove(start, end - 3); } catch { /* ignore */ }
       }
     }, 3000);
 
