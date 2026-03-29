@@ -19,16 +19,24 @@ async function resolveEdgeGo2rtcUrl(
   tenantId: string,
 ): Promise<string | null> {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("edge_agents")
-      .select("go2rtc_url")
+      .select("go2rtc_url, agent_id, status")
       .eq("tenant_id", tenantId)
       .eq("status", "online")
       .order("last_seen_at", { ascending: false })
       .limit(1)
       .single();
-    return (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
-  } catch {
+    const url = (data as { go2rtc_url?: string } | null)?.go2rtc_url ?? null;
+    logger.info("resolveEdgeGo2rtcUrl", {
+      tenantId,
+      agentId: (data as { agent_id?: string } | null)?.agent_id ?? "none",
+      go2rtcUrl: url ?? "null",
+      dbError: error ? String(error.message) : "none",
+    });
+    return url;
+  } catch (err) {
+    logger.warn("resolveEdgeGo2rtcUrl failed", { tenantId, error: String(err) });
     return null;
   }
 }
@@ -356,21 +364,32 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
 
   // Use the edge agent's public go2rtc URL when available
   const edgeUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
+  logger.info("Snapshot: resolved edge URL", { cameraId, edgeUrl: edgeUrl ?? "none" });
+
   let imageBuffer: Buffer;
   if (edgeUrl) {
     const snapUrl = `${edgeUrl}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
-    const resp = await fetch(snapUrl, {
-      headers: {
-        "ngrok-skip-browser-warning": "true",
-        "User-Agent": "osp-gateway",
-      },
-      signal: AbortSignal.timeout(5000),
-    }).catch(() => null);
-    if (!resp?.ok) {
-      throw new ApiError("SNAPSHOT_FAILED", "Failed to capture snapshot from edge agent", 502);
+    let resp: Response | null = null;
+    try {
+      resp = await fetch(snapUrl, {
+        headers: {
+          "ngrok-skip-browser-warning": "true",
+          "User-Agent": "osp-gateway",
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (fetchErr) {
+      logger.error("Snapshot: fetch threw", { cameraId, snapUrl, error: String(fetchErr) });
+      throw new ApiError("SNAPSHOT_FAILED", `Edge fetch failed: ${String(fetchErr)}`, 502);
+    }
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      logger.error("Snapshot: non-OK response", { cameraId, snapUrl, status: resp.status, body: body.slice(0, 300) });
+      throw new ApiError("SNAPSHOT_FAILED", `Edge returned ${resp.status}`, 502);
     }
     imageBuffer = Buffer.from(await resp.arrayBuffer());
   } else {
+    logger.warn("Snapshot: no edge URL, falling back to local go2rtc", { cameraId });
     const streamService = getStreamService();
     imageBuffer = await streamService.getSnapshot(cameraId);
   }
