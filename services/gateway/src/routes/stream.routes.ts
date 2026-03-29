@@ -312,7 +312,7 @@ streamRoutes.get("/:id/mjpeg", requireAuth("viewer"), async (c) => {
   let upstream: Response;
   try {
     upstream = await Promise.race<Response>([
-      fetch(mjpegUrl),
+      fetch(mjpegUrl, { headers: { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" } }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("connect timeout")), 6000),
       ),
@@ -422,16 +422,18 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
     // Edge agent mode: call go2rtc directly via tunnel — skip gRPC entirely
     const connectionUri = camera.connection_uri as string;
     try {
+      const tunnelHeaders = { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" };
+
       // Remove existing stream
       await fetch(
         `${edgeGo2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-        { method: "DELETE", signal: AbortSignal.timeout(5000) },
+        { method: "DELETE", signal: AbortSignal.timeout(5000), headers: tunnelHeaders },
       ).catch(() => {});
 
       // Re-add stream
       const addResp = await fetch(
         `${edgeGo2rtcUrl}/api/streams?name=${encodeURIComponent(cameraId)}&src=${encodeURIComponent(connectionUri)}`,
-        { method: "PUT", signal: AbortSignal.timeout(5000) },
+        { method: "PUT", signal: AbortSignal.timeout(5000), headers: tunnelHeaders },
       );
 
       if (addResp.ok) {

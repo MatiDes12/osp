@@ -251,6 +251,7 @@ edgeRoutes.get("/agents/go2rtc-status", requireAuth(), async (c) => {
   try {
     const resp = await fetch(`${go2rtcUrl}/api/streams`, {
       signal: AbortSignal.timeout(4000),
+      headers: { "ngrok-skip-browser-warning": "true", "User-Agent": "osp-gateway" },
     });
     const latency = Date.now() - start;
     if (!resp.ok) {
