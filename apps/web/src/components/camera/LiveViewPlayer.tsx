@@ -400,6 +400,8 @@ function MseHttpFallback({
           }
         }, 8000);
 
+        let initialSeekDone = false;
+
         const pump = async () => {
           try {
             while (!destroyed) {
@@ -445,6 +447,15 @@ function MseHttpFallback({
                   sb.addEventListener("updateend", () => resolve(), { once: true }),
                 );
               }
+
+              // After first successful append, immediately jump to live edge
+              // This eliminates the initial 3-5s of stale buffered data
+              if (!initialSeekDone && video.buffered.length > 0) {
+                initialSeekDone = true;
+                const liveEnd = video.buffered.end(video.buffered.length - 1);
+                video.currentTime = Math.max(0, liveEnd - 0.1);
+                console.log("[MSE-HTTP] Initial seek to live edge:", liveEnd.toFixed(2));
+              }
             }
           } catch (err) {
             if (!destroyed && !abortCtrl.signal.aborted) {
@@ -465,15 +476,16 @@ function MseHttpFallback({
 
     video.play().catch(() => {});
 
-    // Keep playback near the live edge — aggressive for low latency
+    // Keep playback near the live edge — very aggressive for low latency
     const liveEdge = setInterval(() => {
       if (video.buffered.length > 0) {
         const end = video.buffered.end(video.buffered.length - 1);
-        if (end - video.currentTime > 1.5) {
-          video.currentTime = end - 0.3;
+        const behind = end - video.currentTime;
+        if (behind > 0.8) {
+          video.currentTime = end - 0.1;
         }
       }
-    }, 1000);
+    }, 500);
 
     return () => {
       destroyed = true;
