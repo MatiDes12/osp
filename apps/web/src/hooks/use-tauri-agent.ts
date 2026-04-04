@@ -22,20 +22,19 @@ export function useTauriAgent() {
 
     if (!token || !tenantId) return;
 
+    const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
+    if (!invoke) return;
+
     agentStarted = true;
 
-    import("@tauri-apps/api/core")
-      .then(({ invoke }) =>
-        invoke("start_camera_ingest", {
-          gatewayUrl: API_URL,
-          apiToken: token,
-          tenantId,
-        }),
-      )
-      .catch((e) => {
-        // Binary not present in dev mode — silent ignore
-        console.debug("[OSP] camera-ingest sidecar:", e);
-        agentStarted = false;
-      });
+    invoke("start_camera_ingest", {
+      gatewayUrl: API_URL,
+      apiToken: token,
+      tenantId,
+    }).catch((e) => {
+      // Binary not present in dev mode — silent ignore
+      console.debug("[OSP] camera-ingest sidecar:", e);
+      agentStarted = false;
+    });
   }, []);
 }
