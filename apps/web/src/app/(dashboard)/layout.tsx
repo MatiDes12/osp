@@ -15,6 +15,7 @@ import { useRouteLogger } from "@/hooks/use-action-logger";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useCameras } from "@/hooks/use-cameras";
 import { useTraySync } from "@/hooks/use-tray-sync";
+import { useTauriAgent } from "@/hooks/use-tauri-agent";
 
 export default function DashboardLayout({
   children,
@@ -27,6 +28,9 @@ export default function DashboardLayout({
   // Keep the desktop system tray tooltip in sync with live camera state
   const { cameras } = useCameras();
   useTraySync(cameras);
+
+  // Start bundled go2rtc + camera-ingest sidecars (desktop only, no-op on web)
+  useTauriAgent();
 
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);

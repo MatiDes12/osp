@@ -5,7 +5,7 @@
   "identifier": "com.osp.desktop",
   "build": {
     "beforeDevCommand": "",
-    "devUrl": "http://localhost:3001/login",
+    "devUrl": "https://osp-web-eight.vercel.app/login",
     "beforeBuildCommand": "",
     "frontendDist": "https://osp-web-eight.vercel.app"
   },
@@ -44,6 +44,9 @@
     "category": "Utility",
     "shortDescription": "Open Surveillance Platform desktop client",
     "longDescription": "Monitor and manage your security cameras from the desktop with system tray integration, OS notifications, and auto-start support.",
-    "externalBin": ["binaries/go2rtc"]
+    "externalBin": [
+      "binaries/go2rtc",
+      "binaries/camera-ingest"
+    ]
   }
 }

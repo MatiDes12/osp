@@ -28,24 +28,36 @@ jobs:
             os: windows-latest
             go2rtc_asset: go2rtc_win64.exe
             go2rtc_bin: go2rtc-x86_64-pc-windows-msvc.exe
+            ingest_goos: windows
+            ingest_goarch: amd64
+            ingest_bin: camera-ingest-x86_64-pc-windows-msvc.exe
 
           # ── macOS Apple Silicon ─────────────────────────────────────────────
           - platform: macos-aarch64
             os: macos-latest
             go2rtc_asset: go2rtc_mac_arm64
             go2rtc_bin: go2rtc-aarch64-apple-darwin
+            ingest_goos: darwin
+            ingest_goarch: arm64
+            ingest_bin: camera-ingest-aarch64-apple-darwin
 
           # ── macOS Intel ─────────────────────────────────────────────────────
           - platform: macos-x86_64
             os: macos-13
             go2rtc_asset: go2rtc_mac_amd64
             go2rtc_bin: go2rtc-x86_64-apple-darwin
+            ingest_goos: darwin
+            ingest_goarch: amd64
+            ingest_bin: camera-ingest-x86_64-apple-darwin
 
           # ── Linux x86_64 ────────────────────────────────────────────────────
           - platform: linux-x86_64
             os: ubuntu-22.04
             go2rtc_asset: go2rtc_linux_amd64
             go2rtc_bin: go2rtc-x86_64-unknown-linux-gnu
+            ingest_goos: linux
+            ingest_goarch: amd64
+            ingest_bin: camera-ingest-x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.os }}
 
@@ -84,9 +96,6 @@ jobs:
           workspaces: apps/desktop/src-tauri -> target
 
       # ── go2rtc sidecar binary ─────────────────────────────────────────────────
-      # Tauri embeds the correct binary for each target platform.
-      # The filename must match Tauri's externalBin naming convention:
-      #   <name>-<target-triple>[.exe]
       - name: Download go2rtc sidecar
         shell: bash
         env:
@@ -97,6 +106,22 @@ jobs:
             "https://github.com/AlexxIT/go2rtc/releases/download/${GO2RTC_VERSION}/${{ matrix.go2rtc_asset }}" \
             -o "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}"
           chmod +x "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}" || true
+
+      # ── camera-ingest sidecar binary ──────────────────────────────────────────
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: services/camera-ingest/go.sum
+
+      - name: Build camera-ingest sidecar
+        shell: bash
+        run: |
+          cd services/camera-ingest
+          GOOS=${{ matrix.ingest_goos }} GOARCH=${{ matrix.ingest_goarch }} CGO_ENABLED=0 \
+            go build -ldflags="-s -w" -o \
+            "../../apps/desktop/src-tauri/binaries/${{ matrix.ingest_bin }}" \
+            ./cmd
+          chmod +x "../../apps/desktop/src-tauri/binaries/${{ matrix.ingest_bin }}" || true
 
       # ── Build + publish ───────────────────────────────────────────────────────
       # tauri-action builds the installer and uploads it to the GitHub Release.

@@ -7,6 +7,7 @@ import { Maximize2, Settings, MapPin, Check, Usb } from "lucide-react";
 import type { Camera } from "@osp/shared";
 import { getToken } from "@/hooks/use-auth";
 import type { CameraTag } from "@/hooks/use-tags";
+import { isTauri } from "@/lib/tauri";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -49,13 +50,19 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
       fetchingRef.current = true;
 
       try {
-        const token = getToken();
-        if (!token) return;
-
-        const res = await fetch(
-          `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
+        let res: Response;
+        if (isTauri()) {
+          res = await fetch(
+            `http://localhost:1984/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`,
+          );
+        } else {
+          const token = getToken();
+          if (!token) return;
+          res = await fetch(
+            `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        }
 
         if (res.ok && !cancelled) {
           const blob = await res.blob();

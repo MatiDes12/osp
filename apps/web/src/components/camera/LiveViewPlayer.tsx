@@ -1146,20 +1146,20 @@ export function LiveViewPlayer({
 
   return (
     <div
-      className={`relative aspect-video rounded-lg bg-black border border-[var(--color-border)] overflow-hidden ${className ?? ""}`}
+      className={`relative aspect-video rounded-lg bg-black overflow-hidden ${className ?? ""}`}
     >
       {/* Snapshot overlay — shown while WebRTC is connecting */}
       {snapshotDataUrl && state !== "live" && (
         <img
           src={snapshotDataUrl}
           alt={`${cameraName} last snapshot`}
-          className="absolute inset-0 w-full h-full object-contain opacity-60"
+          className="absolute inset-0 w-full h-full object-cover opacity-60"
         />
       )}
 
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-cover"
         autoPlay
         muted
         playsInline

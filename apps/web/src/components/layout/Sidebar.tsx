@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Circle,
   LogOut,
+  Download,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -44,6 +45,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: "/extensions", label: "Extensions", icon: Puzzle },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/health", label: "System Health", icon: Activity },
+  { href: "/download", label: "Desktop App", icon: Download },
 ] as const;
 
 /* ------------------------------------------------------------------ */

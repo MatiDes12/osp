@@ -6,9 +6,10 @@ use tauri::{
 };
 use tauri_plugin_shell::ShellExt;
 
-// ── go2rtc sidecar state ────────────────────────────────────────────────────
+// ── Sidecar process state ────────────────────────────────────────────────────
 
 struct Go2rtcProcess(Mutex<Option<tauri_plugin_shell::process::CommandChild>>);
+struct CameraIngestProcess(Mutex<Option<tauri_plugin_shell::process::CommandChild>>);
 
 // ── Tauri commands ─────────────────────────────────────────────────────────────
 
@@ -89,8 +90,16 @@ fn show_main_window(app: tauri::AppHandle) {
 
 // ── go2rtc sidecar management ──────────────────────────────────────────────────
 
-/// Writes a minimal go2rtc config to the app data dir and starts the sidecar.
+/// Starts go2rtc sidecar, or skips if go2rtc is already running on localhost:1984.
 fn start_go2rtc(app: &tauri::App) {
+    // Check if go2rtc is already running (e.g. via Docker)
+    let already_running = std::net::TcpStream::connect("127.0.0.1:1984").is_ok();
+    if already_running {
+        eprintln!("[OSP] go2rtc already running on :1984, skipping sidecar");
+        app.manage(Go2rtcProcess(Mutex::new(None)));
+        return;
+    }
+
     let data_dir = app
         .path()
         .app_data_dir()
@@ -117,16 +126,14 @@ log:
     match app
         .shell()
         .sidecar("go2rtc")
-        .expect("go2rtc sidecar not found")
-        .args(["-config", &config_str])
-        .spawn()
+        .and_then(|s| s.args(["-config", &config_str]).spawn())
     {
         Ok((_rx, child)) => {
             app.manage(Go2rtcProcess(Mutex::new(Some(child))));
             eprintln!("[OSP] go2rtc started");
         }
         Err(e) => {
-            eprintln!("[OSP] Failed to start go2rtc: {e}");
+            eprintln!("[OSP] go2rtc sidecar not available: {e}");
             app.manage(Go2rtcProcess(Mutex::new(None)));
         }
     }
@@ -153,6 +160,65 @@ async fn get_go2rtc_status() -> bool {
         .await
         .map(|r| r.status().is_success())
         .unwrap_or(false)
+}
+
+// ── camera-ingest sidecar ──────────────────────────────────────────────────────
+
+/// Called by the frontend after login to start the local camera-ingest agent.
+/// Idempotent — if already running, does nothing.
+#[tauri::command]
+fn start_camera_ingest(
+    app: tauri::AppHandle,
+    gateway_url: String,
+    api_token: String,
+    tenant_id: String,
+) {
+    if let Some(state) = app.try_state::<CameraIngestProcess>() {
+        if let Ok(guard) = state.0.lock() {
+            if guard.is_some() {
+                // Already running
+                return;
+            }
+        }
+    }
+
+    match app
+        .shell()
+        .sidecar("camera-ingest")
+        .map(|s| {
+            s.env("GATEWAY_URL", &gateway_url)
+             .env("API_URL", &gateway_url)
+             .env("API_TOKEN", &api_token)
+             .env("TENANT_ID", &tenant_id)
+             .env("GO2RTC_API_URL", "http://localhost:1984")
+             .env("GO2RTC_URL", "http://localhost:1984")
+             .env("SNAPSHOT_DIR", app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string())
+        })
+        .and_then(|s| s.spawn())
+    {
+        Ok((_rx, child)) => {
+            if let Some(state) = app.try_state::<CameraIngestProcess>() {
+                if let Ok(mut guard) = state.0.lock() {
+                    *guard = Some(child);
+                    eprintln!("[OSP] camera-ingest started");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[OSP] camera-ingest sidecar not available: {e}");
+        }
+    }
+}
+
+fn stop_camera_ingest(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<CameraIngestProcess>() {
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(child) = guard.take() {
+                let _ = child.kill();
+                eprintln!("[OSP] camera-ingest stopped");
+            }
+        }
+    }
 }
 
 // ── Tray setup ─────────────────────────────────────────────────────────────────
@@ -236,6 +302,9 @@ pub fn run() {
             // Start go2rtc sidecar for local camera streaming
             start_go2rtc(app);
 
+            // Register camera-ingest state (started later by JS after login)
+            app.manage(CameraIngestProcess(Mutex::new(None)));
+
             // Minimize to tray on window close instead of quitting
             let window = app.get_webview_window("main").unwrap();
             let window_clone = window.clone();
@@ -256,12 +325,14 @@ pub fn run() {
             get_autostart_enabled,
             show_main_window,
             get_go2rtc_status,
+            start_camera_ingest,
         ])
         .build(tauri::generate_context!())
         .expect("error while running OSP desktop application")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 stop_go2rtc(app);
+                stop_camera_ingest(app);
             }
         });
 }

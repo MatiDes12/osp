@@ -52,6 +52,7 @@ import {
   transformRecordings,
   isSnakeCaseRow,
 } from "@/lib/transforms";
+import { isTauri } from "@/lib/tauri";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -1273,6 +1274,9 @@ export default function CameraDetailPage() {
   );
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Local recording (Tauri desktop)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
 
   // Playback state
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
@@ -1395,22 +1399,79 @@ export default function CameraDetailPage() {
 
   const handleToggleRecording = useCallback(async () => {
     if (!cameraId) return;
+
+    // ── Desktop (Tauri): record locally via MediaRecorder ──────────────────
+    if (isTauri()) {
+      if (isRecording) {
+        mediaRecorderRef.current?.stop();
+        setIsRecording(false);
+        setRecordingStartTime(null);
+      } else {
+        const video = videoContainerRef.current?.querySelector("video");
+        if (!video) return;
+
+        // WebRTC path: srcObject is a MediaStream
+        // MSE/fallback path: use captureStream()
+        const stream =
+          (video.srcObject as MediaStream | null) ??
+          (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
+        if (!stream) return;
+
+        recordingChunksRef.current = [];
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+          ? "video/webm;codecs=vp9,opus"
+          : "video/webm";
+
+        const recorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+          a.download = `${camera?.name ?? cameraId}-${ts}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        };
+
+        recorder.start(1000); // collect a chunk every 1s
+        setIsRecording(true);
+        setRecordingStartTime(Date.now());
+      }
+      return;
+    }
+
+    // ── Cloud: call gateway API ─────────────────────────────────────────────
     if (isRecording) {
+      // Optimistic: flip UI immediately
+      setIsRecording(false);
+      setRecordingStartTime(null);
       try {
         const res = await fetch(
           `${API_URL}/api/v1/cameras/${cameraId}/record/stop`,
-          {
-            method: "POST",
-            headers: getAuthHeaders(),
-          },
+          { method: "POST", headers: getAuthHeaders() },
         );
         const json = await res.json();
-        if (json.success) {
-          setIsRecording(false);
-          setRecordingStartTime(null);
+        if (!json.success) {
+          setIsRecording(true);
+          setRecordingStartTime(Date.now());
         }
-      } catch {}
+      } catch {
+        setIsRecording(true);
+        setRecordingStartTime(Date.now());
+      }
     } else {
+      // Optimistic: flip UI immediately
+      setIsRecording(true);
+      setRecordingStartTime(Date.now());
       try {
         const res = await fetch(
           `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
@@ -1421,13 +1482,16 @@ export default function CameraDetailPage() {
           },
         );
         const json = await res.json();
-        if (json.success && json.data?.recordingId) {
-          setIsRecording(true);
-          setRecordingStartTime(Date.now());
+        if (!json.success) {
+          setIsRecording(false);
+          setRecordingStartTime(null);
         }
-      } catch {}
+      } catch {
+        setIsRecording(false);
+        setRecordingStartTime(null);
+      }
     }
-  }, [cameraId, isRecording]);
+  }, [cameraId, isRecording, camera?.name]);
 
   const handleTimelineSeek = useCallback(
     async (timestamp: string) => {
