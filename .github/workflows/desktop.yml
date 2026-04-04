@@ -98,12 +98,10 @@ jobs:
       # ── go2rtc sidecar binary ─────────────────────────────────────────────────
       - name: Download go2rtc sidecar
         shell: bash
-        env:
-          GO2RTC_VERSION: v1.9.9
         run: |
           mkdir -p apps/desktop/src-tauri/binaries
           curl -fsSL \
-            "https://github.com/AlexxIT/go2rtc/releases/download/${GO2RTC_VERSION}/${{ matrix.go2rtc_asset }}" \
+            "https://github.com/AlexxIT/go2rtc/releases/latest/download/${{ matrix.go2rtc_asset }}" \
             -o "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}"
           chmod +x "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}" || true
 
