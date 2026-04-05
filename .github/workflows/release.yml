@@ -104,6 +104,10 @@ jobs:
     needs: validate
     uses: ./.github/workflows/docker.yml
     secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
 
   # ─── Create GitHub Release ─────────────────────────
   github-release:
