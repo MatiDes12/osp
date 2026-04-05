@@ -25,7 +25,10 @@
   "pnpm": {
     "overrides": {
       "@types/react": "^19.0.0",
-      "@types/react-dom": "^19.0.0"
+      "@types/react-dom": "^19.0.0",
+      "picomatch": ">=4.0.4",
+      "node-forge": ">=1.4.0",
+      "@xmldom/xmldom": ">=0.8.12"
     },
     "ignoredBuiltDependencies": [
       "esbuild",
