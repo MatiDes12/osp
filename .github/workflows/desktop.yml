@@ -91,8 +91,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p apps/desktop/src-tauri/binaries
-          # Resolve latest tag via API to avoid /latest redirect issues
-          GO2RTC_VERSION=$(curl -s https://api.github.com/repos/AlexxIT/go2rtc/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          # Find latest v1.x release (v2.x changed asset names)
+          GO2RTC_VERSION=$(curl -s "https://api.github.com/repos/AlexxIT/go2rtc/releases?per_page=20" \
+            | jq -r '[.[] | select(.tag_name | startswith("v1"))][0].tag_name')
           echo "go2rtc version: $GO2RTC_VERSION"
           curl -fsSL \
             "https://github.com/AlexxIT/go2rtc/releases/download/${GO2RTC_VERSION}/${{ matrix.go2rtc_asset }}" \

@@ -14,7 +14,7 @@ export function createEventsApi(client: ApiClient) {
     ): Promise<ApiResponse<OSPEvent[]>> {
       return client.get<OSPEvent[]>(
         "/api/v1/events",
-        params as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<string, string | number | boolean | undefined>,
       );
     },
 
@@ -38,7 +38,7 @@ export function createEventsApi(client: ApiClient) {
     summary(params?: TimeRangeParams): Promise<ApiResponse<EventSummary>> {
       return client.get<EventSummary>(
         "/api/v1/events/summary",
-        params as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<string, string | number | boolean | undefined>,
       );
     },
   };
