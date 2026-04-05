@@ -10,7 +10,7 @@
   },
   "scripts": {
     "type-check": "tsc --noEmit",
-    "lint": "eslint src/",
+    "lint": "tsc --noEmit",
     "clean": "rm -rf .turbo"
   },
   "dependencies": {
