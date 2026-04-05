@@ -127,8 +127,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build @osp/shared
         run: pnpm --filter @osp/shared build
-      - name: Build @osp/ui
-        run: pnpm --filter @osp/ui build
       - name: Build web app
         run: pnpm --filter @osp/web build
         env:
