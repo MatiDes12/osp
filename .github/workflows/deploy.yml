@@ -211,6 +211,7 @@ jobs:
 
       - name: Deploy to Fly.io
         if: steps.should-deploy.outputs.deploy == 'true'
+        continue-on-error: true
         run: |
           flyctl deploy \
             --config ${{ matrix.config }} \
