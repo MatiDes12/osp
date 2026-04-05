@@ -126,11 +126,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download all binaries
+      - name: Download Go binaries
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           path: dist/
           merge-multiple: true
+          pattern: "{camera-ingest,video-pipeline,event-engine,extension-runtime,osp-edge-bundle-zip}-*"
+
+      - name: Download edge bundle
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: dist/
+          merge-multiple: true
+          pattern: "osp-edge-bundle-zip"
 
       - name: Generate changelog
         id: changelog
