@@ -101,7 +101,7 @@ func newTestEvent() events.Event {
 
 func TestDispatch_PushNotification(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -135,7 +135,7 @@ func TestDispatch_PushNotification(t *testing.T) {
 
 func TestDispatch_PushNotification_DefaultTitleAndBody(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -163,7 +163,7 @@ func TestDispatch_PushNotification_DefaultTitleAndBody(t *testing.T) {
 
 func TestDispatch_Email(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -195,7 +195,7 @@ func TestDispatch_Email(t *testing.T) {
 
 func TestDispatch_Email_DefaultSubjectAndBody(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -251,7 +251,7 @@ func TestDispatch_Webhook(t *testing.T) {
 	defer webhookServer.Close()
 
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -298,7 +298,7 @@ func TestDispatch_Webhook(t *testing.T) {
 
 func TestDispatch_Webhook_MissingURL(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -331,7 +331,7 @@ func TestDispatch_Webhook_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -359,7 +359,7 @@ func TestDispatch_Webhook_ServerError(t *testing.T) {
 
 func TestDispatch_UnknownActionType(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -394,7 +394,7 @@ func TestDispatch_MultipleActions_AllExecuted(t *testing.T) {
 	defer webhookServer.Close()
 
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -444,7 +444,7 @@ func TestDispatch_OneActionFails_OthersStillRun(t *testing.T) {
 	defer webhookServer.Close()
 
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -489,7 +489,7 @@ func TestDispatch_OneActionFails_OthersStillRun(t *testing.T) {
 
 func TestDispatch_EmptyActions(t *testing.T) {
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
@@ -519,7 +519,7 @@ func TestDispatch_ContextCancellation(t *testing.T) {
 	defer srv.Close()
 
 	logger := testLogger()
-	push := NewPushSender(logger)
+	push := NewPushSender(logger, nil)
 	email := NewEmailSender(logger)
 
 	dispatcher := NewNotificationDispatcher(nil, push, email, logger)
