@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -64,15 +66,24 @@ func main() {
 
 	registered := make(map[string]bool)
 	reconcile := func() {
-		cameras := fetchOnlineCameras(apiURL, apiToken)
+		cameras := fetchCameras(apiURL, apiToken, tenantID)
 		for _, cam := range cameras {
-			if cam.ID == "" || registered[cam.ID] {
+			if cam.ID == "" {
 				continue
 			}
-			config := motion.DefaultConfig()
-			config.CooldownSeconds = 10
-			motionService.RegisterCamera(cam.ID, config, snapshotDir)
-			registered[cam.ID] = true
+			// Push stream to go2rtc so it can be viewed/recorded
+			if cam.ConnectionURI != "" {
+				if err := registerGo2rtcStream(go2rtcURL, cam.ID, cam.ConnectionURI); err != nil {
+					log.Printf("[camera-ingest] go2rtc register error camera=%s: %v", cam.ID, err)
+				}
+			}
+			// Register for motion detection (only once per camera)
+			if !registered[cam.ID] {
+				config := motion.DefaultConfig()
+				config.CooldownSeconds = 10
+				motionService.RegisterCamera(cam.ID, config, snapshotDir)
+				registered[cam.ID] = true
+			}
 		}
 	}
 
@@ -146,10 +157,10 @@ func heartbeatLoop(ctx context.Context, apiURL, apiToken, tenantID, agentID stri
 
 func sendHeartbeat(apiURL, apiToken, tenantID, agentID string) {
 	body, _ := json.Marshal(map[string]interface{}{
-		"status":         "online",
-		"pendingEvents":  0,
-		"syncedEvents":   0,
-		"camerasActive":  0,
+		"status":        "online",
+		"pendingEvents": 0,
+		"syncedEvents":  0,
+		"camerasActive": 0,
 	})
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, apiURL+"/api/v1/edge/agents/"+agentID+"/heartbeat", bytes.NewReader(body))
@@ -176,20 +187,25 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func fetchOnlineCameras(apiURL, apiToken string) []CameraRow {
+// fetchCameras fetches all cameras for the tenant using the user JWT.
+func fetchCameras(apiURL, apiToken, tenantID string) []CameraRow {
 	if apiToken == "" {
 		log.Printf("[camera-ingest] API_TOKEN not set; skipping camera fetch")
 		return nil
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, apiURL+"/api/v1/cameras/internal/online", nil)
+	// Request up to 100 cameras per page (gateway max)
+	endpoint := apiURL + "/api/v1/cameras?limit=100&status=connecting,online,offline"
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		log.Printf("[camera-ingest] request build error: %v", err)
 		return nil
 	}
-	req.Header.Set("X-Internal-Token", apiToken)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	if tenantID != "" {
+		req.Header.Set("X-Tenant-Id", tenantID)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -200,7 +216,7 @@ func fetchOnlineCameras(apiURL, apiToken string) []CameraRow {
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("[camera-ingest] cameras endpoint returned %d", resp.StatusCode)
+		log.Printf("[camera-ingest] cameras endpoint returned %d: %s", resp.StatusCode, string(body))
 		return nil
 	}
 
@@ -212,5 +228,35 @@ func fetchOnlineCameras(apiURL, apiToken string) []CameraRow {
 	if !parsed.Success {
 		return nil
 	}
+	log.Printf("[camera-ingest] fetched %d cameras", len(parsed.Data))
 	return parsed.Data
+}
+
+// registerGo2rtcStream adds or updates a stream in the local go2rtc instance.
+// go2rtc API: PUT /api/streams?name=<id>&src=<uri>
+func registerGo2rtcStream(go2rtcURL, cameraID, connectionURI string) error {
+	params := url.Values{}
+	params.Set("name", cameraID)
+	params.Set("src", connectionURI)
+	endpoint := fmt.Sprintf("%s/api/streams?%s", go2rtcURL, params.Encode())
+
+	req, err := http.NewRequest(http.MethodPut, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("PUT /api/streams: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("go2rtc returned %d: %s", resp.StatusCode, string(b))
+	}
+
+	log.Printf("[camera-ingest] registered stream in go2rtc: camera=%s", cameraID)
+	return nil
 }
