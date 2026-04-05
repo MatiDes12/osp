@@ -80,6 +80,30 @@ export async function uploadToR2(
 }
 
 /**
+ * Upload a Buffer/Uint8Array directly to R2 (no local file needed).
+ */
+export async function uploadBufferToR2(
+  buffer: Buffer | Uint8Array,
+  r2Key: string,
+  contentType = "image/jpeg",
+): Promise<void> {
+  if (!isR2Configured()) {
+    throw new Error("R2 is not configured");
+  }
+  const bucket = get("R2_BUCKET_NAME") ?? "";
+  const client = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: r2Key,
+      Body: buffer,
+      ContentType: contentType,
+    }),
+  );
+  logger.info("Uploaded buffer to R2", { r2Key });
+}
+
+/**
  * Generate a presigned GET URL for an R2 object.
  */
 export async function getPresignedPlaybackUrl(

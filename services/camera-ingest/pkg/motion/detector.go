@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -52,11 +53,12 @@ type Detector struct {
 
 // EventData contains motion event information
 type EventData struct {
-	CameraID    string    `json:"cameraId"`
-	DetectedAt  time.Time `json:"detectedAt"`
-	Intensity   int       `json:"intensity"`
-	SnapshotURL string    `json:"snapshotUrl"`
-	BoundingBox *Rect     `json:"boundingBox,omitempty"`
+	CameraID      string    `json:"cameraId"`
+	DetectedAt    time.Time `json:"detectedAt"`
+	Intensity     int       `json:"intensity"`
+	SnapshotURL   string    `json:"snapshotUrl"`
+	SnapshotBytes []byte    `json:"-"` // raw JPEG — uploaded by MotionService, not serialised
+	BoundingBox   *Rect     `json:"boundingBox,omitempty"`
 }
 
 // Rect represents a bounding box
@@ -128,11 +130,23 @@ func (d *Detector) ProcessJPEG(jpegData []byte) error {
 	d.lastMotionAt = time.Now()
 	intensity := intensityFromRatio(diffRatio)
 
+	// Save snapshot to disk so the event handler can upload it.
+	var snapshotBytes []byte
+	if d.snapshotDir != "" {
+		fname := fmt.Sprintf("%s/%s_%d.jpg", d.snapshotDir, d.cameraID, time.Now().UnixMilli())
+		if err := os.WriteFile(fname, jpegData, 0644); err == nil {
+			snapshotBytes = jpegData
+		} else {
+			log.Printf("[motion] snapshot write error camera=%s: %v", d.cameraID, err)
+		}
+	}
+
 	if d.eventCallback != nil {
 		go d.eventCallback(EventData{
-			CameraID:   d.cameraID,
-			DetectedAt: time.Now(),
-			Intensity:  intensity,
+			CameraID:      d.cameraID,
+			DetectedAt:    time.Now(),
+			Intensity:     intensity,
+			SnapshotBytes: snapshotBytes,
 		})
 	}
 
@@ -207,16 +221,18 @@ type MotionService struct {
 	mu        sync.RWMutex
 	apiURL    string
 	apiToken  string
+	tenantID  string
 	go2rtcURL string
 	cancel    context.CancelFunc
 }
 
 // NewMotionService creates a new motion service
-func NewMotionService(apiURL, apiToken, go2rtcURL string) *MotionService {
+func NewMotionService(apiURL, apiToken, tenantID, go2rtcURL string) *MotionService {
 	return &MotionService{
 		detectors: make(map[string]*Detector),
 		apiURL:    apiURL,
 		apiToken:  apiToken,
+		tenantID:  tenantID,
 		go2rtcURL: go2rtcURL,
 	}
 }
@@ -297,13 +313,49 @@ func (s *MotionService) sampleCamera(client *http.Client, cameraID string, d *De
 	}
 }
 
-// handleMotionEvent sends event to API gateway
+// handleMotionEvent uploads snapshot (if available) then sends event to API gateway.
 func (s *MotionService) handleMotionEvent(event EventData) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	snapshotURL := ""
+
+	// Upload snapshot to gateway so the event has a thumbnail.
+	if len(event.SnapshotBytes) > 0 {
+		snapURL := fmt.Sprintf("%s/api/v1/cameras/%s/snapshot", s.apiURL, event.CameraID)
+		snapReq, err := http.NewRequest("POST", snapURL, bytes.NewReader(event.SnapshotBytes))
+		if err == nil {
+			snapReq.Header.Set("Content-Type", "image/jpeg")
+			snapReq.Header.Set("Authorization", "Bearer "+s.apiToken)
+			if s.tenantID != "" {
+				snapReq.Header.Set("X-Tenant-Id", s.tenantID)
+			}
+			snapResp, err := client.Do(snapReq)
+			if err == nil {
+				defer snapResp.Body.Close()
+				if snapResp.StatusCode == http.StatusOK || snapResp.StatusCode == http.StatusCreated {
+					var snapResult struct {
+						Data struct {
+							URL string `json:"url"`
+						} `json:"data"`
+					}
+					if json.NewDecoder(snapResp.Body).Decode(&snapResult) == nil {
+						snapshotURL = snapResult.Data.URL
+					}
+				} else {
+					b, _ := io.ReadAll(snapResp.Body)
+					log.Printf("[motion-service] snapshot upload returned %d: %s", snapResp.StatusCode, string(b))
+				}
+			} else {
+				log.Printf("[motion-service] snapshot upload error: %v", err)
+			}
+		}
+	}
+
 	payload := map[string]interface{}{
-		"cameraId":  event.CameraID,
-		"type":      "motion",
-		"severity":  calculateSeverity(event.Intensity),
-		"intensity": event.Intensity,
+		"cameraId":    event.CameraID,
+		"type":        "motion",
+		"severity":    calculateSeverity(event.Intensity),
+		"intensity":   event.Intensity,
+		"snapshotUrl": snapshotURL,
 		"metadata": map[string]interface{}{
 			"autoDetected": true,
 			"source":       "camera-ingest-motion-worker",
@@ -322,8 +374,10 @@ func (s *MotionService) handleMotionEvent(event EventData) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.apiToken)
+	if s.tenantID != "" {
+		req.Header.Set("X-Tenant-Id", s.tenantID)
+	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("[motion-service] event post error: %v", err)
@@ -332,7 +386,8 @@ func (s *MotionService) handleMotionEvent(event EventData) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		log.Printf("[motion-service] API returned %d for motion event", resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+		log.Printf("[motion-service] API returned %d for motion event: %s", resp.StatusCode, string(b))
 	}
 }
 

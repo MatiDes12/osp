@@ -53,6 +53,7 @@ const CreateEventSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
   zoneId: z.string().uuid().optional(),
   intensity: z.number().min(0).max(100).default(50),
+  snapshotUrl: z.string().url().optional(),
 });
 
 eventRoutes.post("/", requireAuth("operator"), async (c) => {
@@ -101,6 +102,7 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     metadata: input.metadata,
     intensity: input.intensity,
     acknowledged: false,
+    snapshot_url: input.snapshotUrl ?? null,
   };
 
   const { data: created, error: insertError } = await supabase
@@ -124,7 +126,7 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
     severity: created.severity as string,
     detectedAt: created.detected_at as string,
     metadata: created.metadata as Record<string, unknown>,
-    snapshotUrl: null,
+    snapshotUrl: (created.snapshot_url as string | null) ?? null,
     clipUrl: null,
     intensity: created.intensity as number,
     acknowledged: false,
@@ -237,7 +239,7 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
           .eq("tenant_id", tenantId)
           .single();
 
-        if (cameraStatus?.status !== "online") return;
+        if (cameraStatus?.status === "disabled") return;
 
         const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
 

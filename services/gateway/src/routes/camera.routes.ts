@@ -109,6 +109,84 @@ cameraRoutes.post("/internal/status", async (c) => {
   return c.json(createSuccessResponse({ updated }));
 });
 
+// Edge-agent status report via user JWT.
+// Called by camera-ingest sidecar after verifying streams in go2rtc.
+// Uses Bearer token (user JWT) instead of X-Internal-Token.
+const AgentStatusSchema = z.object({
+  statuses: z.array(
+    z.object({
+      cameraId: z.string().min(1),
+      status: z.enum(["online", "connecting", "offline", "error"]),
+    }),
+  ),
+});
+
+cameraRoutes.post("/agent/status", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const body = await c.req.json().catch(() => {
+    throw new ApiError("VALIDATION_ERROR", "Invalid JSON body", 400);
+  });
+  const { statuses } = AgentStatusSchema.parse(body);
+  const supabase = getSupabase();
+
+  let updated = 0;
+  for (const { cameraId, status } of statuses) {
+    const { error } = await supabase
+      .from("cameras")
+      .update({
+        status,
+        ...(status === "online"
+          ? { last_seen_at: new Date().toISOString() }
+          : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", cameraId)
+      .eq("tenant_id", tenantId)
+      .neq("status", "disabled");
+    if (!error) updated++;
+  }
+
+  return c.json(createSuccessResponse({ updated }));
+});
+
+// Upload a JPEG snapshot from an edge agent.
+// Stores in R2 under tenants/{tenantId}/snapshots/{cameraId}/{ts}.jpg and
+// returns a presigned URL. Falls back to a base64 data-URL if R2 is not configured.
+cameraRoutes.post("/:id/snapshot", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+
+  const arrayBuffer = await c.req.arrayBuffer();
+  const buf = Buffer.from(arrayBuffer);
+  if (buf.length === 0) {
+    throw new ApiError("VALIDATION_ERROR", "Empty snapshot body", 400);
+  }
+
+  const { isR2Configured: r2ok, uploadBufferToR2, getPresignedPlaybackUrl } =
+    await import("../lib/r2.js");
+
+  let snapshotUrl: string;
+
+  if (r2ok()) {
+    const r2Key = `tenants/${tenantId}/snapshots/${cameraId}/${Date.now()}.jpg`;
+    await uploadBufferToR2(buf, r2Key, "image/jpeg");
+    snapshotUrl = await getPresignedPlaybackUrl(r2Key, 86400); // 24 h
+  } else {
+    // R2 not configured — return a base64 data-URL so the event still has a thumbnail
+    snapshotUrl = `data:image/jpeg;base64,${buf.toString("base64")}`;
+  }
+
+  // Persist on the camera row so the dashboard can show a "last snapshot"
+  const supabase = getSupabase();
+  await supabase
+    .from("cameras")
+    .update({ last_snapshot_url: snapshotUrl, last_seen_at: new Date().toISOString() })
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId);
+
+  return c.json(createSuccessResponse({ url: snapshotUrl }));
+});
+
 // List cameras
 cameraRoutes.get("/", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");

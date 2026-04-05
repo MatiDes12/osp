@@ -46,7 +46,7 @@ func main() {
 		log.Fatalf("[camera-ingest] Failed to create snapshot directory: %v", err)
 	}
 
-	motionService := motion.NewMotionService(apiURL, apiToken, go2rtcURL)
+	motionService := motion.NewMotionService(apiURL, apiToken, tenantID, go2rtcURL)
 	defer motionService.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -67,6 +67,7 @@ func main() {
 	registered := make(map[string]bool)
 	reconcile := func() {
 		cameras := fetchCameras(apiURL, apiToken, tenantID)
+		var statusUpdates []map[string]string
 		for _, cam := range cameras {
 			if cam.ID == "" {
 				continue
@@ -77,6 +78,9 @@ func main() {
 					log.Printf("[camera-ingest] go2rtc register error camera=%s: %v", cam.ID, err)
 				}
 			}
+			// Check whether go2rtc actually has a live producer for this stream.
+			status := probeGo2rtcStatus(go2rtcURL, cam.ID)
+			statusUpdates = append(statusUpdates, map[string]string{"cameraId": cam.ID, "status": status})
 			// Register for motion detection (only once per camera)
 			if !registered[cam.ID] {
 				config := motion.DefaultConfig()
@@ -84,6 +88,10 @@ func main() {
 				motionService.RegisterCamera(cam.ID, config, snapshotDir)
 				registered[cam.ID] = true
 			}
+		}
+		// Report live statuses back to gateway so the UI reflects reality.
+		if len(statusUpdates) > 0 {
+			reportCameraStatuses(apiURL, apiToken, tenantID, statusUpdates)
 		}
 	}
 
@@ -232,6 +240,63 @@ func fetchCameras(apiURL, apiToken, tenantID string) []CameraRow {
 	}
 	log.Printf("[camera-ingest] fetched %d cameras", len(parsed.Data))
 	return parsed.Data
+}
+
+// probeGo2rtcStatus returns "online" if go2rtc has at least one producer for
+// the given stream, "connecting" otherwise.
+func probeGo2rtcStatus(go2rtcURL, cameraID string) string {
+	client := &http.Client{Timeout: 4 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("%s/api/streams?src=%s", go2rtcURL, url.QueryEscape(cameraID)))
+	if err != nil {
+		return "connecting"
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "connecting"
+	}
+	var result map[string]interface{}
+	if json.NewDecoder(resp.Body).Decode(&result) != nil {
+		return "connecting"
+	}
+	stream, ok := result[cameraID].(map[string]interface{})
+	if !ok {
+		return "connecting"
+	}
+	producers, _ := stream["producers"].([]interface{})
+	if len(producers) > 0 {
+		return "online"
+	}
+	return "connecting"
+}
+
+// reportCameraStatuses calls POST /api/v1/cameras/agent/status to update the
+// gateway DB so the dashboard shows correct status and AI detection can run.
+func reportCameraStatuses(apiURL, apiToken, tenantID string, statuses []map[string]string) {
+	payload := map[string]interface{}{"statuses": statuses}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, apiURL+"/api/v1/cameras/agent/status", bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	if tenantID != "" {
+		req.Header.Set("X-Tenant-Id", tenantID)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[camera-ingest] status report error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(resp.Body)
+		log.Printf("[camera-ingest] status report returned %d: %s", resp.StatusCode, string(b))
+	}
 }
 
 // registerGo2rtcStream adds or updates a stream in the local go2rtc instance.
