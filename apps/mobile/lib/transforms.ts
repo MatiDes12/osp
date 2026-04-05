@@ -56,6 +56,7 @@ export function transformCamera(raw: Raw): Camera {
     ) as string | null,
     manufacturer: (raw["manufacturer"] as string | null) ?? null,
     model: (raw["model"] as string | null) ?? null,
+    locationId: pick(raw["location_id"], raw["locationId"], null) as string | null,
     zonesCount: num(pick(raw["zones_count"], raw["zonesCount"], 0)),
     lastSeenAt: pick(raw["last_seen_at"], raw["lastSeenAt"], null) as
       | string
