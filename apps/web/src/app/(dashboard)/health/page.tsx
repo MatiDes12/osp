@@ -28,17 +28,28 @@ async function probeGo2rtc(baseUrl: string): Promise<ServiceStatus> {
     });
     const latency = Math.round(performance.now() - start);
     if (!res.ok) {
-      return { status: "down", latency_ms: latency, error: `HTTP ${res.status}` };
+      return {
+        status: "down",
+        latency_ms: latency,
+        error: `HTTP ${res.status}`,
+      };
     }
     const data = (await res.json()) as Record<string, unknown>;
-    return { status: "up", latency_ms: latency, streams: Object.keys(data).length };
+    return {
+      status: "up",
+      latency_ms: latency,
+      streams: Object.keys(data).length,
+    };
   } catch (err) {
     const latency = Math.round(performance.now() - start);
-    const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+    const isTimeout =
+      err instanceof DOMException && err.name === "TimeoutError";
     return {
       status: "down",
       latency_ms: latency,
-      error: isTimeout ? "Timed out" : String(err instanceof Error ? err.message : err),
+      error: isTimeout
+        ? "Timed out"
+        : String(err instanceof Error ? err.message : err),
     };
   }
 }
@@ -200,7 +211,8 @@ function ServiceCard({
       <div className="space-y-1 text-sm text-zinc-400">
         {service.latency_ms > 0 && (
           <p>
-            Latency: <span className="text-zinc-200">{service.latency_ms}ms</span>
+            Latency:{" "}
+            <span className="text-zinc-200">{service.latency_ms}ms</span>
           </p>
         )}
         {service.streams !== undefined && (
@@ -378,7 +390,11 @@ export default function HealthPage() {
               />
               {localGo2rtc ? (
                 <ServiceCard
-                  name={window.location.protocol === "https:" ? "go2rtc (Edge Agent)" : "go2rtc (Local)"}
+                  name={
+                    window.location.protocol === "https:"
+                      ? "go2rtc (Edge Agent)"
+                      : "go2rtc (Local)"
+                  }
                   icon={Video}
                   service={localGo2rtc}
                 />

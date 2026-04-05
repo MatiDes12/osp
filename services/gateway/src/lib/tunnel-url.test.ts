@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  isNgrokTunnelHost,
-  normalizeEdgeTunnelUrl,
-} from "./tunnel-url.js";
+import { isNgrokTunnelHost, normalizeEdgeTunnelUrl } from "./tunnel-url.js";
 
 describe("tunnel-url", () => {
   it("isNgrokTunnelHost matches ngrok dev domains", () => {

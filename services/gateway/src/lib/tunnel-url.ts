@@ -1,5 +1,9 @@
 /** Host suffixes for ngrok dev tunnels — always use HTTPS from the gateway to avoid redirect/header edge cases. */
-const NGROK_HOST_SUFFIXES = [".ngrok-free.dev", ".ngrok-free.app", ".ngrok.app"];
+const NGROK_HOST_SUFFIXES = [
+  ".ngrok-free.dev",
+  ".ngrok-free.app",
+  ".ngrok.app",
+];
 
 export function isNgrokTunnelHost(hostname: string): boolean {
   const h = hostname.toLowerCase();

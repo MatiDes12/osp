@@ -22,7 +22,13 @@ export function useTauriAgent() {
 
     if (!token || !tenantId) return;
 
-    const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
+    const invoke = (
+      window as unknown as {
+        __TAURI_INTERNALS__?: {
+          invoke: (cmd: string, args?: unknown) => Promise<unknown>;
+        };
+      }
+    ).__TAURI_INTERNALS__?.invoke;
     if (!invoke) return;
 
     agentStarted = true;

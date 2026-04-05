@@ -6,10 +6,10 @@ Use this when you run OSP in production (e.g. dashboard on Vercel, API on Fly.io
 
 Three containers:
 
-| Service    | Role |
-| ---------- | ---- |
-| **go2rtc** | Talks to your cameras (RTSP/ONVIF) on the LAN |
-| **ngrok**  | Secure tunnel so the cloud gateway can reach go2rtc |
+| Service       | Role                                                               |
+| ------------- | ------------------------------------------------------------------ |
+| **go2rtc**    | Talks to your cameras (RTSP/ONVIF) on the LAN                      |
+| **ngrok**     | Secure tunnel so the cloud gateway can reach go2rtc                |
 | **osp-agent** | Syncs cameras with your tenant, heartbeats tunnel URL to the cloud |
 
 ## 1. Prerequisites
@@ -76,13 +76,13 @@ cp env.example .env.agent
 
 Edit **`.env.agent`**:
 
-| Variable | Set to |
-| -------- | ------ |
+| Variable            | Set to                                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `CLOUD_GATEWAY_URL` | Your production gateway base URL (default in example is public demo; **replace** for white-label / private cloud) |
-| `TENANT_ID` | From dashboard |
-| `CLOUD_API_TOKEN` | API key from dashboard |
-| `NGROK_AUTHTOKEN` | From ngrok dashboard |
-| `TZ` | Your timezone (optional) |
+| `TENANT_ID`         | From dashboard                                                                                                    |
+| `CLOUD_API_TOKEN`   | API key from dashboard                                                                                            |
+| `NGROK_AUTHTOKEN`   | From ngrok dashboard                                                                                              |
+| `TZ`                | Your timezone (optional)                                                                                          |
 
 Never commit `.env.agent` or share it in chat.
 

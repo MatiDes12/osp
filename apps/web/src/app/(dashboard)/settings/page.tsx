@@ -23,10 +23,7 @@ import {
   NGROK_AUTHTOKEN_MIN_LEN,
   NGROK_AUTHTOKEN_DASHBOARD_URL,
 } from "@/lib/local-agent-credentials";
-import {
-  getUseMeteredTurn,
-  setUseMeteredTurn,
-} from "@/lib/webrtc-prefs";
+import { getUseMeteredTurn, setUseMeteredTurn } from "@/lib/webrtc-prefs";
 import {
   Camera as CameraIcon,
   Users,
@@ -2097,7 +2094,8 @@ function TunnelHealthCard() {
     return () => clearInterval(iv);
   }, [check]);
 
-  const { status, latency_ms, streams, error, error_code, upgrade_url } = health;
+  const { status, latency_ms, streams, error, error_code, upgrade_url } =
+    health;
 
   const isQuotaExceeded = status === "tunnel_quota_exceeded";
   const isTunnelError = status === "tunnel_error";
@@ -2117,10 +2115,16 @@ function TunnelHealthCard() {
     <div className={`rounded-lg border ${borderColor} bg-zinc-900 p-4`}>
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-medium text-zinc-200 flex items-center gap-2">
-          {status === "loading" && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+          {status === "loading" && (
+            <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+          )}
           {isUp && <CheckCircle2 className="h-4 w-4 text-green-400" />}
-          {(isDown || isTunnelError) && <AlertCircle className="h-4 w-4 text-amber-400" />}
-          {isQuotaExceeded && <AlertTriangle className="h-4 w-4 text-red-400" />}
+          {(isDown || isTunnelError) && (
+            <AlertCircle className="h-4 w-4 text-amber-400" />
+          )}
+          {isQuotaExceeded && (
+            <AlertTriangle className="h-4 w-4 text-red-400" />
+          )}
           {isNotConfigured && <WifiOff className="h-4 w-4 text-zinc-500" />}
           Tunnel health
         </h4>
@@ -2153,10 +2157,14 @@ function TunnelHealthCard() {
             Tunnel OK
           </span>
           {latency_ms !== undefined && (
-            <span className="text-zinc-400">Latency: <span className="text-zinc-200">{latency_ms} ms</span></span>
+            <span className="text-zinc-400">
+              Latency: <span className="text-zinc-200">{latency_ms} ms</span>
+            </span>
           )}
           {streams !== undefined && (
-            <span className="text-zinc-400">Active streams: <span className="text-zinc-200">{streams}</span></span>
+            <span className="text-zinc-400">
+              Active streams: <span className="text-zinc-200">{streams}</span>
+            </span>
           )}
         </div>
       )}
@@ -2166,7 +2174,11 @@ function TunnelHealthCard() {
           <div className="flex items-center gap-1.5 text-xs text-amber-400">
             <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
             Tunnel unreachable
-            {error_code && <span className="ml-1 font-mono text-amber-300">({error_code})</span>}
+            {error_code && (
+              <span className="ml-1 font-mono text-amber-300">
+                ({error_code})
+              </span>
+            )}
           </div>
           {error && <p className="text-xs text-zinc-400">{error}</p>}
         </div>
@@ -2238,9 +2250,9 @@ function MeteredTurnRelaySettings() {
               WebRTC TURN relay (Metered)
             </p>
             <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
-              Off by default for lower latency when your network and tunnel allow
-              direct WebRTC. Turn on if live video fails behind strict NAT or
-              firewalls (uses your gateway&apos;s TURN credentials when
+              Off by default for lower latency when your network and tunnel
+              allow direct WebRTC. Turn on if live video fails behind strict NAT
+              or firewalls (uses your gateway&apos;s TURN credentials when
               configured).
             </p>
           </div>
@@ -2304,8 +2316,8 @@ function LocalPcAgentNgrokSettings() {
         PC agent — ngrok authtoken
       </h4>
       <p className="mb-3 text-xs text-zinc-500 leading-relaxed">
-        Saved only in this browser (not on OSP servers). It pre-fills the
-        camera connection wizard and the values used when you download{" "}
+        Saved only in this browser (not on OSP servers). It pre-fills the camera
+        connection wizard and the values used when you download{" "}
         <code className="text-zinc-400">.env.agent</code>. After you change it
         here, update <code className="text-zinc-400">NGROK_AUTHTOKEN</code> in
         your local Docker / Compose files and restart the{" "}

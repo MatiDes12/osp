@@ -1414,11 +1414,15 @@ export default function CameraDetailPage() {
         // MSE/fallback path: use captureStream()
         const stream =
           (video.srcObject as MediaStream | null) ??
-          (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
+          (
+            video as HTMLVideoElement & { captureStream?: () => MediaStream }
+          ).captureStream?.();
         if (!stream) return;
 
         recordingChunksRef.current = [];
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        const mimeType = MediaRecorder.isTypeSupported(
+          "video/webm;codecs=vp9,opus",
+        )
           ? "video/webm;codecs=vp9,opus"
           : "video/webm";
 
@@ -1434,7 +1438,10 @@ export default function CameraDetailPage() {
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+          const ts = new Date()
+            .toISOString()
+            .replace(/[:.]/g, "-")
+            .slice(0, 19);
           a.download = `${camera?.name ?? cameraId}-${ts}.webm`;
           document.body.appendChild(a);
           a.click();

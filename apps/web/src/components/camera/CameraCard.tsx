@@ -58,10 +58,9 @@ function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
         } else {
           const token = getToken();
           if (!token) return;
-          res = await fetch(
-            `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
+          res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/snapshot`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
         }
 
         if (res.ok && !cancelled) {

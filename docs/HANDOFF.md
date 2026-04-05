@@ -151,6 +151,7 @@ cd apps/web && pnpm dev                  # Web on :3001
 **Status**: CI/CD pipelines are correct and passing. Secrets need to be added to GitHub.
 
 **What's done**:
+
 - Vercel deploy workflow fixed (removed `--cwd` double-path, uses `VERCEL_PROJECT_ID` + `VERCEL_ORG_ID`)
 - Fly.io deploy workflow correct (uses `FLY_API_TOKEN`)
 - Production workflow correct (Slack uses `vars.SLACK_ENABLED`, not secrets in `if:` condition)
@@ -159,27 +160,28 @@ cd apps/web && pnpm dev                  # Web on :3001
 
 **What's needed — add to GitHub → Settings → Secrets and variables → Actions**:
 
-| Secret | How to get |
-|--------|-----------|
-| `FLY_API_TOKEN` | `fly tokens create deploy` or Fly.io dashboard |
-| `VERCEL_TOKEN` | vercel.com → Account Settings → Tokens |
-| `VERCEL_ORG_ID` | `.vercel/project.json` after `vercel link` in `apps/web/` |
-| `VERCEL_PROJECT_ID` | Same as above |
-| `SLACK_WEBHOOK_URL` | Slack app → Incoming Webhooks |
-| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens |
-| `SUPABASE_DB_PASSWORD` | Supabase project → Settings → Database |
-| `PRODUCTION_GATEWAY_URL` | Your Fly.io gateway URL |
-| `PRODUCTION_WEB_URL` | Your Vercel web URL |
-| `STAGING_GATEWAY_URL` | Staging gateway URL |
-| `STAGING_WEB_URL` | Staging web URL |
+| Secret                   | How to get                                                |
+| ------------------------ | --------------------------------------------------------- |
+| `FLY_API_TOKEN`          | `fly tokens create deploy` or Fly.io dashboard            |
+| `VERCEL_TOKEN`           | vercel.com → Account Settings → Tokens                    |
+| `VERCEL_ORG_ID`          | `.vercel/project.json` after `vercel link` in `apps/web/` |
+| `VERCEL_PROJECT_ID`      | Same as above                                             |
+| `SLACK_WEBHOOK_URL`      | Slack app → Incoming Webhooks                             |
+| `SUPABASE_ACCESS_TOKEN`  | supabase.com → Account → Access Tokens                    |
+| `SUPABASE_DB_PASSWORD`   | Supabase project → Settings → Database                    |
+| `PRODUCTION_GATEWAY_URL` | Your Fly.io gateway URL                                   |
+| `PRODUCTION_WEB_URL`     | Your Vercel web URL                                       |
+| `STAGING_GATEWAY_URL`    | Staging gateway URL                                       |
+| `STAGING_WEB_URL`        | Staging web URL                                           |
 
 **Variable** (Settings → Secrets and variables → Variables):
 
-| Variable | Value |
-|----------|-------|
+| Variable        | Value  |
+| --------------- | ------ |
 | `SLACK_ENABLED` | `true` |
 
 **Steps to complete**:
+
 1. Add all secrets above
 2. Create Fly.io app: `fly apps create osp-gateway`
 3. Set Fly secrets: `fly secrets set SUPABASE_URL=... REDIS_URL=... -a osp-gateway`
@@ -187,6 +189,7 @@ cd apps/web && pnpm dev                  # Web on :3001
 5. Verify health at `https://osp-gateway.fly.dev/health`
 
 **Files**:
+
 - `.github/workflows/deploy.yml`
 - `.github/workflows/production.yml`
 - `services/gateway/fly.toml`
@@ -196,16 +199,16 @@ cd apps/web && pnpm dev                  # Web on :3001
 
 ## Known Bugs — All Resolved
 
-| # | Bug | Fix |
-|---|-----|-----|
-| 1 | Recording file paths in Docker | Named volume `recordings-data` mounted at `/data/recordings` |
-| 2 | WebSocket reconnect loop on expired token | Token refresh attempted before reconnect; stops after 3 auth failures |
-| 3 | JWT expiry race condition | `!isRefreshing` guard prevents concurrent refresh calls |
-| 4 | go2rtc stream persistence on restart | `syncStreamsOnStartup()` re-registers all cameras before first health check |
-| 5 | Camera status stuck on "connecting" | Same startup sync runs health check immediately on start |
-| 6 | Event clips growing unbounded | Hourly cleanup job deletes local clips older than 7 days |
-| 7 | Mobile app TypeScript `any` types | `transforms.ts` uses `Record<string, unknown>` with typed helpers |
-| 8 | Zone drawing on mobile | Zones fetched and shown with sensitivity/alert toggle |
+| #   | Bug                                       | Fix                                                                         |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | Recording file paths in Docker            | Named volume `recordings-data` mounted at `/data/recordings`                |
+| 2   | WebSocket reconnect loop on expired token | Token refresh attempted before reconnect; stops after 3 auth failures       |
+| 3   | JWT expiry race condition                 | `!isRefreshing` guard prevents concurrent refresh calls                     |
+| 4   | go2rtc stream persistence on restart      | `syncStreamsOnStartup()` re-registers all cameras before first health check |
+| 5   | Camera status stuck on "connecting"       | Same startup sync runs health check immediately on start                    |
+| 6   | Event clips growing unbounded             | Hourly cleanup job deletes local clips older than 7 days                    |
+| 7   | Mobile app TypeScript `any` types         | `transforms.ts` uses `Record<string, unknown>` with typed helpers           |
+| 8   | Zone drawing on mobile                    | Zones fetched and shown with sensitivity/alert toggle                       |
 
 ---
 
@@ -341,11 +344,11 @@ osp/
 
 The platform is production-ready. Phase 3 options:
 
-| Feature | Effort | Notes |
-|---------|--------|-------|
-| Wasm sandbox for extensions | 40h | Replace Node.js vm with `isolated-vm` or Wasm |
-| SAML 2.0 SSO | — | Requires Supabase Enterprise plan |
-| ClickHouse deeper analytics | 20h | More query types, ML anomaly detection |
-| Mobile app store submission | 10h | Expo EAS build, App Store / Play Store |
-| Windows MSI installer | — | Tauri builds `.msi` via `pnpm --filter @osp/desktop build` |
-| k6 load tests | 8h | 100/1000/10000 concurrent stream targets |
+| Feature                     | Effort | Notes                                                      |
+| --------------------------- | ------ | ---------------------------------------------------------- |
+| Wasm sandbox for extensions | 40h    | Replace Node.js vm with `isolated-vm` or Wasm              |
+| SAML 2.0 SSO                | —      | Requires Supabase Enterprise plan                          |
+| ClickHouse deeper analytics | 20h    | More query types, ML anomaly detection                     |
+| Mobile app store submission | 10h    | Expo EAS build, App Store / Play Store                     |
+| Windows MSI installer       | —      | Tauri builds `.msi` via `pnpm --filter @osp/desktop build` |
+| k6 load tests               | 8h     | 100/1000/10000 concurrent stream targets                   |

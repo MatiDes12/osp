@@ -711,9 +711,12 @@ export class CameraHealthChecker {
       });
 
       if (!res.ok) {
-        logger.warn("go2rtc streams API returned non-OK — skipping health check cycle", {
-          status: String(res.status),
-        });
+        logger.warn(
+          "go2rtc streams API returned non-OK — skipping health check cycle",
+          {
+            status: String(res.status),
+          },
+        );
         return null;
       }
 

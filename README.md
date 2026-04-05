@@ -10,39 +10,39 @@ OSP provides professional-grade camera management, live monitoring, recording, m
 
 ## Features
 
-| Category | What's included |
-|----------|----------------|
-| **Live View** | <500ms WebRTC streaming, 8 grid layouts, PTZ controls, two-way audio |
-| **Recording** | Continuous + motion-triggered, timeline scrubber, R2/S3 storage, clip export |
-| **Motion Detection** | Per-zone sensitivity, 1fps pixel-diff, AI object detection (OpenAI Vision) |
-| **Alerts & Rules** | Visual rule builder, push / email / webhook / recording actions |
-| **Camera Support** | RTSP, ONVIF auto-discovery, USB/IP, go2rtc universal proxy |
-| **Multi-Tenant** | Full RLS isolation — cameras, users, and data scoped per tenant |
-| **Extensions** | TypeScript SDK, sandboxed runtime, marketplace with 8 demo extensions |
-| **Analytics** | ClickHouse event/recording analytics, heatmaps, camera activity charts |
-| **AI Extras** | License plate recognition (PlateRecognizer), SSO (Google / Microsoft / GitHub) |
-| **Edge Agents** | On-prem Go binary, BoltDB offline buffer, cloud sync when reconnected |
-| **Desktop App** | Tauri v2 — system tray, native notifications, auto-start, minimize to tray |
-| **Mobile App** | React Native/Expo — iOS + Android, live view, events, recordings, push notifications |
-| **Error Monitoring** | Sentry on web + gateway, source maps, session replay, tunnel route |
+| Category             | What's included                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| **Live View**        | <500ms WebRTC streaming, 8 grid layouts, PTZ controls, two-way audio                 |
+| **Recording**        | Continuous + motion-triggered, timeline scrubber, R2/S3 storage, clip export         |
+| **Motion Detection** | Per-zone sensitivity, 1fps pixel-diff, AI object detection (OpenAI Vision)           |
+| **Alerts & Rules**   | Visual rule builder, push / email / webhook / recording actions                      |
+| **Camera Support**   | RTSP, ONVIF auto-discovery, USB/IP, go2rtc universal proxy                           |
+| **Multi-Tenant**     | Full RLS isolation — cameras, users, and data scoped per tenant                      |
+| **Extensions**       | TypeScript SDK, sandboxed runtime, marketplace with 8 demo extensions                |
+| **Analytics**        | ClickHouse event/recording analytics, heatmaps, camera activity charts               |
+| **AI Extras**        | License plate recognition (PlateRecognizer), SSO (Google / Microsoft / GitHub)       |
+| **Edge Agents**      | On-prem Go binary, BoltDB offline buffer, cloud sync when reconnected                |
+| **Desktop App**      | Tauri v2 — system tray, native notifications, auto-start, minimize to tray           |
+| **Mobile App**       | React Native/Expo — iOS + Android, live view, events, recordings, push notifications |
+| **Error Monitoring** | Sentry on web + gateway, source maps, session replay, tunnel route                   |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Web | Next.js 15 (App Router), Tailwind CSS, shadcn/ui |
-| Mobile | React Native, Expo |
-| Desktop | Tauri v2 |
-| API Gateway | Hono on Bun (TypeScript) |
+| Layer         | Technology                                                                           |
+| ------------- | ------------------------------------------------------------------------------------ |
+| Web           | Next.js 15 (App Router), Tailwind CSS, shadcn/ui                                     |
+| Mobile        | React Native, Expo                                                                   |
+| Desktop       | Tauri v2                                                                             |
+| API Gateway   | Hono on Bun (TypeScript)                                                             |
 | Core Services | Go 1.22 (camera-ingest, video-pipeline, event-engine, extension-runtime, edge-agent) |
-| Video | go2rtc + FFmpeg (RTSP/ONVIF/WebRTC/HLS) |
-| Database | Supabase (PostgreSQL + Auth + Realtime + RLS) |
-| Cache | Redis |
-| Storage | Cloudflare R2 |
-| Analytics | ClickHouse |
-| Monitoring | Sentry |
+| Video         | go2rtc + FFmpeg (RTSP/ONVIF/WebRTC/HLS)                                              |
+| Database      | Supabase (PostgreSQL + Auth + Realtime + RLS)                                        |
+| Cache         | Redis                                                                                |
+| Storage       | Cloudflare R2                                                                        |
+| Analytics     | ClickHouse                                                                           |
+| Monitoring    | Sentry                                                                               |
 
 ---
 
@@ -73,35 +73,35 @@ See [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) for the full setup walkthrough 
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) | Setup guide — web, mobile, desktop, Docker, deployment |
-| [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md) | Pre-launch checklist |
-| [docs/RUNBOOK.md](docs/RUNBOOK.md) | Deployment, health checks, rollback procedures |
-| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | How to contribute |
-| [docs/HANDOFF.md](docs/HANDOFF.md) | Full feature inventory and project handoff |
+| Document                                                     | Description                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------ |
+| [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md)                 | Setup guide — web, mobile, desktop, Docker, deployment |
+| [docs/PRODUCTION-CHECKLIST.md](docs/PRODUCTION-CHECKLIST.md) | Pre-launch checklist                                   |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md)                           | Deployment, health checks, rollback procedures         |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)                 | How to contribute                                      |
+| [docs/HANDOFF.md](docs/HANDOFF.md)                           | Full feature inventory and project handoff             |
 
 ---
 
 ## Download
 
-| Platform | Status |
-|----------|--------|
+| Platform         | Status                                                      |
+| ---------------- | ----------------------------------------------------------- |
 | Windows (`.msi`) | [Latest release](https://github.com/MatiDes12/osp/releases) |
-| macOS (`.dmg`) | [Latest release](https://github.com/MatiDes12/osp/releases) |
-| Linux (`.deb`) | [Latest release](https://github.com/MatiDes12/osp/releases) |
-| iOS | Coming soon |
-| Android | Coming soon |
+| macOS (`.dmg`)   | [Latest release](https://github.com/MatiDes12/osp/releases) |
+| Linux (`.deb`)   | [Latest release](https://github.com/MatiDes12/osp/releases) |
+| iOS              | Coming soon                                                 |
+| Android          | Coming soon                                                 |
 
 ---
 
 ## CI/CD
 
-| Workflow | Trigger |
-|----------|---------|
-| `ci.yml` | Every push / PR — lint, type-check, tests, build |
-| `e2e.yml` | Push/PR to main — Playwright E2E |
-| `deploy.yml` | Push to main — Fly.io services + Vercel web |
+| Workflow         | Trigger                                                              |
+| ---------------- | -------------------------------------------------------------------- |
+| `ci.yml`         | Every push / PR — lint, type-check, tests, build                     |
+| `e2e.yml`        | Push/PR to main — Playwright E2E                                     |
+| `deploy.yml`     | Push to main — Fly.io services + Vercel web                          |
 | `production.yml` | GitHub release published — DB migration + full deploy + Slack notify |
 
 ---

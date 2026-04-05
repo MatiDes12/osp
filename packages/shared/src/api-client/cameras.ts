@@ -17,7 +17,10 @@ import type {
 export function createCamerasApi(client: ApiClient) {
   return {
     list(params?: PaginationParams & { status?: string; search?: string }) {
-      return client.get<Camera[]>("/api/v1/cameras", params as Record<string, string | number | boolean | undefined>);
+      return client.get<Camera[]>(
+        "/api/v1/cameras",
+        params as Record<string, string | number | boolean | undefined>,
+      );
     },
 
     get(id: string) {

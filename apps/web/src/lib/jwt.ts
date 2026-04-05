@@ -36,7 +36,9 @@ export function isTokenExpired(token: string): boolean {
  * OSP tenant UUID for the logged-in user. Supabase often stores it under
  * `user_metadata.tenant_id`, not the JWT top level — so we check both.
  */
-export function getTenantIdFromAccessToken(token: string | null): string | null {
+export function getTenantIdFromAccessToken(
+  token: string | null,
+): string | null {
   if (!token) return null;
   const decoded = decodeJWT(token);
   if (!decoded) return null;

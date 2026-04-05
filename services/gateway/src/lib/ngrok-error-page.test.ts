@@ -15,9 +15,7 @@ describe("describeNgrokErrorPage", () => {
   });
 
   it("detects generic ERR_NGROK codes", () => {
-    const msg = describeNgrokErrorPage(
-      `<body>ERR_NGROK_103 something</body>`,
-    );
+    const msg = describeNgrokErrorPage(`<body>ERR_NGROK_103 something</body>`);
     expect(msg).toContain("ERR_NGROK_103");
   });
 });

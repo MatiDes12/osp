@@ -117,7 +117,10 @@ export function attachStreamProxy(httpServer: Server): void {
         // go2rtc sends the MIME type text message immediately on open —
         // without buffering, this first message is lost because
         // handleUpgrade's callback hasn't fired yet.
-        const pendingMessages: { data: Buffer | ArrayBuffer | Buffer[]; isBinary: boolean }[] = [];
+        const pendingMessages: {
+          data: Buffer | ArrayBuffer | Buffer[];
+          isBinary: boolean;
+        }[] = [];
         let clientWs: InstanceType<typeof WebSocket> | null = null;
 
         upstream.on("message", (data, isBinary) => {
@@ -134,7 +137,11 @@ export function attachStreamProxy(httpServer: Server): void {
             error: String(err),
           });
           if (clientWs) {
-            try { clientWs.close(); } catch { /* ignore */ }
+            try {
+              clientWs.close();
+            } catch {
+              /* ignore */
+            }
           }
           if (!socket.destroyed) {
             socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
@@ -144,12 +151,18 @@ export function attachStreamProxy(httpServer: Server): void {
 
         upstream.on("close", () => {
           if (clientWs) {
-            try { clientWs.close(); } catch { /* ignore */ }
+            try {
+              clientWs.close();
+            } catch {
+              /* ignore */
+            }
           }
         });
 
         upstream.on("open", () => {
-          logger.info("Upstream connected, accepting client upgrade", { cameraId });
+          logger.info("Upstream connected, accepting client upgrade", {
+            cameraId,
+          });
 
           // Upstream connected — accept the client's WebSocket upgrade
           upgradeServer.handleUpgrade(req, socket, head, (ws) => {
@@ -176,10 +189,18 @@ export function attachStreamProxy(httpServer: Server): void {
             });
 
             ws.on("close", () => {
-              try { upstream.close(); } catch { /* ignore */ }
+              try {
+                upstream.close();
+              } catch {
+                /* ignore */
+              }
             });
             ws.on("error", () => {
-              try { upstream.close(); } catch { /* ignore */ }
+              try {
+                upstream.close();
+              } catch {
+                /* ignore */
+              }
             });
           });
         });

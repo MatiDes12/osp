@@ -14,7 +14,10 @@ export function createExtensionsApi(client: ApiClient) {
     marketplace(params?: MarketplaceParams): Promise<ApiResponse<Extension[]>> {
       return client.get<Extension[]>(
         "/api/v1/extensions/marketplace",
-        params as unknown as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<
+          string,
+          string | number | boolean | undefined
+        >,
       );
     },
 

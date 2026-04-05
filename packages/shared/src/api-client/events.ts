@@ -38,7 +38,10 @@ export function createEventsApi(client: ApiClient) {
     summary(params?: TimeRangeParams): Promise<ApiResponse<EventSummary>> {
       return client.get<EventSummary>(
         "/api/v1/events/summary",
-        params as unknown as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<
+          string,
+          string | number | boolean | undefined
+        >,
       );
     },
   };

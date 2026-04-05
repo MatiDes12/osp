@@ -123,7 +123,9 @@ function CommandBlock({
       )}
       {description && (
         <div className="px-4 py-3 border-b border-[#30363d] bg-[#161b22]">
-          <p className="text-[11px] leading-relaxed text-[#c9d1d9]">{description}</p>
+          <p className="text-[11px] leading-relaxed text-[#c9d1d9]">
+            {description}
+          </p>
         </div>
       )}
       <pre className="px-4 py-3 text-[11px] leading-5 text-[#e6edf3] font-mono whitespace-pre-wrap break-all overflow-x-auto">
@@ -177,9 +179,18 @@ function buildCommands(
 
   const cont = "\\\n  ";
   const go2rtc = `docker run -d --name osp-go2rtc ${os === "linux" ? "--network host " : "-p 1984:1984 -p 8554:8554 -p 8555:8555/udp "}${cont}--restart unless-stopped ${cont}-e GO2RTC_API_ORIGIN=* alexxit/go2rtc`;
-  const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
+  const go2rtcUrl =
+    os === "linux"
+      ? "http://localhost:1984"
+      : "http://host.docker.internal:1984";
+  const ngrokTarget =
+    os === "linux"
+      ? "http://localhost:1984"
+      : "http://host.docker.internal:1984";
+  const ngrokApi =
+    os === "linux"
+      ? "http://localhost:4040"
+      : "http://host.docker.internal:4040";
   const ngrokNet = os === "linux" ? "--network host " : "-p 4040:4040 ";
   const ngrok = `docker run -d --name osp-ngrok ${ngrokNet}${cont}--restart unless-stopped ${cont}-e NGROK_AUTHTOKEN=${sqUnix(ngrokToken)} ${cont}ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
 
@@ -220,14 +231,23 @@ function buildSingleLineCommands(
     os === "linux"
       ? `docker run -d --name osp-ngrok --network host --restart unless-stopped`
       : `docker run -d --name osp-ngrok -p 4040:4040 --restart unless-stopped`;
-  const ngrokTarget = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
+  const ngrokTarget =
+    os === "linux"
+      ? "http://localhost:1984"
+      : "http://host.docker.internal:1984";
   const ngrok = `${ngrokPrefix} -e NGROK_AUTHTOKEN=${sqUnix(ngrokToken)} ngrok/ngrok:latest http ${ngrokTarget} --log stdout`;
   const agentPrefix =
     os === "linux"
       ? `docker run -d --name osp-agent --network host --restart unless-stopped`
       : `docker run -d --name osp-agent -p 8084:8084 --restart unless-stopped`;
-  const go2rtcUrl = os === "linux" ? "http://localhost:1984" : "http://host.docker.internal:1984";
-  const ngrokApi = os === "linux" ? "http://localhost:4040" : "http://host.docker.internal:4040";
+  const go2rtcUrl =
+    os === "linux"
+      ? "http://localhost:1984"
+      : "http://host.docker.internal:1984";
+  const ngrokApi =
+    os === "linux"
+      ? "http://localhost:4040"
+      : "http://host.docker.internal:4040";
   const agent = `${agentPrefix} -e CLOUD_GATEWAY_URL=${GATEWAY_URL} -e TENANT_ID=${tenantId} -e CLOUD_API_TOKEN=${sqUnix(apiToken)} -e GO2RTC_URL=${go2rtcUrl} -e NGROK_API_URL=${ngrokApi} ghcr.io/matides12/osp-edge-agent:latest`;
   return { go2rtcLine: go2rtc, ngrokLine: ngrok, agentLine: agent };
 }
@@ -274,7 +294,11 @@ function escapeForCmdC(s: string): string {
   return s.replace(/"/g, '""');
 }
 
-function buildWindowsPs1(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
+function buildWindowsPs1(
+  go2rtcLine: string,
+  ngrokLine: string,
+  agentLine: string,
+): string {
   const c1 = escapeForCmdC(go2rtcLine);
   const c2 = escapeForCmdC(ngrokLine);
   const c3 = escapeForCmdC(agentLine);
@@ -331,7 +355,11 @@ Read-Host "Press Enter to close"
 `;
 }
 
-function buildWindowsBat(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
+function buildWindowsBat(
+  go2rtcLine: string,
+  ngrokLine: string,
+  agentLine: string,
+): string {
   return `@echo off
 setlocal EnableExtensions
 title OSP setup
@@ -379,7 +407,11 @@ pause
 `;
 }
 
-function buildUnixSh(go2rtcLine: string, ngrokLine: string, agentLine: string): string {
+function buildUnixSh(
+  go2rtcLine: string,
+  ngrokLine: string,
+  agentLine: string,
+): string {
   return `#!/usr/bin/env bash
 set -euo pipefail
 echo ""
@@ -517,18 +549,10 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     }
     setLocalNgrokAuthtoken(ng);
     setStep("run");
-  }, [
-    ngrokToken,
-    apiKeySource,
-    manualApiToken,
-    apiToken,
-    generateApiKey,
-  ]);
+  }, [ngrokToken, apiKeySource, manualApiToken, apiToken, generateApiKey]);
 
   const effectiveApiToken =
-    apiKeySource === "auto"
-      ? (apiToken ?? "").trim()
-      : manualApiToken.trim();
+    apiKeySource === "auto" ? (apiToken ?? "").trim() : manualApiToken.trim();
   const ngrokTrimmed = ngrokToken.trim();
   const ngrokValid = ngrokTrimmed.length >= NGROK_AUTHTOKEN_MIN_LEN;
   const apiTokenReady = effectiveApiToken.length > 0;
@@ -580,36 +604,30 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
     ? buildCommands(os, tenantId!, effectiveApiToken, ngrokTrimmed)
     : null;
   const singleLine = secretsReady
-    ? buildSingleLineCommands(
-        os,
-        tenantId!,
-        effectiveApiToken,
-        ngrokTrimmed,
-      )
+    ? buildSingleLineCommands(os, tenantId!, effectiveApiToken, ngrokTrimmed)
     : null;
-  const runStepLoading =
-    step === "run" && !tenantLoadError && !tenantId;
+  const runStepLoading = step === "run" && !tenantLoadError && !tenantId;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-bg)]/90 backdrop-blur-sm p-4 overflow-y-auto py-8">
       <div className="w-full max-w-2xl rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-2xl overflow-hidden">
         {/* ── Progress dots ── */}
         <div className="flex items-center gap-1.5 px-7 pt-5">
-          {(["welcome", "docker", "credentials", "run", "waiting"] as const).map(
-            (s, i) => (
-              <div
-                key={s}
-                className={`h-1 rounded-full transition-all duration-300 ${
-                  step === "done" ||
-                  ["welcome", "docker", "credentials", "run", "waiting"].indexOf(
-                    step,
-                  ) >= i
-                    ? "bg-[var(--color-accent)]"
-                    : "bg-[var(--color-border)]"
-                } ${s === step ? "w-6" : "w-3"}`}
-              />
-            ),
-          )}
+          {(
+            ["welcome", "docker", "credentials", "run", "waiting"] as const
+          ).map((s, i) => (
+            <div
+              key={s}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                step === "done" ||
+                ["welcome", "docker", "credentials", "run", "waiting"].indexOf(
+                  step,
+                ) >= i
+                  ? "bg-[var(--color-accent)]"
+                  : "bg-[var(--color-border)]"
+              } ${s === step ? "w-6" : "w-3"}`}
+            />
+          ))}
         </div>
 
         {/* ── Header ── */}
@@ -984,9 +1002,9 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 <>
                   <span className="text-[var(--color-fg)]">Recommended:</span>{" "}
                   download the official bundle and a filled{" "}
-                  <code className="text-[var(--color-fg)]">.env.agent</code>, then
-                  run one Docker Compose command in the extracted folder. Docker
-                  must be running first.
+                  <code className="text-[var(--color-fg)]">.env.agent</code>,
+                  then run one Docker Compose command in the extracted folder.
+                  Docker must be running first.
                 </>
               )}
               {setupMode === "download" && (
@@ -1001,8 +1019,8 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
               {setupMode === "terminal" && (
                 <>
                   Open a terminal (Command Prompt or PowerShell on Windows) and
-                  run these three commands in order. Your ngrok and API values are
-                  already embedded — copy and paste as-is.
+                  run these three commands in order. Your ngrok and API values
+                  are already embedded — copy and paste as-is.
                 </>
               )}
             </p>
@@ -1056,11 +1074,12 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                   You're not being hacked
                 </p>
                 <p className="text-[11px] text-[var(--color-muted)] mt-1 leading-relaxed">
-                  This is official OSP setup while you're signed in. The commands
-                  run only on <span className="text-[var(--color-fg)]">your</span>{" "}
-                  computer through Docker — the same kind of tool developers use
-                  to run apps safely. They don't install remote desktop, spyware,
-                  or give strangers access to your PC.
+                  This is official OSP setup while you're signed in. The
+                  commands run only on{" "}
+                  <span className="text-[var(--color-fg)]">your</span> computer
+                  through Docker — the same kind of tool developers use to run
+                  apps safely. They don't install remote desktop, spyware, or
+                  give strangers access to your PC.
                 </p>
               </div>
             </div>
@@ -1144,93 +1163,105 @@ export function WebAgentSetupWizard({ onComplete }: WebAgentSetupWizardProps) {
                 </div>
               )}
 
-            {cmds && singleLine && !tenantLoadError && setupMode === "download" && (
-              <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5 space-y-3">
-                <p className="text-[11px] text-[var(--color-muted)] leading-relaxed">
+            {cmds &&
+              singleLine &&
+              !tenantLoadError &&
+              setupMode === "download" && (
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-4 mb-5 space-y-3">
+                  <p className="text-[11px] text-[var(--color-muted)] leading-relaxed">
+                    {os === "windows" ? (
+                      <>
+                        Save the file to your computer, then double-click it. If
+                        Windows SmartScreen or PowerShell asks for permission,
+                        choose{" "}
+                        <span className="text-[var(--color-fg)]">Run</span> —
+                        this only runs the same three Docker commands shown in
+                        the terminal option.
+                      </>
+                    ) : (
+                      <>
+                        After downloading, open Terminal in the folder where you
+                        saved the file, run{" "}
+                        <code className="text-[var(--color-fg)]">
+                          chmod +x osp-setup.sh &amp;&amp; ./osp-setup.sh
+                        </code>
+                        .
+                      </>
+                    )}
+                  </p>
                   {os === "windows" ? (
-                    <>
-                      Save the file to your computer, then double-click it. If
-                      Windows SmartScreen or PowerShell asks for permission,
-                      choose <span className="text-[var(--color-fg)]">Run</span>{" "}
-                      — this only runs the same three Docker commands shown in
-                      the terminal option.
-                    </>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadTextFile(
+                            "osp-windows-setup.ps1",
+                            buildWindowsPs1(
+                              singleLine.go2rtcLine,
+                              singleLine.ngrokLine,
+                              singleLine.agentLine,
+                            ),
+                          )
+                        }
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5 shrink-0" />
+                        PowerShell (.ps1)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadTextFile(
+                            "osp-windows-setup.bat",
+                            buildWindowsBat(
+                              singleLine.go2rtcLine,
+                              singleLine.ngrokLine,
+                              singleLine.agentLine,
+                            ),
+                          )
+                        }
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5 shrink-0" />
+                        Command Prompt (.bat)
+                      </button>
+                    </div>
                   ) : (
-                    <>
-                      After downloading, open Terminal in the folder where you
-                      saved the file, run{" "}
-                      <code className="text-[var(--color-fg)]">
-                        chmod +x osp-setup.sh &amp;&amp; ./osp-setup.sh
-                      </code>
-                      .
-                    </>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadTextFile(
+                          "osp-setup.sh",
+                          buildUnixSh(
+                            singleLine.go2rtcLine,
+                            singleLine.ngrokLine,
+                            singleLine.agentLine,
+                          ),
+                        )
+                      }
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 shrink-0" />
+                      Download setup script (.sh)
+                    </button>
                   )}
-                </p>
-                {os === "windows" ? (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        downloadTextFile(
-                          "osp-windows-setup.ps1",
-                          buildWindowsPs1(
-                            singleLine.go2rtcLine,
-                            singleLine.ngrokLine,
-                            singleLine.agentLine,
-                          ),
-                        )
-                      }
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5 shrink-0" />
-                      PowerShell (.ps1)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        downloadTextFile(
-                          "osp-windows-setup.bat",
-                          buildWindowsBat(
-                            singleLine.go2rtcLine,
-                            singleLine.ngrokLine,
-                            singleLine.agentLine,
-                          ),
-                        )
-                      }
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5 shrink-0" />
-                      Command Prompt (.bat)
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadTextFile(
-                        "osp-setup.sh",
-                        buildUnixSh(singleLine.go2rtcLine, singleLine.ngrokLine, singleLine.agentLine),
-                      )
-                    }
-                    className="w-full flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs font-semibold text-[var(--color-fg)] hover:bg-[var(--color-bg)] transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5 shrink-0" />
-                    Download setup script (.sh)
-                  </button>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
             {cmds && !tenantLoadError && setupMode === "terminal" && (
               <div className="space-y-4 mb-5">
                 <CommandBlock
                   label="Step 1 — Start camera proxy"
-                  description={"What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It's a \"bridge\" for video — not a virus, not remote control of your PC."}
+                  description={
+                    'What this does: starts a small, trusted program (go2rtc) on your computer so your cameras can be reached on your local network and shown in the browser. It\'s a "bridge" for video — not a virus, not remote control of your PC.'
+                  }
                   command={cmds.go2rtc}
                 />
                 <CommandBlock
                   label="Step 2 — Start ngrok tunnel"
-                  description={'What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. ngrok supports WebSocket for real-time video streaming.'}
+                  description={
+                    "What this does: creates a free, secure HTTPS tunnel so you can watch live streams from anywhere — no port forwarding or static IP needed. ngrok supports WebSocket for real-time video streaming."
+                  }
                   command={cmds.ngrok}
                 />
                 <CommandBlock

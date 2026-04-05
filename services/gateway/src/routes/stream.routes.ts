@@ -40,7 +40,10 @@ async function resolveEdgeGo2rtcUrl(
     });
     return url;
   } catch (err) {
-    logger.warn("resolveEdgeGo2rtcUrl failed", { tenantId, error: String(err) });
+    logger.warn("resolveEdgeGo2rtcUrl failed", {
+      tenantId,
+      error: String(err),
+    });
     return null;
   }
 }
@@ -138,7 +141,8 @@ async function ensureStreamActive(
       ? ((await checkRes.json().catch(() => ({}))) as Record<string, unknown>)
       : {};
     const hasProducer =
-      Array.isArray(data?.producers) && (data.producers as unknown[]).length > 0;
+      Array.isArray(data?.producers) &&
+      (data.producers as unknown[]).length > 0;
 
     if (!hasProducer && connectionUri) {
       logger.info("ensureStreamActive: no producer, auto-registering", {
@@ -158,9 +162,10 @@ async function ensureStreamActive(
           },
         ).catch(() => null);
         if (poll?.ok) {
-          const pollData = (await poll
-            .json()
-            .catch(() => ({}))) as Record<string, unknown>;
+          const pollData = (await poll.json().catch(() => ({}))) as Record<
+            string,
+            unknown
+          >;
           if (
             Array.isArray(pollData?.producers) &&
             (pollData.producers as unknown[]).length > 0
@@ -216,7 +221,9 @@ streamRoutes.post("/:id/whep", requireAuth("viewer"), async (c) => {
       .limit(1)
       .single();
     agentRow = data as { go2rtc_url?: string } | null;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   const go2rtcUrl =
     normalizeEdgeTunnelUrl(agentRow?.go2rtc_url ?? null) ||
@@ -354,7 +361,8 @@ streamRoutes.get("/:id/mjpeg", requireAuth("viewer"), async (c) => {
   }
 
   const edgeGo2rtcUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
-  const go2rtcBase = edgeGo2rtcUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
+  const go2rtcBase =
+    edgeGo2rtcUrl ?? get("GO2RTC_URL") ?? "http://localhost:1984";
   const mjpegUrl = `${go2rtcBase}/api/stream.mjpeg?src=${encodeURIComponent(cameraId)}`;
 
   // Use a race so we fail fast if go2rtc is unreachable, but don't cut the
@@ -406,7 +414,10 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
 
   // Use the edge agent's public go2rtc URL when available
   const edgeUrl = await resolveEdgeGo2rtcUrl(supabase, tenantId);
-  logger.info("Snapshot: resolved edge URL", { cameraId, edgeUrl: edgeUrl ?? "none" });
+  logger.info("Snapshot: resolved edge URL", {
+    cameraId,
+    edgeUrl: edgeUrl ?? "none",
+  });
 
   let imageBuffer: Buffer;
   if (edgeUrl) {
@@ -421,8 +432,16 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
         signal: AbortSignal.timeout(5000),
       });
     } catch (fetchErr) {
-      logger.error("Snapshot: fetch threw", { cameraId, snapUrl, error: String(fetchErr) });
-      throw new ApiError("SNAPSHOT_FAILED", `Edge fetch failed: ${String(fetchErr)}`, 502);
+      logger.error("Snapshot: fetch threw", {
+        cameraId,
+        snapUrl,
+        error: String(fetchErr),
+      });
+      throw new ApiError(
+        "SNAPSHOT_FAILED",
+        `Edge fetch failed: ${String(fetchErr)}`,
+        502,
+      );
     }
     if (!resp.ok) {
       const ct = resp.headers.get("content-type") ?? "";
@@ -456,11 +475,17 @@ streamRoutes.get("/:id/snapshot", requireAuth("viewer"), async (c) => {
           hint: "ngrok interstitial or tunnel error — verify NGROK_AUTHTOKEN, osp-ngrok logs, and edge go2rtc_url",
         }),
       });
-      throw new ApiError("SNAPSHOT_FAILED", `Edge returned ${resp.status}`, 502);
+      throw new ApiError(
+        "SNAPSHOT_FAILED",
+        `Edge returned ${resp.status}`,
+        502,
+      );
     }
     imageBuffer = Buffer.from(await resp.arrayBuffer());
   } else {
-    logger.warn("Snapshot: no edge URL, falling back to local go2rtc", { cameraId });
+    logger.warn("Snapshot: no edge URL, falling back to local go2rtc", {
+      cameraId,
+    });
     const streamService = getStreamService();
     imageBuffer = await streamService.getSnapshot(cameraId);
   }
@@ -517,13 +542,21 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
       // Remove existing stream
       await fetch(
         `${edgeGo2rtcUrl}/api/streams?src=${encodeURIComponent(cameraId)}`,
-        { method: "DELETE", signal: AbortSignal.timeout(5000), headers: tunnelHeaders },
+        {
+          method: "DELETE",
+          signal: AbortSignal.timeout(5000),
+          headers: tunnelHeaders,
+        },
       ).catch(() => {});
 
       // Re-add stream
       const addResp = await fetch(
         `${edgeGo2rtcUrl}/api/streams?name=${encodeURIComponent(cameraId)}&src=${encodeURIComponent(connectionUri)}`,
-        { method: "PUT", signal: AbortSignal.timeout(5000), headers: tunnelHeaders },
+        {
+          method: "PUT",
+          signal: AbortSignal.timeout(5000),
+          headers: tunnelHeaders,
+        },
       );
 
       if (addResp.ok) {
@@ -534,7 +567,11 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
           .eq("tenant_id", tenantId);
       } else {
         const body = await addResp.text().catch(() => "");
-        logger.warn("go2rtc rejected stream re-registration", { cameraId, status: addResp.status, body });
+        logger.warn("go2rtc rejected stream re-registration", {
+          cameraId,
+          status: addResp.status,
+          body,
+        });
         await supabase
           .from("cameras")
           .update({ status: "error", updated_at: new Date().toISOString() })
@@ -542,7 +579,10 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
           .eq("tenant_id", tenantId);
       }
     } catch (err) {
-      logger.warn("Failed to reconnect stream via edge agent", { cameraId, error: String(err) });
+      logger.warn("Failed to reconnect stream via edge agent", {
+        cameraId,
+        error: String(err),
+      });
       await supabase
         .from("cameras")
         .update({ status: "error", updated_at: new Date().toISOString() })
@@ -560,7 +600,10 @@ streamRoutes.post("/:id/reconnect", requireAuth("operator"), async (c) => {
         .eq("id", cameraId)
         .eq("tenant_id", tenantId);
     } catch (err) {
-      logger.warn("Failed to re-add stream in go2rtc on reconnect", { cameraId, error: String(err) });
+      logger.warn("Failed to re-add stream in go2rtc on reconnect", {
+        cameraId,
+        error: String(err),
+      });
       await supabase
         .from("cameras")
         .update({ status: "error", updated_at: new Date().toISOString() })
@@ -751,7 +794,11 @@ streamRoutes.get("/:id/live.mp4", requireAuth("viewer"), async (c) => {
 
   const mp4Url = `${go2rtcBase}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
 
-  logger.info("Proxying live MP4 stream", { cameraId, target: mp4Url, viaEdge: !!edgeUrl });
+  logger.info("Proxying live MP4 stream", {
+    cameraId,
+    target: mp4Url,
+    viaEdge: !!edgeUrl,
+  });
 
   let upstream: Response;
   try {

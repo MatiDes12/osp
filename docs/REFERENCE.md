@@ -56,6 +56,7 @@ OSP is a **complete, standalone surveillance platform** — not just a framework
 What makes OSP unique: beyond being a fully-featured product it is also an **open platform**. Customers can customize it through extensions, custom rules, and white-label theming. Developers can build and sell plugins in the marketplace. This dual nature — **product + platform** — means OSP competes with closed products like Ring and Verkada while offering the flexibility of open systems like Frigate.
 
 **OSP is for**:
+
 - **End users** who want a powerful, vendor-agnostic surveillance system that works immediately
 - **Businesses** who need multi-tenant, role-based camera management across locations
 - **Developers** who want to build custom integrations, AI models, or white-label solutions
@@ -92,35 +93,37 @@ What makes OSP unique: beyond being a fully-featured product it is also an **ope
 
 ## 3. Feature Matrix
 
-| Feature                     | Home         | Business   | Retail     | Enterprise          |
-| --------------------------- | ------------ | ---------- | ---------- | ------------------- |
-| Live View                   | Core         | Core       | Core       | Core                |
-| Playback / Timeline         | Core         | Core       | Core       | Core                |
-| Motion-Triggered Recording  | Core         | Core       | Core       | Core                |
-| Continuous Recording        | Extension    | Core       | Core       | Core                |
-| Motion Detection            | Core         | Core       | Core       | Core                |
-| Person Detection            | Extension    | Extension  | Core       | Core                |
-| Vehicle Detection           | Extension    | Extension  | Extension  | Core                |
-| Custom Alert Rules          | Core (basic) | Core       | Core       | Core (advanced)     |
-| Push / Email / Webhook      | Core/Core/—  | All        | All        | All                 |
-| Role-Based Access           | Basic        | Core       | Core       | Core (sub-tenants)  |
-| Multi-Location              | —            | Extension  | Core       | Core                |
-| Analytics Dashboard         | —            | Basic      | Core       | Core + custom       |
-| White-Label                 | —            | —          | Extension  | Core                |
-| Audit Log                   | —            | —          | Core       | Core                |
-| SSO / SAML                  | —            | —          | —          | Core                |
-| LPR                         | —            | Extension  | Extension  | Core                |
+| Feature                    | Home         | Business  | Retail    | Enterprise         |
+| -------------------------- | ------------ | --------- | --------- | ------------------ |
+| Live View                  | Core         | Core      | Core      | Core               |
+| Playback / Timeline        | Core         | Core      | Core      | Core               |
+| Motion-Triggered Recording | Core         | Core      | Core      | Core               |
+| Continuous Recording       | Extension    | Core      | Core      | Core               |
+| Motion Detection           | Core         | Core      | Core      | Core               |
+| Person Detection           | Extension    | Extension | Core      | Core               |
+| Vehicle Detection          | Extension    | Extension | Extension | Core               |
+| Custom Alert Rules         | Core (basic) | Core      | Core      | Core (advanced)    |
+| Push / Email / Webhook     | Core/Core/—  | All       | All       | All                |
+| Role-Based Access          | Basic        | Core      | Core      | Core (sub-tenants) |
+| Multi-Location             | —            | Extension | Core      | Core               |
+| Analytics Dashboard        | —            | Basic     | Core      | Core + custom      |
+| White-Label                | —            | —         | Extension | Core               |
+| Audit Log                  | —            | —         | Core      | Core               |
+| SSO / SAML                 | —            | —         | —         | Core               |
+| LPR                        | —            | Extension | Extension | Core               |
 
 ---
 
 ## 4. Product Roadmap
 
 ### Phase 1 — MVP (done)
+
 - [x] Multi-tenant auth, Camera CRUD, Live WebRTC, Motion detection
 - [x] Alert rules (webhook, email, push), Recording (R2)
 - [x] Web dashboard, Desktop app (Tauri + go2rtc sidecar), Docker agent
 
 ### Phase 2 — Growth
+
 - [ ] React Native mobile app
 - [ ] ClickHouse analytics (heat maps, counts)
 - [ ] Extension marketplace + SDK v2
@@ -128,6 +131,7 @@ What makes OSP unique: beyond being a fully-featured product it is also an **ope
 - [ ] Multi-location sub-tenant, Audit log, SSO/SAML
 
 ### Phase 3 — Enterprise
+
 - [ ] Command center layout, Access control integration SDK
 - [ ] Custom AI model hosting, Federated search, SLA dashboard
 
@@ -135,29 +139,29 @@ What makes OSP unique: beyond being a fully-featured product it is also an **ope
 
 ## 5. Non-Functional Requirements
 
-| Requirement         | Target                                           |
-| ------------------- | ------------------------------------------------ |
-| Live view latency   | < 200 ms (WebRTC) / < 3 s (HLS)                 |
-| Stream start time   | < 2 s from grid click                            |
-| Concurrent streams  | 100 (Phase 1), 1 000 (Phase 2)                   |
-| API p99 latency     | < 200 ms                                         |
-| Uptime              | 99.9% (Phase 1), 99.99% (Enterprise)             |
-| Event delivery      | < 500 ms from detection to browser push          |
-| RLS enforcement     | 100% — no cross-tenant data leakage              |
-| Auth token lifetime | Access: 1 h, Refresh: 7 d                        |
+| Requirement         | Target                                  |
+| ------------------- | --------------------------------------- |
+| Live view latency   | < 200 ms (WebRTC) / < 3 s (HLS)         |
+| Stream start time   | < 2 s from grid click                   |
+| Concurrent streams  | 100 (Phase 1), 1 000 (Phase 2)          |
+| API p99 latency     | < 200 ms                                |
+| Uptime              | 99.9% (Phase 1), 99.99% (Enterprise)    |
+| Event delivery      | < 500 ms from detection to browser push |
+| RLS enforcement     | 100% — no cross-tenant data leakage     |
+| Auth token lifetime | Access: 1 h, Refresh: 7 d               |
 
 ---
 
 ## 6. Competitive Analysis
 
-| Product            | Weaknesses vs OSP                              |
-| ------------------ | ---------------------------------------------- |
+| Product            | Weaknesses vs OSP                               |
+| ------------------ | ----------------------------------------------- |
 | Ring / Arlo        | Closed, vendor lock-in, no enterprise/self-host |
-| Milestone XProtect | On-premise only, Windows, high cost            |
-| Frigate            | Self-host only, no SaaS, no multi-tenancy      |
-| Verkada            | Proprietary hardware required, very expensive  |
-| Unifi Protect      | Hardware lock-in, limited cloud                |
-| **OSP**            | Any camera, extensible, multi-tenant SaaS      |
+| Milestone XProtect | On-premise only, Windows, high cost             |
+| Frigate            | Self-host only, no SaaS, no multi-tenancy       |
+| Verkada            | Proprietary hardware required, very expensive   |
+| Unifi Protect      | Hardware lock-in, limited cloud                 |
+| **OSP**            | Any camera, extensible, multi-tenant SaaS       |
 
 ---
 
@@ -187,33 +191,33 @@ Browser / Mobile / Desktop
 
 ### Data flows
 
-| Flow               | Path                                                                          |
-| ------------------ | ----------------------------------------------------------------------------- |
-| Browser live video | Browser -> Gateway /whep -> go2rtc WHEP -> camera RTSP                        |
-| Motion event       | camera-ingest -> Redis events:{tenantId} -> WS server -> browser              |
-| Rule trigger       | Event -> rule-evaluator -> action-executor -> webhook/email/push/recording    |
-| Recording upload   | video-pipeline HLS segments -> R2 -> Gateway signs URL                        |
-| Analytics write    | event-engine -> ClickHouse (batch async)                                      |
-| Edge sync          | BoltDB buffer -> POST batch to Gateway on reconnect                           |
+| Flow               | Path                                                                       |
+| ------------------ | -------------------------------------------------------------------------- |
+| Browser live video | Browser -> Gateway /whep -> go2rtc WHEP -> camera RTSP                     |
+| Motion event       | camera-ingest -> Redis events:{tenantId} -> WS server -> browser           |
+| Rule trigger       | Event -> rule-evaluator -> action-executor -> webhook/email/push/recording |
+| Recording upload   | video-pipeline HLS segments -> R2 -> Gateway signs URL                     |
+| Analytics write    | event-engine -> ClickHouse (batch async)                                   |
+| Edge sync          | BoltDB buffer -> POST batch to Gateway on reconnect                        |
 
 ---
 
 ## 8. Tech Stack
 
-| Layer            | Technology                                         |
-| ---------------- | -------------------------------------------------- |
-| Web              | Next.js 15 (App Router) + Tailwind CSS + shadcn/ui |
-| Mobile           | React Native + Expo                                |
-| Desktop          | Tauri v2 (bundled go2rtc sidecar)                  |
-| State            | Zustand + TanStack Query                           |
-| API Gateway      | Hono on Bun (TypeScript)                           |
-| Go services      | camera-ingest, video-pipeline, event-engine, ext-runtime |
-| Camera proxy     | go2rtc                                             |
-| Primary DB       | Supabase (PostgreSQL + Auth + RLS)                 |
-| Cache / pub-sub  | Redis (Upstash)                                    |
-| Object storage   | Cloudflare R2                                      |
-| Analytics DB     | ClickHouse                                         |
-| Monorepo         | pnpm workspaces + Turborepo                        |
+| Layer           | Technology                                               |
+| --------------- | -------------------------------------------------------- |
+| Web             | Next.js 15 (App Router) + Tailwind CSS + shadcn/ui       |
+| Mobile          | React Native + Expo                                      |
+| Desktop         | Tauri v2 (bundled go2rtc sidecar)                        |
+| State           | Zustand + TanStack Query                                 |
+| API Gateway     | Hono on Bun (TypeScript)                                 |
+| Go services     | camera-ingest, video-pipeline, event-engine, ext-runtime |
+| Camera proxy    | go2rtc                                                   |
+| Primary DB      | Supabase (PostgreSQL + Auth + RLS)                       |
+| Cache / pub-sub | Redis (Upstash)                                          |
+| Object storage  | Cloudflare R2                                            |
+| Analytics DB    | ClickHouse                                               |
+| Monorepo        | pnpm workspaces + Turborepo                              |
 
 ---
 
@@ -259,20 +263,20 @@ All tables: `tenant_id uuid NOT NULL` for RLS. FK convention: `fk_{table}_{ref}`
 
 ### cameras
 
-| Column          | Type        | Notes                                     |
-| --------------- | ----------- | ----------------------------------------- |
-| `id`            | uuid PK     |                                           |
-| `tenant_id`     | uuid FK     |                                           |
-| `name`          | text        |                                           |
-| `stream_url`    | text        | Encrypted RTSP/ONVIF URL                  |
-| `protocol`      | text        | rtsp / onvif / webrtc / hls / mjpeg       |
-| `status`        | text        | online / offline / error / connecting     |
-| `location`      | text        |                                           |
-| `go2rtc_stream` | text        | Stream key in go2rtc                      |
-| `snapshot_url`  | text        |                                           |
-| `settings`      | jsonb       | resolution, fps, retention, etc.          |
-| `created_at`    | timestamptz |                                           |
-| `updated_at`    | timestamptz |                                           |
+| Column          | Type        | Notes                                 |
+| --------------- | ----------- | ------------------------------------- |
+| `id`            | uuid PK     |                                       |
+| `tenant_id`     | uuid FK     |                                       |
+| `name`          | text        |                                       |
+| `stream_url`    | text        | Encrypted RTSP/ONVIF URL              |
+| `protocol`      | text        | rtsp / onvif / webrtc / hls / mjpeg   |
+| `status`        | text        | online / offline / error / connecting |
+| `location`      | text        |                                       |
+| `go2rtc_stream` | text        | Stream key in go2rtc                  |
+| `snapshot_url`  | text        |                                       |
+| `settings`      | jsonb       | resolution, fps, retention, etc.      |
+| `created_at`    | timestamptz |                                       |
+| `updated_at`    | timestamptz |                                       |
 
 ### events
 
@@ -308,24 +312,24 @@ All tables: `tenant_id uuid NOT NULL` for RLS. FK convention: `fk_{table}_{ref}`
 
 ### Routes
 
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| GET/POST | `/api/v1/cameras` | List / create cameras |
-| GET/PATCH/DELETE | `/api/v1/cameras/:id` | Get / update / delete |
-| GET | `/api/v1/cameras/:id/stream` | WHEP/HLS stream info |
-| GET | `/api/v1/cameras/:id/snapshot` | Latest snapshot URL |
-| GET | `/api/v1/events` | List events (filters: type, cameraId, date) |
-| GET | `/api/v1/events/:id` | Single event |
-| GET/DELETE | `/api/v1/recordings` | List / delete recordings |
-| GET | `/api/v1/recordings/:id/url` | Signed playback URL |
-| CRUD | `/api/v1/alert-rules` | Alert rule management |
-| CRUD | `/api/v1/api-keys` | API key management |
-| GET | `/api/v1/edge/agents` | List edge agents |
-| POST | `/api/v1/edge/heartbeat` | Agent heartbeat |
-| POST | `/api/v1/edge/events` | Bulk event sync |
-| GET | `/api/v1/analytics/summary` | Events by camera/day |
-| GET | `/api/v1/analytics/heatmap` | Hourly distribution |
-| GET/PATCH | `/api/v1/admin/tenants` | (Admin only) tenant management |
+| Method           | Path                           | Description                                 |
+| ---------------- | ------------------------------ | ------------------------------------------- |
+| GET/POST         | `/api/v1/cameras`              | List / create cameras                       |
+| GET/PATCH/DELETE | `/api/v1/cameras/:id`          | Get / update / delete                       |
+| GET              | `/api/v1/cameras/:id/stream`   | WHEP/HLS stream info                        |
+| GET              | `/api/v1/cameras/:id/snapshot` | Latest snapshot URL                         |
+| GET              | `/api/v1/events`               | List events (filters: type, cameraId, date) |
+| GET              | `/api/v1/events/:id`           | Single event                                |
+| GET/DELETE       | `/api/v1/recordings`           | List / delete recordings                    |
+| GET              | `/api/v1/recordings/:id/url`   | Signed playback URL                         |
+| CRUD             | `/api/v1/alert-rules`          | Alert rule management                       |
+| CRUD             | `/api/v1/api-keys`             | API key management                          |
+| GET              | `/api/v1/edge/agents`          | List edge agents                            |
+| POST             | `/api/v1/edge/heartbeat`       | Agent heartbeat                             |
+| POST             | `/api/v1/edge/events`          | Bulk event sync                             |
+| GET              | `/api/v1/analytics/summary`    | Events by camera/day                        |
+| GET              | `/api/v1/analytics/heatmap`    | Hourly distribution                         |
+| GET/PATCH        | `/api/v1/admin/tenants`        | (Admin only) tenant management              |
 
 ### Error envelope
 
@@ -388,18 +392,18 @@ Message types: `event`, `camera.status`, `recording.start`, `recording.end`, `ag
 
 **Next.js 15 App Router** · URL: `https://osp-web-eight.vercel.app`
 
-| Route | Description |
-| ----- | ----------- |
-| `/` | Redirects to /login or /cameras |
-| `/login` | Supabase magic link + password auth |
-| `/(dashboard)/cameras` | Camera grid + setup wizards |
-| `/(dashboard)/cameras/[id]` | Live view + events |
-| `/(dashboard)/recordings` | Recording library + playback |
-| `/(dashboard)/events` | Event feed |
-| `/(dashboard)/rules` | Alert rule builder |
-| `/(dashboard)/analytics` | ClickHouse charts |
-| `/(dashboard)/settings` | Users, API keys, tenant settings |
-| `/(dashboard)/admin` | Super-admin panel |
+| Route                       | Description                         |
+| --------------------------- | ----------------------------------- |
+| `/`                         | Redirects to /login or /cameras     |
+| `/login`                    | Supabase magic link + password auth |
+| `/(dashboard)/cameras`      | Camera grid + setup wizards         |
+| `/(dashboard)/cameras/[id]` | Live view + events                  |
+| `/(dashboard)/recordings`   | Recording library + playback        |
+| `/(dashboard)/events`       | Event feed                          |
+| `/(dashboard)/rules`        | Alert rule builder                  |
+| `/(dashboard)/analytics`    | ClickHouse charts                   |
+| `/(dashboard)/settings`     | Users, API keys, tenant settings    |
+| `/(dashboard)/admin`        | Super-admin panel                   |
 
 Key components: `CameraGrid`, `LiveViewPlayer`, `DesktopSetupWizard`, `WebAgentSetupWizard`, `Sidebar`, `AuthGuard`
 
@@ -515,12 +519,12 @@ HLS segments -> assembled .mp4 -> R2 at `{tenant_id}/{camera_id}/{timestamp}.mp4
 
 **Flow**: Supabase Auth -> JWT with `tenant_id` + `role` claims -> Gateway verifies -> RLS enforces.
 
-| Role     | Permissions                                    |
-| -------- | ---------------------------------------------- |
-| owner    | Full access, billing, delete tenant            |
-| admin    | All data, user management, no billing          |
-| operator | Cameras, events, recordings, rules (no users)  |
-| viewer   | Read-only cameras and events                   |
+| Role     | Permissions                                   |
+| -------- | --------------------------------------------- |
+| owner    | Full access, billing, delete tenant           |
+| admin    | All data, user management, no billing         |
+| operator | Cameras, events, recordings, rules (no users) |
+| viewer   | Read-only cameras and events                  |
 
 **API Key auth**: bcrypt-hashed in DB; gateway hashes incoming key and compares.
 
@@ -540,7 +544,7 @@ HLS segments -> assembled .mp4 -> R2 at `{tenant_id}/{camera_id}/{timestamp}.mp4
   "minConfidence": 0.7,
   "schedule": {
     "timezone": "America/New_York",
-    "windows": [{"days": [1,2,3,4,5], "start": "22:00", "end": "06:00"}]
+    "windows": [{ "days": [1, 2, 3, 4, 5], "start": "22:00", "end": "06:00" }]
   }
 }
 ```
@@ -549,10 +553,10 @@ HLS segments -> assembled .mp4 -> R2 at `{tenant_id}/{camera_id}/{timestamp}.mp4
 
 ```json
 {
-  "webhook": {"url": "https://...", "secret": "..."},
-  "email": {"to": ["user@example.com"]},
-  "push": {"userIds": ["uuid"]},
-  "record": {"durationS": 30},
+  "webhook": { "url": "https://...", "secret": "..." },
+  "email": { "to": ["user@example.com"] },
+  "push": { "userIds": ["uuid"] },
+  "record": { "durationS": 30 },
   "snapshot": true
 }
 ```
@@ -600,11 +604,12 @@ TypeScript modules executed in V8 sandbox (extension-runtime).
 ```typescript
 import { OSP } from "@osp/sdk";
 export default {
-  name: "my-extension", version: "1.0.0",
+  name: "my-extension",
+  version: "1.0.0",
   onEvent(event: OSP.Event): OSP.ActionResult {
     if (event.type === "motion" && event.confidence > 0.8)
       return { action: "notify", message: "High confidence motion" };
-  }
+  },
 };
 ```
 
@@ -631,20 +636,20 @@ CREATE POLICY "tenant_isolation" ON cameras
 
 ## 28. Coding Standards
 
-| Scope             | Convention                      |
-| ----------------- | ------------------------------- |
-| DB tables         | snake_case, plural              |
-| DB columns        | snake_case                      |
-| DB indexes        | idx_{table}_{columns}           |
-| DB foreign keys   | fk_{table}_{ref_table}          |
-| API routes        | kebab-case, plural              |
-| JSON / query      | camelCase                       |
-| TS files          | kebab-case                      |
-| TS components     | PascalCase                      |
-| TS constants      | SCREAMING_SNAKE_CASE            |
-| TS types          | PascalCase, no I-prefix         |
-| Go files          | snake_case                      |
-| Go packages       | lowercase, single word          |
+| Scope           | Convention              |
+| --------------- | ----------------------- |
+| DB tables       | snake_case, plural      |
+| DB columns      | snake_case              |
+| DB indexes      | idx*{table}*{columns}   |
+| DB foreign keys | fk*{table}*{ref_table}  |
+| API routes      | kebab-case, plural      |
+| JSON / query    | camelCase               |
+| TS files        | kebab-case              |
+| TS components   | PascalCase              |
+| TS constants    | SCREAMING_SNAKE_CASE    |
+| TS types        | PascalCase, no I-prefix |
+| Go files        | snake_case              |
+| Go packages     | lowercase, single word  |
 
 File sizes: components <= 300 lines · services <= 500 lines · functions <= 50 lines.
 
@@ -654,13 +659,13 @@ Rules: no hardcoded secrets · no `console.log` in prod · TypeScript strict mod
 
 ## 29. Testing Strategy
 
-| Layer             | Tool               | Target         |
-| ----------------- | ------------------ | -------------- |
-| Unit (TS)         | Vitest             | 80%            |
-| Unit (Go)         | go test            | 80%            |
-| Integration (API) | Vitest + Supertest | Key routes     |
-| Integration (DB)  | Real Supabase      | All migrations |
-| E2E               | Playwright         | Core flows     |
+| Layer             | Tool               | Target                 |
+| ----------------- | ------------------ | ---------------------- |
+| Unit (TS)         | Vitest             | 80%                    |
+| Unit (Go)         | go test            | 80%                    |
+| Integration (API) | Vitest + Supertest | Key routes             |
+| Integration (DB)  | Real Supabase      | All migrations         |
+| E2E               | Playwright         | Core flows             |
 | Load              | k6                 | 100/1000/10000 streams |
 
 Core E2E flows: login -> camera grid · add camera -> live view · create rule -> notification · record -> playback.
@@ -689,12 +694,12 @@ Core E2E flows: login -> camera grid · add camera -> live view · create rule -
 
 **CI/CD** (GitHub Actions):
 
-| Pipeline             | Trigger           | Steps                             |
-| -------------------- | ----------------- | --------------------------------- |
-| ci.yml               | PR / push main    | Lint, type-check, unit tests      |
-| docker-build.yml     | Push main         | Build + push to GHCR              |
-| e2e.yml              | Push main         | Playwright E2E                    |
-| deploy-gateway.yml   | Push main         | fly deploy to Fly.io              |
+| Pipeline           | Trigger        | Steps                        |
+| ------------------ | -------------- | ---------------------------- |
+| ci.yml             | PR / push main | Lint, type-check, unit tests |
+| docker-build.yml   | Push main      | Build + push to GHCR         |
+| e2e.yml            | Push main      | Playwright E2E               |
+| deploy-gateway.yml | Push main      | fly deploy to Fly.io         |
 
 **Deployments**: Web -> Vercel (`osp-web-eight.vercel.app`) · Gateway -> Fly.io (`osp-gateway.fly.dev`)
 
@@ -706,12 +711,12 @@ Copy `.env.example` to `.env` for local dev.
 
 ### Supabase (Required)
 
-| Variable                    | Default                                                   | Description                  |
-| --------------------------- | --------------------------------------------------------- | ---------------------------- |
-| `SUPABASE_URL`              | http://localhost:54321                                    | Supabase API endpoint        |
-| `SUPABASE_ANON_KEY`         | —                                                         | Public key (browser/mobile)  |
-| `SUPABASE_SERVICE_ROLE_KEY` | —                                                         | Private key (backend only)   |
-| `DATABASE_URL`              | postgresql://postgres:postgres@localhost:54322/postgres   | Direct PostgreSQL connection |
+| Variable                    | Default                                                 | Description                  |
+| --------------------------- | ------------------------------------------------------- | ---------------------------- |
+| `SUPABASE_URL`              | http://localhost:54321                                  | Supabase API endpoint        |
+| `SUPABASE_ANON_KEY`         | —                                                       | Public key (browser/mobile)  |
+| `SUPABASE_SERVICE_ROLE_KEY` | —                                                       | Private key (backend only)   |
+| `DATABASE_URL`              | postgresql://postgres:postgres@localhost:54322/postgres | Direct PostgreSQL connection |
 
 Use direct port 5432 (not pooler 6543): `postgresql://postgres:[PASSWORD]@db.[PROJECT_ID].supabase.co:5432/postgres?sslmode=require`
 
@@ -727,13 +732,13 @@ Storage path: `{tenant_id}/{camera_id}/{timestamp}.mp4`
 
 ### API Gateway
 
-| Variable               | Default                 | Notes                                |
-| ---------------------- | ----------------------- | ------------------------------------ |
-| `GATEWAY_PORT`         | 3000                    | REST + WebSocket                     |
-| `GATEWAY_CORS_ORIGINS` | http://localhost:3001   | Comma-separated origins              |
-| `RATE_LIMIT_FAIL_OPEN` | true                    | Allow when Redis is down             |
-| `API_URL`              | http://localhost:3000   | Internal gateway URL                 |
-| `API_TOKEN`            | —                       | Service-to-service secret (required) |
+| Variable               | Default               | Notes                                |
+| ---------------------- | --------------------- | ------------------------------------ |
+| `GATEWAY_PORT`         | 3000                  | REST + WebSocket                     |
+| `GATEWAY_CORS_ORIGINS` | http://localhost:3001 | Comma-separated origins              |
+| `RATE_LIMIT_FAIL_OPEN` | true                  | Allow when Redis is down             |
+| `API_URL`              | http://localhost:3000 | Internal gateway URL                 |
+| `API_TOKEN`            | —                     | Service-to-service secret (required) |
 
 ### gRPC Ports
 
@@ -791,6 +796,7 @@ pnpm format        # Prettier
 ```
 
 **Local stack**:
+
 ```bash
 docker compose -f infra/docker/docker-compose.yml up -d
 pnpm supabase db push
@@ -807,16 +813,16 @@ pnpm dev
 
 ## 34. Security Model
 
-| Layer          | Mechanism                                              |
-| -------------- | ------------------------------------------------------ |
-| Transport      | TLS (Cloudflare terminates at edge)                    |
-| Authentication | Supabase JWT (HS256) + API key (bcrypt)                |
-| Authorization  | RBAC + Supabase RLS                                    |
-| Data isolation | Row-level security on all tenant tables                |
-| Storage        | Signed URLs (15-min expiry) for R2 objects             |
-| Input          | Zod validation on all API inputs                       |
-| Rate limiting  | Per-tenant per-route in Redis                          |
-| Secrets        | Encrypted at rest with `OSP_ENCRYPTION_KEY`            |
+| Layer          | Mechanism                                                      |
+| -------------- | -------------------------------------------------------------- |
+| Transport      | TLS (Cloudflare terminates at edge)                            |
+| Authentication | Supabase JWT (HS256) + API key (bcrypt)                        |
+| Authorization  | RBAC + Supabase RLS                                            |
+| Data isolation | Row-level security on all tenant tables                        |
+| Storage        | Signed URLs (15-min expiry) for R2 objects                     |
+| Input          | Zod validation on all API inputs                               |
+| Rate limiting  | Per-tenant per-route in Redis                                  |
+| Secrets        | Encrypted at rest with `OSP_ENCRYPTION_KEY`                    |
 | Headers        | HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy |
 
 **Mitigations**: SQL injection (parameterized queries) · XSS (Next.js escaping) · CSRF (SameSite + token auth) · Path traversal (path.resolve + allowlist) · SSRF (camera URL validation + private IP blocklist) · Token theft (1h expiry + refresh rotation).
@@ -837,15 +843,15 @@ React Native mobile · ClickHouse analytics (in progress) · Extension marketpla
 
 ## 36. Plan Tiers
 
-| Feature       | Home ($0/mo) | Business ($29/mo) | Enterprise (custom) |
-| ------------- | ------------ | ----------------- | ------------------- |
-| Cameras       | Up to 5      | Up to 50          | Unlimited           |
-| Retention     | 7 days       | 30 days           | 90+ days            |
-| Users         | 3            | 25                | Unlimited           |
-| Alert rules   | 3            | Unlimited         | Unlimited           |
-| Extensions    | 1            | 10                | Unlimited           |
-| Analytics     | —            | Basic             | Advanced + custom   |
-| White-label   | —            | —                 | Yes                 |
-| SSO / SAML    | —            | —                 | Yes                 |
-| SLA           | —            | 99.9%             | 99.99%              |
-| Support       | Community    | Email (48h)       | Dedicated CSM       |
+| Feature     | Home ($0/mo) | Business ($29/mo) | Enterprise (custom) |
+| ----------- | ------------ | ----------------- | ------------------- |
+| Cameras     | Up to 5      | Up to 50          | Unlimited           |
+| Retention   | 7 days       | 30 days           | 90+ days            |
+| Users       | 3            | 25                | Unlimited           |
+| Alert rules | 3            | Unlimited         | Unlimited           |
+| Extensions  | 1            | 10                | Unlimited           |
+| Analytics   | —            | Basic             | Advanced + custom   |
+| White-label | —            | —                 | Yes                 |
+| SSO / SAML  | —            | —                 | Yes                 |
+| SLA         | —            | 99.9%             | 99.99%              |
+| Support     | Community    | Email (48h)       | Dedicated CSM       |

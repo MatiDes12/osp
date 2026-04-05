@@ -205,10 +205,7 @@ export default async function HomePage() {
             >
               Pricing
             </a>
-            <a
-              href="/docs"
-              className="transition-colors hover:text-zinc-100"
-            >
+            <a href="/docs" className="transition-colors hover:text-zinc-100">
               Docs
             </a>
           </nav>

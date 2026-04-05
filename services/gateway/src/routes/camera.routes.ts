@@ -92,7 +92,8 @@ cameraRoutes.post("/internal/status", async (c) => {
       .from("cameras")
       .update({
         status,
-        last_seen_at: status === "online" ? new Date().toISOString() : undefined,
+        last_seen_at:
+          status === "online" ? new Date().toISOString() : undefined,
       })
       .eq("id", cameraId)
       .neq("status", "disabled"); // never touch disabled cameras

@@ -256,10 +256,8 @@ healthRoutes.get("/detailed", async (c) => {
   }
 
   // go2rtc is "not_configured" when it runs locally (edge agent setup) — that's expected.
-  const go2rtcOk =
-    go2rtc.status === "up" || go2rtc.status === "not_configured";
-  const allUp =
-    supabase.status === "up" && redis.status === "up" && go2rtcOk;
+  const go2rtcOk = go2rtc.status === "up" || go2rtc.status === "not_configured";
+  const allUp = supabase.status === "up" && redis.status === "up" && go2rtcOk;
 
   return c.json({
     status: allUp ? "healthy" : "degraded",

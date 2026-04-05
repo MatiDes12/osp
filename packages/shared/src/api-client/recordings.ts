@@ -14,7 +14,10 @@ export function createRecordingsApi(client: ApiClient) {
     list(params?: ListRecordingsParams): Promise<ApiResponse<Recording[]>> {
       return client.get<Recording[]>(
         "/api/v1/recordings",
-        params as unknown as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<
+          string,
+          string | number | boolean | undefined
+        >,
       );
     },
 

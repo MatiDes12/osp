@@ -1,6 +1,15 @@
 "use client";
 
-import { Monitor, Apple, Terminal, Download, CheckCircle2, Zap, Shield, Wifi } from "lucide-react";
+import {
+  Monitor,
+  Apple,
+  Terminal,
+  Download,
+  CheckCircle2,
+  Zap,
+  Shield,
+  Wifi,
+} from "lucide-react";
 import { isTauri } from "@/lib/tauri";
 
 const REPO = "MatiDes12/osp";
@@ -108,8 +117,12 @@ export default function DownloadPage() {
           >
             <div className="mt-0.5 shrink-0">{f.icon}</div>
             <div>
-              <p className="text-sm font-medium text-[var(--color-fg)]">{f.title}</p>
-              <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-relaxed">{f.desc}</p>
+              <p className="text-sm font-medium text-[var(--color-fg)]">
+                {f.title}
+              </p>
+              <p className="text-xs text-[var(--color-muted)] mt-0.5 leading-relaxed">
+                {f.desc}
+              </p>
             </div>
           </div>
         ))}
@@ -129,8 +142,12 @@ export default function DownloadPage() {
               <div className="flex items-center gap-3">
                 <div className="text-[var(--color-muted)]">{p.icon}</div>
                 <div>
-                  <p className="font-semibold text-[var(--color-fg)]">{p.name}</p>
-                  <p className="text-xs text-[var(--color-muted)]">{p.subtitle}</p>
+                  <p className="font-semibold text-[var(--color-fg)]">
+                    {p.name}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted)]">
+                    {p.subtitle}
+                  </p>
                 </div>
               </div>
 
@@ -174,17 +191,30 @@ export default function DownloadPage() {
 
       {/* What's bundled */}
       <div className="rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-[var(--color-fg)]">What&apos;s bundled in the installer</h2>
+        <h2 className="text-sm font-semibold text-[var(--color-fg)]">
+          What&apos;s bundled in the installer
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
           {[
-            { name: "go2rtc v1.9.9", desc: "RTSP / ONVIF / WebRTC proxy — starts automatically" },
-            { name: "Camera-ingest agent", desc: "Motion detection, camera polling — starts after login" },
-            { name: "OSP Dashboard", desc: "Full dashboard loaded from the cloud — always up to date" },
+            {
+              name: "go2rtc v1.9.9",
+              desc: "RTSP / ONVIF / WebRTC proxy — starts automatically",
+            },
+            {
+              name: "Camera-ingest agent",
+              desc: "Motion detection, camera polling — starts after login",
+            },
+            {
+              name: "OSP Dashboard",
+              desc: "Full dashboard loaded from the cloud — always up to date",
+            },
           ].map((item) => (
             <div key={item.name} className="flex gap-2">
               <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-[var(--color-fg)] text-xs">{item.name}</p>
+                <p className="font-medium text-[var(--color-fg)] text-xs">
+                  {item.name}
+                </p>
                 <p className="text-[var(--color-muted)] text-xs">{item.desc}</p>
               </div>
             </div>

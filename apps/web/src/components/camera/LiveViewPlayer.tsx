@@ -25,7 +25,13 @@ interface StreamInfo {
   }[];
 }
 
-type PlayerState = "loading" | "connecting" | "live" | "fallback" | "fallback-http" | "error";
+type PlayerState =
+  | "loading"
+  | "connecting"
+  | "live"
+  | "fallback"
+  | "fallback-http"
+  | "error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const WEBRTC_TIMEOUT_MS = 12000;
@@ -208,7 +214,11 @@ function MseFallback({
         if (!sb && !destroyed) {
           console.warn("[MSE] No data received within 5s — firing error");
           fireError();
-          try { ws?.close(); } catch { /* ignore */ }
+          try {
+            ws?.close();
+          } catch {
+            /* ignore */
+          }
         }
       }, 5000);
 
@@ -402,7 +412,8 @@ function MseHttpFallback({
         }
 
         // Use Content-Type from go2rtc, fall back to safe default
-        const contentType = resp.headers.get("Content-Type") ?? 'video/mp4; codecs="avc1.42E01E"';
+        const contentType =
+          resp.headers.get("Content-Type") ?? 'video/mp4; codecs="avc1.42E01E"';
         // go2rtc returns "video/mp4" without codecs — MSE needs codecs
         const mimeType = contentType.includes("codecs")
           ? contentType
@@ -444,13 +455,18 @@ function MseHttpFallback({
               if (!gotData) {
                 gotData = true;
                 clearTimeout(dataTimeout);
-                console.log("[MSE-HTTP] First data chunk received, size:", value.byteLength);
+                console.log(
+                  "[MSE-HTTP] First data chunk received, size:",
+                  value.byteLength,
+                );
               }
 
               // Wait for SourceBuffer to be ready
               if (sb.updating) {
                 await new Promise<void>((resolve) =>
-                  sb.addEventListener("updateend", () => resolve(), { once: true }),
+                  sb.addEventListener("updateend", () => resolve(), {
+                    once: true,
+                  }),
                 );
               }
 
@@ -465,11 +481,15 @@ function MseHttpFallback({
                     try {
                       if (sb.updating) {
                         await new Promise<void>((r) =>
-                          sb.addEventListener("updateend", () => r(), { once: true }),
+                          sb.addEventListener("updateend", () => r(), {
+                            once: true,
+                          }),
                         );
                       }
                       sb.remove(start, end - 5);
-                    } catch { /* ignore */ }
+                    } catch {
+                      /* ignore */
+                    }
                   }
                 }
               }
@@ -477,7 +497,9 @@ function MseHttpFallback({
               // Wait for append to complete
               if (sb.updating) {
                 await new Promise<void>((resolve) =>
-                  sb.addEventListener("updateend", () => resolve(), { once: true }),
+                  sb.addEventListener("updateend", () => resolve(), {
+                    once: true,
+                  }),
                 );
               }
 
@@ -489,7 +511,10 @@ function MseHttpFallback({
                 if (liveEnd >= 0.5) {
                   initialSeekDone = true;
                   video.currentTime = Math.max(0, liveEnd - 0.1);
-                  console.log("[MSE-HTTP] Initial seek to live edge:", liveEnd.toFixed(2));
+                  console.log(
+                    "[MSE-HTTP] Initial seek to live edge:",
+                    liveEnd.toFixed(2),
+                  );
                 }
               }
             }
@@ -510,7 +535,7 @@ function MseHttpFallback({
       }
     });
 
-        video.play().catch(() => {});
+    video.play().catch(() => {});
 
     // Periodically drop buffer *behind* the playhead only. Trimming with remove(start, end-3)
     // while currentTime was still near 0 caused timeline jumps and stutter.
@@ -548,7 +573,11 @@ function MseHttpFallback({
       clearInterval(liveEdge);
       abortCtrl.abort();
       if (ms.readyState === "open") {
-        try { ms.endOfStream(); } catch { /* ignore */ }
+        try {
+          ms.endOfStream();
+        } catch {
+          /* ignore */
+        }
       }
       URL.revokeObjectURL(video.src);
     };
@@ -578,8 +607,18 @@ function MseHttpFallback({
           className="p-1.5 rounded bg-black/50 text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
           title="Retry"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
         </button>
       </div>
@@ -634,16 +673,15 @@ export function LiveViewPlayer({
       const localSnapshotUrl = `http://localhost:1984/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
       const isLocal = isTauri();
       const canReachLocal = !isLocal && window.location.protocol !== "https:";
-      let res = await fetch(
-        isLocal ? localSnapshotUrl : cloudSnapshotUrl,
-        {
-          headers: isLocal ? {} : getAuthHeaders(),
-          signal: AbortSignal.timeout(4000),
-        },
-      ).catch(() => null);
+      let res = await fetch(isLocal ? localSnapshotUrl : cloudSnapshotUrl, {
+        headers: isLocal ? {} : getAuthHeaders(),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => null);
       // On HTTP, try local go2rtc snapshot as fallback (no localStorage gate)
       if ((!res || !res.ok) && canReachLocal) {
-        res = await fetch(localSnapshotUrl, { signal: AbortSignal.timeout(4000) }).catch(() => null);
+        res = await fetch(localSnapshotUrl, {
+          signal: AbortSignal.timeout(4000),
+        }).catch(() => null);
       }
       if (!res?.ok) return;
       const blob = await res.blob();
@@ -702,8 +740,13 @@ export function LiveViewPlayer({
 
       // On HTTPS, skip WebSocket MSE (ngrok doesn't relay WS frames reliably)
       // and go straight to HTTP-based MSE streaming
-      if (typeof window !== "undefined" && window.location.protocol === "https:") {
-        console.log("[LiveViewPlayer] WebRTC failed on HTTPS, falling back to HTTP MSE");
+      if (
+        typeof window !== "undefined" &&
+        window.location.protocol === "https:"
+      ) {
+        console.log(
+          "[LiveViewPlayer] WebRTC failed on HTTPS, falling back to HTTP MSE",
+        );
         setState("fallback-http");
         return;
       }
@@ -777,7 +820,9 @@ export function LiveViewPlayer({
               timeoutRef.current = setTimeout(() => {
                 const video = videoRef.current;
                 if (video && (video.videoWidth === 0 || video.readyState < 2)) {
-                  console.warn("[LiveViewPlayer] ICE connected but no video frames — falling back to MSE");
+                  console.warn(
+                    "[LiveViewPlayer] ICE connected but no video frames — falling back to MSE",
+                  );
                   fallbackToHLS(info);
                 }
               }, 4000);
@@ -886,7 +931,9 @@ export function LiveViewPlayer({
           // HTTP: probe local go2rtc regardless of setup flag — no localStorage dependency
           const localOk = await fetch("http://localhost:1984/api/streams", {
             signal: AbortSignal.timeout(1500),
-          }).then((r) => r.ok).catch(() => false);
+          })
+            .then((r) => r.ok)
+            .catch(() => false);
 
           if (localOk) {
             const base = "http://localhost:1984";
@@ -904,7 +951,9 @@ export function LiveViewPlayer({
               { headers: getAuthHeaders(), signal: AbortSignal.timeout(5000) },
             );
             if (!response.ok)
-              throw new Error(`Failed to fetch stream info (${response.status})`);
+              throw new Error(
+                `Failed to fetch stream info (${response.status})`,
+              );
             const json = await response.json();
             info = json.data ?? json;
           }
@@ -1079,10 +1128,16 @@ export function LiveViewPlayer({
     let wsUrl: string | undefined;
     if (isTauri()) {
       wsUrl = `ws://localhost:1984/api/ws?src=${encodeURIComponent(cameraId)}`;
-    } else if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    } else if (
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:"
+    ) {
       // Route through gateway proxy — it connects to ngrok over HTTP internally
       const accessToken = localStorage.getItem("osp_access_token") ?? "";
-      const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+      const gatewayWs = API_URL.replace(/^https:/, "wss:").replace(
+        /^http:/,
+        "ws:",
+      );
       wsUrl = `${gatewayWs}/api/v1/cameras/${encodeURIComponent(cameraId)}/ws?token=${encodeURIComponent(accessToken)}&cameraId=${encodeURIComponent(cameraId)}`;
     } else {
       // HTTP localhost — direct tunnel URL
@@ -1098,7 +1153,9 @@ export function LiveViewPlayer({
           className={className}
           onError={() => {
             // WebSocket failed — try HTTP streaming instead
-            console.log("[LiveView] MSE-over-WebSocket failed, trying HTTP streaming");
+            console.log(
+              "[LiveView] MSE-over-WebSocket failed, trying HTTP streaming",
+            );
             setState("fallback-http");
           }}
           onReconnect={handleReconnect}
@@ -1126,7 +1183,9 @@ export function LiveViewPlayer({
           onError={() => {
             if (mseHttpRetry < MSE_HTTP_MAX_RETRIES) {
               // Stream dropped (connection reset / ngrok hiccup) — re-mount after a short pause
-              console.log(`[LiveView] MSE-HTTP drop #${mseHttpRetry + 1}, retrying...`);
+              console.log(
+                `[LiveView] MSE-HTTP drop #${mseHttpRetry + 1}, retrying...`,
+              );
               setTimeout(() => setMseHttpRetry((n) => n + 1), 1500);
             } else {
               streamInfoCache.delete(streamCacheKey(cameraId));
@@ -1140,7 +1199,9 @@ export function LiveViewPlayer({
     }
 
     streamInfoCache.delete(streamCacheKey(cameraId));
-    setErrorMessage("Stream unavailable — browser does not support MediaSource");
+    setErrorMessage(
+      "Stream unavailable — browser does not support MediaSource",
+    );
     setState("error");
   }
 
