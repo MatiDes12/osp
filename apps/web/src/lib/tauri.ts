@@ -79,6 +79,20 @@ export async function getAutostartEnabled(): Promise<boolean> {
   }
 }
 
+/** Returns the desktop app version (e.g. "0.1.1"). Falls back to the
+ *  NEXT_PUBLIC_APP_VERSION env var, then "web" when running in a browser. */
+export async function getAppVersion(): Promise<string> {
+  const invoke = getInvoke();
+  if (invoke) {
+    try {
+      return await invoke<string>("plugin:app|version");
+    } catch {
+      // Fall through to env fallback
+    }
+  }
+  return process.env.NEXT_PUBLIC_APP_VERSION ?? "web";
+}
+
 /** Returns whether the local go2rtc sidecar is running and reachable. */
 export async function getGo2rtcStatus(): Promise<boolean> {
   const invoke = getInvoke();

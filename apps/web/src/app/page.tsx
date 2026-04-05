@@ -501,9 +501,7 @@ export default async function HomePage() {
               </div>
               <a
                 href={windowsInstallerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                download={windowsInstallerUrl !== RELEASES_PAGE}
+                download
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-600"
               >
                 <Download className="h-4 w-4" />

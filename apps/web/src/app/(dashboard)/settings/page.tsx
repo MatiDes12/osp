@@ -15,6 +15,7 @@ import {
   getAutostartEnabled,
   toggleAutostart,
   showNativeNotification,
+  getAppVersion,
 } from "@/lib/tauri";
 import {
   getLocalNgrokAuthtoken,
@@ -370,9 +371,11 @@ function DesktopSettingsPanel() {
   );
   const [toggling, setToggling] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   useEffect(() => {
     getAutostartEnabled().then(setAutostartEnabled);
+    getAppVersion().then(setAppVersion);
   }, []);
 
   const handleAutostartToggle = async () => {
@@ -475,6 +478,24 @@ function DesktopSettingsPanel() {
               </>
             )}
           </button>
+        </div>
+      </div>
+
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5">
+        <p className="text-sm font-medium text-zinc-100 mb-3">About</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-zinc-500">App version</span>
+            <span className="font-mono text-zinc-300">
+              {appVersion ? `v${appVersion}` : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-zinc-500">Platform</span>
+            <span className="text-zinc-300">
+              {isTauri() ? "Desktop (Tauri)" : "Web"}
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "OSP",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.osp.desktop",
   "build": {
     "beforeDevCommand": "",
@@ -44,6 +44,10 @@
     "category": "Utility",
     "shortDescription": "Open Surveillance Platform desktop client",
     "longDescription": "Monitor and manage your security cameras from the desktop with system tray integration, OS notifications, and auto-start support.",
-    "externalBin": ["binaries/go2rtc", "binaries/camera-ingest"]
+    "externalBin": ["binaries/go2rtc", "binaries/camera-ingest"],
+    "windows": {
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
   }
 }
