@@ -403,10 +403,6 @@ func TestGetPlaybackURL_CorrectPlaylistKey(t *testing.T) {
 			},
 		},
 	}
-	signer := &mockURLSigner{
-		urls: map[string]string{},
-	}
-
 	// Override to capture the key.
 	capturingSigner := &capturingURLSigner{captured: &capturedKey}
 	svc := &testPlaybackService{store: store, signer: capturingSigner}
