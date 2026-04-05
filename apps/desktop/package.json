@@ -6,7 +6,8 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "type-check": "tsc --noEmit",
+    "type-check": "echo \"No TypeScript sources in desktop\"",
+    "lint": "echo \"No TypeScript sources in desktop\"",
     "clean": "rm -rf src-tauri/target"
   },
   "dependencies": {
