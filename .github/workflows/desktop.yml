@@ -129,20 +129,22 @@ jobs:
           chmod +x "../../apps/desktop/src-tauri/binaries/${{ matrix.ingest_bin }}" || true
 
       # ── Windows: import code-signing certificate ──────────────────────────────
-      # Requires repo secrets: WINDOWS_CERTIFICATE (base64 PFX) and
-      # WINDOWS_CERTIFICATE_PASSWORD. When not set the step is skipped and
-      # the installer is built unsigned (SmartScreen warning will appear).
-      - name: Import Windows signing certificate
-        if: matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE != ''
-        shell: pwsh
-        run: |
-          $certBytes = [System.Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE }}")
-          $certPath  = Join-Path $env:TEMP "osp_signing.pfx"
-          [System.IO.File]::WriteAllBytes($certPath, $certBytes)
-          $password = ConvertTo-SecureString -String "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" -Force -AsPlainText
-          $cert = Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
-          echo "TAURI_WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
-          Remove-Item $certPath -Force
+      # TODO: Uncomment when you have a code-signing certificate.
+      # Add repo secrets WINDOWS_CERTIFICATE (base64 PFX) and
+      # WINDOWS_CERTIFICATE_PASSWORD, then uncomment the step below.
+      # Without this the installer is unsigned and SmartScreen will warn.
+      #
+      # - name: Import Windows signing certificate
+      #   if: matrix.os == 'windows-latest'
+      #   shell: pwsh
+      #   run: |
+      #     $certBytes = [System.Convert]::FromBase64String("${{ secrets.WINDOWS_CERTIFICATE }}")
+      #     $certPath  = Join-Path $env:TEMP "osp_signing.pfx"
+      #     [System.IO.File]::WriteAllBytes($certPath, $certBytes)
+      #     $password = ConvertTo-SecureString -String "${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}" -Force -AsPlainText
+      #     $cert = Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+      #     echo "TAURI_WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" | Out-File -Append -FilePath $env:GITHUB_ENV -Encoding utf8
+      #     Remove-Item $certPath -Force
 
       # ── Build + publish ───────────────────────────────────────────────────────
       # tauri-action builds the installer and uploads it to the GitHub Release.
@@ -154,8 +156,8 @@ jobs:
           # Updater signing (optional — omit if secret not configured)
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Windows code-signing (set by the import step above when cert is available)
-          TAURI_WINDOWS_CERTIFICATE_THUMBPRINT: ${{ env.TAURI_WINDOWS_CERTIFICATE_THUMBPRINT }}
+          # Windows code-signing — uncomment when cert step above is enabled
+          # TAURI_WINDOWS_CERTIFICATE_THUMBPRINT: ${{ env.TAURI_WINDOWS_CERTIFICATE_THUMBPRINT }}
         with:
           projectPath: apps/desktop
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.tag }}
