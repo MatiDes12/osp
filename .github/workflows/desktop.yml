@@ -41,15 +41,6 @@ jobs:
             ingest_goarch: arm64
             ingest_bin: camera-ingest-aarch64-apple-darwin
 
-          # ── macOS Intel ─────────────────────────────────────────────────────
-          - platform: macos-x86_64
-            os: macos-13
-            go2rtc_asset: go2rtc_mac_amd64
-            go2rtc_bin: go2rtc-x86_64-apple-darwin
-            ingest_goos: darwin
-            ingest_goarch: amd64
-            ingest_bin: camera-ingest-x86_64-apple-darwin
-
           # ── Linux x86_64 ────────────────────────────────────────────────────
           - platform: linux-x86_64
             os: ubuntu-22.04
@@ -100,8 +91,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p apps/desktop/src-tauri/binaries
+          # Resolve latest tag via API to avoid /latest redirect issues
+          GO2RTC_VERSION=$(curl -s https://api.github.com/repos/AlexxIT/go2rtc/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          echo "go2rtc version: $GO2RTC_VERSION"
           curl -fsSL \
-            "https://github.com/AlexxIT/go2rtc/releases/latest/download/${{ matrix.go2rtc_asset }}" \
+            "https://github.com/AlexxIT/go2rtc/releases/download/${GO2RTC_VERSION}/${{ matrix.go2rtc_asset }}" \
             -o "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}"
           chmod +x "apps/desktop/src-tauri/binaries/${{ matrix.go2rtc_bin }}" || true
 
