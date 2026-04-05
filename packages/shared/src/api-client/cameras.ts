@@ -19,7 +19,7 @@ export function createCamerasApi(client: ApiClient) {
     list(params?: PaginationParams & { status?: string; search?: string }) {
       return client.get<Camera[]>(
         "/api/v1/cameras",
-        params as Record<string, string | number | boolean | undefined>,
+        params as unknown as Record<string, string | number | boolean | undefined>,
       );
     },
 
