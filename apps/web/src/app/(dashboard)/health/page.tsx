@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { isTauri } from "@/lib/tauri";
 import {
   Activity,
   Database,
@@ -62,8 +63,8 @@ async function probeGo2rtc(baseUrl: string): Promise<ServiceStatus> {
 async function resolveGo2rtcStatus(
   authHeaders: Record<string, string>,
 ): Promise<ServiceStatus | null> {
-  // HTTP: probe local directly
-  if (window.location.protocol !== "https:") {
+  // Tauri desktop or plain HTTP: probe go2rtc sidecar on localhost directly
+  if (isTauri() || window.location.protocol !== "https:") {
     return probeGo2rtc("http://localhost:1984");
   }
   // HTTPS: use gateway proxy endpoint (server-side fetch avoids CORS)
@@ -391,7 +392,7 @@ export default function HealthPage() {
               {localGo2rtc ? (
                 <ServiceCard
                   name={
-                    window.location.protocol === "https:"
+                    !isTauri() && window.location.protocol === "https:"
                       ? "go2rtc (Edge Agent)"
                       : "go2rtc (Local)"
                   }
