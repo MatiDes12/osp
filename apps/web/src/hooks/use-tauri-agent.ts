@@ -18,9 +18,11 @@ export function useTauriAgent() {
     if (!isTauri() || agentStarted) return;
 
     const token = getToken();
-    const tenantId = getTenantIdFromAccessToken(token);
+    if (!token) return;
 
-    if (!token || !tenantId) return;
+    // tenantId may be null if the JWT uses a non-standard claim location;
+    // pass empty string and let the gateway derive it from the Bearer token.
+    const tenantId = getTenantIdFromAccessToken(token) ?? "";
 
     const invoke = (
       window as unknown as {

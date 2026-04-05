@@ -193,10 +193,12 @@ func fetchCameras(apiURL, apiToken, tenantID string) []CameraRow {
 		log.Printf("[camera-ingest] API_TOKEN not set; skipping camera fetch")
 		return nil
 	}
+	log.Printf("[camera-ingest] fetching cameras from %s (tenant=%s)", apiURL, tenantID)
 
 	client := &http.Client{Timeout: 15 * time.Second}
-	// Request up to 100 cameras per page (gateway max)
-	endpoint := apiURL + "/api/v1/cameras?limit=100&status=connecting,online,offline"
+	// Request up to 100 cameras regardless of status so that cameras in
+	// "error" state still get registered in go2rtc (which may clear the error).
+	endpoint := apiURL + "/api/v1/cameras?limit=100"
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		log.Printf("[camera-ingest] request build error: %v", err)
