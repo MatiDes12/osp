@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -35,7 +36,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }} onLayout={onLayoutReady}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -43,7 +44,6 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: "#0a0a0a" },
           animation: "fade",
         }}
-        onLayout={onLayoutReady}
       >
         {hasToken ? (
           <Stack.Screen name="(tabs)" />
@@ -61,6 +61,6 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-    </>
+    </View>
   );
 }

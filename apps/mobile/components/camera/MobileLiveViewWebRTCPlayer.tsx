@@ -99,7 +99,8 @@ export function MobileLiveViewWebRTCPlayer({
         });
         pcRef.current = pc;
 
-        pc.ontrack = (event) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pc as any).ontrack = (event: any) => {
           const stream = event.streams?.[0] ?? null;
           if (!cancelled && stream) {
             setRemoteStream(stream);
@@ -107,7 +108,8 @@ export function MobileLiveViewWebRTCPlayer({
           }
         };
 
-        pc.oniceconnectionstatechange = () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (pc as any).oniceconnectionstatechange = () => {
           if (cancelled) return;
           const state = pc.iceConnectionState;
           if (state === "failed" || state === "disconnected") {
