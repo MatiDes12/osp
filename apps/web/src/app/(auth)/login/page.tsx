@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Shield, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 
@@ -9,12 +10,21 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 type SsoProvider = "google" | "azure" | "github";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [ssoLoading, setSsoLoading] = useState<SsoProvider | null>(null);
+
+  // Redirect already-authenticated users to the dashboard
+  useEffect(() => {
+    const token = localStorage.getItem("osp_access_token");
+    if (token) {
+      router.replace("/cameras");
+    }
+  }, [router]);
 
   async function handleSso(provider: SsoProvider) {
     setSsoLoading(provider);

@@ -49,4 +49,7 @@ export async function gotoAuthenticated(
   await page.goto("/");
   await loginAs(page);
   await page.goto(path);
+  // Wait for AuthGuard to finish the auth check and render protected content.
+  // The spinner disappears once status transitions from "loading" to "authenticated".
+  await page.waitForLoadState("networkidle");
 }

@@ -76,8 +76,9 @@ test.describe("Rules engine", () => {
     });
     await page.getByText("Person at Front Door").click();
 
-    await expect(page.getByText("Push Notification")).toBeVisible();
-    await expect(page.getByText("Email")).toBeVisible();
+    // Use .first() — "Push Notification" also appears in the action-type dropdown
+    await expect(page.getByText("Push Notification").first()).toBeVisible();
+    await expect(page.getByText("Email").first()).toBeVisible();
   });
 
   test("rule editor shows 'Test Rule' and 'Save' buttons", async ({ page }) => {

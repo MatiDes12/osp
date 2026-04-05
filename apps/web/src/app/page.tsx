@@ -706,8 +706,13 @@ export default async function HomePage() {
               <a href="/docs" className="transition-colors hover:text-zinc-200">
                 Docs
               </a>
-              <a href="/docs" className="transition-colors hover:text-zinc-200">
-                Docs
+              <a
+                href="https://github.com/MatiDes12/osp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-zinc-200"
+              >
+                GitHub
               </a>
             </div>
           </div>

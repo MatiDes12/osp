@@ -80,7 +80,10 @@ export default function DashboardLayout({
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
-      {process.env.NODE_ENV === "development" && <ActionLogPanel />}
+      {process.env.NODE_ENV === "development" &&
+        process.env.NEXT_PUBLIC_DISABLE_ACTION_LOG !== "1" && (
+          <ActionLogPanel />
+        )}
     </AuthGuard>
   );
 }

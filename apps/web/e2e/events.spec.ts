@@ -56,7 +56,8 @@ test.describe("Events page", () => {
   });
 
   test("results count is displayed", async ({ page }) => {
-    await expect(page.getByText(/results?/i)).toBeVisible({
+    // Events page shows a count badge like "4 total" next to the heading
+    await expect(page.getByText(/total/i).first()).toBeVisible({
       timeout: 10_000,
     });
   });

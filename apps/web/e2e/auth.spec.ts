@@ -19,10 +19,12 @@ test.describe("Auth — Login", () => {
     await setupApiMocks(page);
   });
 
-  test("/ redirects unauthenticated user to /login", async ({ page }) => {
-    await page.goto("/");
-    // The AuthGuard or middleware redirects to /login when no token is present.
-    // Allow a brief navigation window before asserting.
+  test("protected route redirects unauthenticated user to /login", async ({
+    page,
+  }) => {
+    // "/" shows the landing page for unauthenticated users; navigate to a
+    // protected dashboard route which AuthGuard redirects to /login.
+    await page.goto("/cameras");
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   });
 
@@ -192,7 +194,9 @@ test.describe("Auth — Register", () => {
 
     await page.getByRole("button", { name: "Create Account" }).click();
 
-    await expect(page.getByText(/Terms of Service/i)).toBeVisible({
+    // "Terms of Service" appears both as a link in the form AND in the inline
+    // error message — use .first() to avoid strict-mode violation.
+    await expect(page.getByText(/Terms of Service/i).first()).toBeVisible({
       timeout: 5_000,
     });
   });

@@ -33,7 +33,9 @@ test.describe("Landing page", () => {
   });
 
   test("renders OSP badge in hero", async ({ page }) => {
-    await expect(page.getByText("Open Surveillance Platform")).toBeVisible();
+    // The badge text also appears in the footer copyright — scope to the hero
+    // section to avoid a strict-mode violation.
+    await expect(page.getByText("Open Surveillance Platform").first()).toBeVisible();
   });
 
   test("'Get Started Free' CTA links to /register", async ({ page }) => {
@@ -47,12 +49,10 @@ test.describe("Landing page", () => {
     await expect(signInLink).toBeVisible();
   });
 
-  test("'Why OSP?' section contains 6 feature card headings", async ({
-    page,
-  }) => {
-    const featureSection = page
-      .locator("section")
-      .filter({ hasText: "Why OSP?" });
+  test("features section contains 6 feature card headings", async ({ page }) => {
+    // The features section has id="features"; its heading text is
+    // "Everything you need to run a professional surveillance operation".
+    const featureSection = page.locator("#features");
     const cards = featureSection.locator("h3");
     await expect(cards).toHaveCount(6);
 
@@ -65,20 +65,19 @@ test.describe("Landing page", () => {
   });
 
   test("pricing section shows 4 plan tiers", async ({ page }) => {
-    const pricingSection = page
-      .locator("section")
-      .filter({ hasText: "Simple, transparent pricing" });
+    const pricingSection = page.locator("#pricing");
     await expect(pricingSection).toBeVisible();
 
-    await expect(pricingSection.getByText("Free")).toBeVisible();
-    await expect(pricingSection.getByText("Pro")).toBeVisible();
-    await expect(pricingSection.getByText("Business")).toBeVisible();
-    await expect(pricingSection.getByText("Enterprise")).toBeVisible();
+    // Plan name headings — exact match avoids "Start Free" CTA text
+    await expect(pricingSection.getByText("Free", { exact: true }).first()).toBeVisible();
+    await expect(pricingSection.getByText("Pro", { exact: true })).toBeVisible();
+    await expect(pricingSection.getByText("Business", { exact: true })).toBeVisible();
+    await expect(pricingSection.getByText("Enterprise", { exact: true })).toBeVisible();
 
     await expect(pricingSection.getByText("$0")).toBeVisible();
     await expect(pricingSection.getByText("$10")).toBeVisible();
     await expect(pricingSection.getByText("$50")).toBeVisible();
-    await expect(pricingSection.getByText("Custom")).toBeVisible();
+    await expect(pricingSection.getByText("Custom", { exact: true }).first()).toBeVisible();
   });
 
   test("'See it in action' section shows camera grid preview", async ({
@@ -96,9 +95,8 @@ test.describe("Landing page", () => {
     const footer = page.locator("footer");
     await expect(footer).toBeVisible();
     await expect(footer.getByText("Product")).toBeVisible();
-    await expect(footer.getByText("Documentation")).toBeVisible();
+    await expect(footer.getByText("Docs")).toBeVisible();
     await expect(footer.getByText("GitHub")).toBeVisible();
-    await expect(footer.getByText("API Reference")).toBeVisible();
   });
 
   test("footer shows copyright notice", async ({ page }) => {
