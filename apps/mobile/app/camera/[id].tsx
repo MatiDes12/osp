@@ -70,7 +70,7 @@ export default function CameraDetailScreen() {
 
         if (cameraResult.success && cameraResult.data) {
           setCamera(
-            transformCamera(cameraResult.data as Record<string, unknown>),
+            transformCamera(cameraResult.data as unknown as Record<string, unknown>),
           );
           setError(null);
         } else {

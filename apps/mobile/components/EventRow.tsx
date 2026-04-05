@@ -23,6 +23,8 @@ const TYPE_LABELS: Record<EventType, string> = {
   camera_online: "Online",
   tampering: "Tamper",
   audio: "Audio",
+  "lpr.detected": "LPR",
+  "lpr.alert": "LPR Alert",
   custom: "Custom",
 };
 

@@ -70,7 +70,7 @@ export default function SettingsScreen() {
       // Fetch tenant from API
       const tenantResult = await api.get<Tenant>("/api/v1/tenants/current");
       if (tenantResult.success && tenantResult.data) {
-        setTenant(transformTenant(tenantResult.data));
+        setTenant(transformTenant(tenantResult.data as unknown as Record<string, unknown>));
       }
     } catch {
       // Silently fail - user can still use logout

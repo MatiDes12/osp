@@ -37,7 +37,7 @@ export function transformCamera(raw: Raw): Camera {
     id: str(raw["id"]),
     tenantId: str(pick(raw["tenant_id"], raw["tenantId"], "")),
     name: str(raw["name"]),
-    protocol: str(raw["protocol"]),
+    protocol: str(raw["protocol"]) as Camera["protocol"],
     connectionUri: str(pick(raw["connection_uri"], raw["connectionUri"], "")),
     status: str(raw["status"]) as Camera["status"],
     location: transformCameraLocation(
@@ -70,7 +70,7 @@ function transformCameraLocation(raw: Raw): CameraLocation {
     label: raw["label"] as string | undefined,
     lat: raw["lat"] as number | undefined,
     lng: raw["lng"] as number | undefined,
-    floor: raw["floor"] as number | undefined,
+    floor: raw["floor"] != null ? String(raw["floor"]) : undefined,
   };
 }
 
@@ -169,7 +169,7 @@ function transformUserPreferences(raw: Raw): UserPreferences {
     ),
     defaultGridSize: num(
       pick(raw["default_grid_size"], raw["defaultGridSize"], 4),
-    ),
+    ) as UserPreferences["defaultGridSize"],
     timezone: (raw["timezone"] as string | null) ?? null,
   };
 }

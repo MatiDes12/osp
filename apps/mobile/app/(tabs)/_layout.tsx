@@ -55,7 +55,7 @@ export default function TabsLayout() {
         const tenantResult = await api.get<Tenant>("/api/v1/tenants/current");
         if (!tenantResult.success || !tenantResult.data) return;
 
-        const tenant = transformTenant(tenantResult.data);
+        const tenant = transformTenant(tenantResult.data as unknown as Record<string, unknown>);
         if (!tenant.settings.notificationPreferences.pushEnabled) return;
 
         const token = await registerForPushNotifications();
