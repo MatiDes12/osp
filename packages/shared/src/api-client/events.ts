@@ -14,7 +14,7 @@ export function createEventsApi(client: ApiClient) {
     ): Promise<ApiResponse<OSPEvent[]>> {
       return client.get<OSPEvent[]>(
         "/api/v1/events",
-        params as unknown as Record<string, string | number | boolean | undefined>,
+        params as Record<string, string | number | boolean | undefined>,
       );
     },
 
