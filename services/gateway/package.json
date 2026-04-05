@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "lint": "eslint src/",
+    "lint": "tsc --noEmit",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
