@@ -22,23 +22,30 @@ const RELEASES_PAGE = "https://github.com/MatiDes12/osp/releases/latest";
 
 /** Fetches the direct download URL for the Windows NSIS installer from the latest GitHub release.
  *  Falls back to the releases page if no release exists yet or the fetch fails. */
-async function getWindowsInstallerUrl(): Promise<string> {
+async function getWindowsRelease(): Promise<{
+  url: string;
+  version: string | null;
+}> {
   try {
     const res = await fetch(
       "https://api.github.com/repos/MatiDes12/osp/releases/latest",
       {
         headers: { Accept: "application/vnd.github+json" },
-        next: { revalidate: 3600 }, // re-fetch at most once per hour
+        next: { revalidate: 300 }, // re-fetch every 5 minutes
       },
     );
-    if (!res.ok) return RELEASES_PAGE;
+    if (!res.ok) return { url: RELEASES_PAGE, version: null };
     const release = (await res.json()) as {
+      tag_name?: string;
       assets?: { name: string; browser_download_url: string }[];
     };
     const exe = release.assets?.find((a) => a.name.endsWith("_x64-setup.exe"));
-    return exe?.browser_download_url ?? RELEASES_PAGE;
+    return {
+      url: exe?.browser_download_url ?? RELEASES_PAGE,
+      version: release.tag_name ?? null,
+    };
   } catch {
-    return RELEASES_PAGE;
+    return { url: RELEASES_PAGE, version: null };
   }
 }
 
@@ -173,7 +180,7 @@ const plans = [
 ] as const;
 
 export default async function HomePage() {
-  const windowsInstallerUrl = await getWindowsInstallerUrl();
+  const { url: windowsInstallerUrl, version: windowsVersion } = await getWindowsRelease();
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-50">
       {/* ---------------------------------------------------------------- */}
@@ -507,7 +514,9 @@ export default async function HomePage() {
                 <Download className="h-4 w-4" />
                 Download for Windows
               </a>
-              <p className="text-xs text-zinc-600">Free · .exe installer</p>
+              <p className="text-xs text-zinc-600">
+                Free · .exe installer{windowsVersion ? ` · ${windowsVersion}` : ""}
+              </p>
             </div>
 
             {/* iOS — Coming Soon */}
