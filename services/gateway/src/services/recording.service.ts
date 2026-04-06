@@ -211,7 +211,6 @@ export class RecordingService {
       recordingId,
       cameraId,
       trigger,
-      filePath,
     });
 
     return recordingId;
