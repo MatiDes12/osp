@@ -210,6 +210,36 @@ fn start_camera_ingest(
     }
 }
 
+/// Save a recording blob (base64-encoded) to the user's Videos/OSP folder.
+/// Returns the absolute path of the saved file.
+#[tauri::command]
+fn save_recording(app: tauri::AppHandle, filename: String, data_base64: String) -> Result<String, String> {
+    use std::fs;
+    use base64::Engine;
+
+    // Decode base64
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&data_base64)
+        .map_err(|e| format!("base64 decode error: {e}"))?;
+
+    // Save to <AppData>/recordings/
+    let recordings_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("path error: {e}"))?
+        .join("recordings");
+    fs::create_dir_all(&recordings_dir).map_err(|e| format!("mkdir error: {e}"))?;
+
+    let safe_name: String = filename
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
+        .collect();
+    let dest = recordings_dir.join(&safe_name);
+    fs::write(&dest, &bytes).map_err(|e| format!("write error: {e}"))?;
+
+    Ok(dest.to_string_lossy().to_string())
+}
+
 fn stop_camera_ingest(app: &tauri::AppHandle) {
     if let Some(state) = app.try_state::<CameraIngestProcess>() {
         if let Ok(mut guard) = state.0.lock() {
@@ -326,6 +356,7 @@ pub fn run() {
             show_main_window,
             get_go2rtc_status,
             start_camera_ingest,
+            save_recording,
         ])
         .build(tauri::generate_context!())
         .expect("error while running OSP desktop application")

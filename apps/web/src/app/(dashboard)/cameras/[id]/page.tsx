@@ -1329,6 +1329,13 @@ export default function CameraDetailPage() {
     fetchCamera();
   }, [fetchCamera]);
 
+  // Poll camera status while it's connecting so the badge updates automatically
+  useEffect(() => {
+    if (!camera || camera.status === "online" || camera.status === "disabled") return;
+    const interval = setInterval(fetchCamera, 5000);
+    return () => clearInterval(interval);
+  }, [camera, fetchCamera]);
+
   useEffect(() => {
     const handleFSChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", handleFSChange);
@@ -1400,7 +1407,7 @@ export default function CameraDetailPage() {
   const handleToggleRecording = useCallback(async () => {
     if (!cameraId) return;
 
-    // ── Desktop (Tauri): record locally via MediaRecorder ──────────────────
+    // ── Desktop (Tauri): record via MediaRecorder, save via native Rust ──────
     if (isTauri()) {
       if (isRecording) {
         mediaRecorderRef.current?.stop();
@@ -1410,19 +1417,18 @@ export default function CameraDetailPage() {
         const video = videoContainerRef.current?.querySelector("video");
         if (!video) return;
 
-        // WebRTC path: srcObject is a MediaStream
-        // MSE/fallback path: use captureStream()
+        // Prefer the live WebRTC stream (no re-encode, no lag).
+        // Only fall back to captureStream() if srcObject is unavailable.
         const stream =
           (video.srcObject as MediaStream | null) ??
-          (
-            video as HTMLVideoElement & { captureStream?: () => MediaStream }
-          ).captureStream?.();
+          (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
         if (!stream) return;
 
+        const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const safeName = (camera?.name ?? cameraId).replace(/[^a-zA-Z0-9-_]/g, "_");
+
         recordingChunksRef.current = [];
-        const mimeType = MediaRecorder.isTypeSupported(
-          "video/webm;codecs=vp9,opus",
-        )
+        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
           ? "video/webm;codecs=vp9,opus"
           : "video/webm";
 
@@ -1433,23 +1439,34 @@ export default function CameraDetailPage() {
           if (e.data.size > 0) recordingChunksRef.current.push(e.data);
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
           const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+          if (blob.size === 0) return;
+          const recFilename = `${safeName}-${ts}.webm`;
+          const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
+          if (invoke) {
+            try {
+              // Save via native Rust — avoids WebView2 download restrictions
+              const arrayBuffer = await blob.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = "";
+              bytes.forEach((b) => (binary += String.fromCharCode(b)));
+              const base64 = btoa(binary);
+              const savedPath = await invoke("save_recording", { filename: recFilename, dataBase64: base64 }) as string;
+              alert(`Recording saved:\n${savedPath}`);
+              return;
+            } catch { /* fall through to browser download */ }
+          }
+          // Fallback: standard browser download
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
-          a.href = url;
-          const ts = new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-")
-            .slice(0, 19);
-          a.download = `${camera?.name ?? cameraId}-${ts}.webm`;
-          document.body.appendChild(a);
-          a.click();
+          a.href = url; a.download = recFilename;
+          document.body.appendChild(a); a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
         };
 
-        recorder.start(1000); // collect a chunk every 1s
+        recorder.start(250); // small timeslice — less memory pressure than 1s
         setIsRecording(true);
         setRecordingStartTime(Date.now());
       }
