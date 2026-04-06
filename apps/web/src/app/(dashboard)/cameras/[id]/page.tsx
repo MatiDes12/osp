@@ -1290,8 +1290,8 @@ export default function CameraDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const fetchCamera = useCallback(async () => {
-    setLoading(true);
+  const fetchCamera = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [cameraRes, zonesRes] = await Promise.all([
@@ -1304,7 +1304,7 @@ export default function CameraDetailPage() {
       ]);
       const cameraJson = await cameraRes.json();
       if (!cameraJson.success || !cameraJson.data) {
-        setError(cameraJson.error?.message ?? "Camera not found");
+        if (!silent) setError(cameraJson.error?.message ?? "Camera not found");
         return;
       }
       const rawCamera = cameraJson.data as Record<string, unknown>;
@@ -1319,9 +1319,9 @@ export default function CameraDetailPage() {
         setZones(transformZones(zonesJson.data as Record<string, unknown>[]));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      if (!silent) setError(err instanceof Error ? err.message : "Network error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [cameraId]);
 
@@ -1329,10 +1329,10 @@ export default function CameraDetailPage() {
     fetchCamera();
   }, [fetchCamera]);
 
-  // Poll camera status while it's connecting so the badge updates automatically
+  // Poll camera status while connecting — silent fetch so the page never flickers
   useEffect(() => {
     if (!camera || camera.status === "online" || camera.status === "disabled") return;
-    const interval = setInterval(fetchCamera, 5000);
+    const interval = setInterval(() => fetchCamera(true), 5000);
     return () => clearInterval(interval);
   }, [camera, fetchCamera]);
 
