@@ -19,6 +19,7 @@ import {
 } from "@/components/onboarding/WebAgentSetupWizard";
 import { isTauri } from "@/lib/tauri";
 import { ActivityTicker } from "@/components/dashboard/ActivityTicker";
+import { MonitoringBar } from "@/components/dashboard/MonitoringBar";
 import { PageError } from "@/components/PageError";
 import { MapPin, Tag, Check } from "lucide-react";
 import { CameraStatsBar } from "./camera-stats-bar";
@@ -274,6 +275,9 @@ export default function CamerasPage() {
 
       {/* Activity ticker */}
       <ActivityTicker className="mb-6" />
+
+      {/* Monitoring toggles — persists across tab changes and minimize */}
+      <MonitoringBar />
 
       {/* Header */}
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">

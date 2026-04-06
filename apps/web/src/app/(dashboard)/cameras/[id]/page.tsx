@@ -52,7 +52,17 @@ import {
   transformRecordings,
   isSnakeCaseRow,
 } from "@/lib/transforms";
-import { isTauri } from "@/lib/tauri";
+import { isTauri, convertFileSrc } from "@/lib/tauri";
+import { showToast } from "@/stores/toast";
+
+/** Resolve a recording's playback URL for the current environment. */
+function resolvePlaybackUrl(url: string): string | null {
+  if (url.startsWith("local://")) {
+    if (!isTauri()) return null;
+    return convertFileSrc(url.replace("local://", ""));
+  }
+  return url;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -281,7 +291,7 @@ function RecordingTab({
               </span>
               <span className="flex items-center gap-1">
                 <HardDrive className="w-2.5 h-2.5" />
-                {formatBytes(rec.sizeBytes)}
+                {rec.playbackUrl?.startsWith("local://") ? "Local" : formatBytes(rec.sizeBytes)}
               </span>
               {rec.status === "recording" && (
                 <span className="flex items-center gap-1 text-red-400">
@@ -294,16 +304,16 @@ function RecordingTab({
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            {rec.playbackUrl && (
+            {rec.playbackUrl && resolvePlaybackUrl(rec.playbackUrl) && (
               <button
-                onClick={() => onPlay(rec.playbackUrl, 0)}
+                onClick={() => onPlay(resolvePlaybackUrl(rec.playbackUrl)!, 0)}
                 className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
                 title="Play recording"
               >
                 <Play className="w-3.5 h-3.5" />
               </button>
             )}
-            {rec.playbackUrl && (
+            {rec.playbackUrl && !rec.playbackUrl.startsWith("local://") && (
               <a
                 href={rec.playbackUrl}
                 download
@@ -1277,6 +1287,8 @@ export default function CameraDetailPage() {
   // Local recording (Tauri desktop)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  // Tracks the Supabase recording row ID so we can stop it via API
+  const activeRecordingIdRef = useRef<string | null>(null);
 
   // Playback state
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
@@ -1410,6 +1422,7 @@ export default function CameraDetailPage() {
     // ── Desktop (Tauri): record via MediaRecorder, save via native Rust ──────
     if (isTauri()) {
       if (isRecording) {
+        // Stopping: flip UI immediately; onstop handler will call the API once the file is saved
         mediaRecorderRef.current?.stop();
         setIsRecording(false);
         setRecordingStartTime(null);
@@ -1444,29 +1457,70 @@ export default function CameraDetailPage() {
           if (blob.size === 0) return;
           const recFilename = `${safeName}-${ts}.webm`;
           const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
+
+          let savedPath: string | null = null;
           if (invoke) {
             try {
-              // Save via native Rust — avoids WebView2 download restrictions
               const arrayBuffer = await blob.arrayBuffer();
               const bytes = new Uint8Array(arrayBuffer);
               let binary = "";
               bytes.forEach((b) => (binary += String.fromCharCode(b)));
               const base64 = btoa(binary);
-              const savedPath = await invoke("save_recording", { filename: recFilename, dataBase64: base64 }) as string;
-              alert(`Recording saved:\n${savedPath}`);
-              return;
-            } catch { /* fall through to browser download */ }
+              savedPath = (await invoke("save_recording", { filename: recFilename, dataBase64: base64 })) as string;
+            } catch {
+              // Fall through to browser download
+            }
           }
-          // Fallback: standard browser download
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url; a.download = recFilename;
-          document.body.appendChild(a); a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+
+          if (!savedPath) {
+            // Fallback: browser download (e.g. dev mode)
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = recFilename;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+
+          // Mark the Supabase row as complete, with the local file path so
+          // the recordings list can play it back via the asset:// protocol.
+          if (activeRecordingIdRef.current) {
+            try {
+              await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
+                method: "POST",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ localFilePath: savedPath }),
+              });
+            } catch {
+              // Non-critical
+            }
+            activeRecordingIdRef.current = null;
+          }
+
+          if (savedPath) {
+            showToast("Recording saved to your device", "success");
+          }
         };
 
-        recorder.start(250); // small timeslice — less memory pressure than 1s
+        // Tell Supabase a recording is starting (so it shows in the recordings list)
+        try {
+          const res = await fetch(
+            `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
+            {
+              method: "POST",
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ trigger: "manual" }),
+            },
+          );
+          const json = await res.json();
+          if (json.success && json.data?.recordingId) {
+            activeRecordingIdRef.current = json.data.recordingId as string;
+          }
+        } catch {
+          // Non-critical — recording still captured locally
+        }
+
+        recorder.start(250);
         setIsRecording(true);
         setRecordingStartTime(Date.now());
       }

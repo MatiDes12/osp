@@ -148,67 +148,64 @@ export class RecordingService {
 
     const recordingId = recording.id as string;
 
-    // Start background video capture from go2rtc
+    // Start background video capture from go2rtc (only if go2rtc is reachable)
     const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
-    const recordingsDir = get("RECORDINGS_DIR") ?? "./recordings";
+    const recordingsDir = get("RECORDINGS_DIR");
 
-    const dir = join(recordingsDir, tenantId, cameraId);
-    mkdirSync(dir, { recursive: true });
+    // Only attempt local file capture if a RECORDINGS_DIR is explicitly set
+    // (i.e. running in Docker / on-prem). Skip silently in cloud/Vercel mode.
+    if (recordingsDir) {
+      const dir = join(recordingsDir, tenantId, cameraId);
+      mkdirSync(dir, { recursive: true });
 
-    const filePath = join(dir, `${recordingId}.mp4`);
-    const abortController = new AbortController();
+      const filePath = join(dir, `${recordingId}.mp4`);
+      const abortController = new AbortController();
 
-    const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
+      const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
 
-    // Pipe the MP4 stream to a file in the background
-    const mp4Fetch = fetch(mp4Url, { signal: abortController.signal });
-    mp4Fetch
-      .then(async (res) => {
-        if (!res.body) {
-          logger.warn("MP4 stream returned no body", { recordingId, cameraId });
-          return;
-        }
-        const fileStream = createWriteStream(filePath);
-        const reader = res.body.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            fileStream.write(value);
+      // Pipe the MP4 stream to a file in the background
+      const mp4Fetch = fetch(mp4Url, { signal: abortController.signal });
+      mp4Fetch
+        .then(async (res) => {
+          if (!res.body) {
+            logger.warn("MP4 stream returned no body", { recordingId, cameraId });
+            return;
           }
-        } catch (err) {
-          // AbortError is expected when recording is stopped
+          const fileStream = createWriteStream(filePath);
+          const reader = res.body.getReader();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              fileStream.write(value);
+            }
+          } catch (err) {
+            if ((err as Error).name !== "AbortError") {
+              logger.error("MP4 capture error", { recordingId, error: String(err) });
+            }
+          } finally {
+            fileStream.end();
+          }
+        })
+        .catch((err) => {
           if ((err as Error).name !== "AbortError") {
-            logger.error("MP4 capture error", {
-              recordingId,
-              error: String(err),
-            });
+            logger.error("MP4 fetch error", { recordingId, error: String(err) });
           }
-        } finally {
-          fileStream.end();
-        }
-      })
-      .catch((err) => {
-        if ((err as Error).name !== "AbortError") {
-          logger.error("MP4 fetch error", {
-            recordingId,
-            error: String(err),
-          });
-        }
+        });
+
+      this.activeRecordings.set(recordingId, {
+        abortController,
+        filePath,
+        cameraId,
+        startTime: Date.now(),
       });
 
-    this.activeRecordings.set(recordingId, {
-      abortController,
-      filePath,
-      cameraId,
-      startTime: Date.now(),
-    });
-
-    // Update storage_path to the actual file path
-    await supabase
-      .from("recordings")
-      .update({ storage_path: filePath })
-      .eq("id", recordingId);
+      // Update storage_path to the actual file path
+      await supabase
+        .from("recordings")
+        .update({ storage_path: filePath })
+        .eq("id", recordingId);
+    }
 
     logger.info("Recording started (direct mode)", {
       recordingId,
@@ -222,8 +219,11 @@ export class RecordingService {
 
   /**
    * Stop recording and finalize the DB record.
+   * @param localFilePath  Absolute path on the desktop client's machine (Tauri mode).
+   *   When provided, storage_path is set to `local://<localFilePath>` so the frontend
+   *   can serve it via the Tauri asset:// protocol.
    */
-  async stopRecording(recordingId: string): Promise<Record<string, unknown>> {
+  async stopRecording(recordingId: string, localFilePath?: string): Promise<Record<string, unknown>> {
     const supabase = getSupabase();
 
     // Production path: stop via video-pipeline so it finalizes + uploads to R2.
@@ -302,12 +302,19 @@ export class RecordingService {
       }
     }
 
-    const finalStoragePath = await maybeUploadToR2(
-      storagePath,
-      recordingId,
-      recording.tenant_id as string,
-      recording.camera_id as string,
-    );
+    // localFilePath wins over server-side path (desktop/Tauri mode)
+    let finalStoragePath: string | undefined;
+    if (localFilePath) {
+      // Mark with local:// prefix so the frontend knows to use asset:// protocol
+      finalStoragePath = `local://${localFilePath}`;
+    } else {
+      finalStoragePath = await maybeUploadToR2(
+        storagePath,
+        recordingId,
+        recording.tenant_id as string,
+        recording.camera_id as string,
+      );
+    }
 
     const updatePayload: Record<string, unknown> = {
       status: "complete",
@@ -374,6 +381,23 @@ export class RecordingService {
     const gatewayUrl = get("GATEWAY_PUBLIC_URL") ?? "http://localhost:3000";
 
     const fallbackUrl = `${gatewayUrl}/api/v1/recordings/${encodeURIComponent(recordingId)}/play`;
+
+    // Check for local:// path first (desktop/Tauri mode)
+    // Return as-is so the frontend can convert to asset:// using convertFileSrc
+    try {
+      const supabase = getSupabase();
+      const { data: rec } = await supabase
+        .from("recordings")
+        .select("storage_path")
+        .eq("id", recordingId)
+        .eq("tenant_id", tenantId)
+        .single();
+      if ((rec?.storage_path as string | null)?.startsWith("local://")) {
+        return rec!.storage_path as string;
+      }
+    } catch {
+      // Fall through to normal path
+    }
 
     try {
       const client = getVideoPipelineClient();

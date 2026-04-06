@@ -22,6 +22,7 @@ import { PageError } from "@/components/PageError";
 import { VirtualList } from "@/components/ui/VirtualList";
 import { exportRecordingsCSV } from "@/lib/export";
 import { showToast } from "@/stores/toast";
+import { isTauri, convertFileSrc } from "@/lib/tauri";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -200,14 +201,22 @@ export default function RecordingsPage() {
    * This lets the <video> element use native range requests for seeking
    * without having to download the whole file as a blob first.
    */
-  const getPlaybackUrl = useCallback((rec: Recording): string => {
-    const base = rec.playbackUrl
+  const getPlaybackUrl = useCallback((rec: Recording): string | null => {
+    const rawUrl = rec.playbackUrl
       ? rec.playbackUrl
       : `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
+
+    // local:// prefix means the file lives on the user's machine (Tauri desktop)
+    if (rawUrl.startsWith("local://")) {
+      if (!isTauri()) return null; // can't play local files in the browser
+      const localPath = rawUrl.replace("local://", "");
+      return convertFileSrc(localPath);
+    }
+
     const token = localStorage.getItem("osp_access_token");
-    if (!token) return base;
-    const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}token=${encodeURIComponent(token)}`;
+    if (!token) return rawUrl;
+    const sep = rawUrl.includes("?") ? "&" : "?";
+    return `${rawUrl}${sep}token=${encodeURIComponent(token)}`;
   }, []);
 
   const fetchData = useCallback(async (append = false) => {
@@ -482,9 +491,16 @@ export default function RecordingsPage() {
                             {formatDuration(rec.durationSec)}
                           </span>
                         </div>
-                        <span className="text-xs text-zinc-500">
-                          {formatBytes(rec.sizeBytes)}
-                        </span>
+                        {rec.playbackUrl?.startsWith("local://") ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-700/60 text-zinc-400">
+                            <HardDrive className="h-2.5 w-2.5" />
+                            Local
+                          </span>
+                        ) : (
+                          <span className="text-xs text-zinc-500">
+                            {formatBytes(rec.sizeBytes)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -520,16 +536,22 @@ export default function RecordingsPage() {
                       Stop the recording to play it back
                     </p>
                   </div>
-                ) : (
+                ) : getPlaybackUrl(selectedRecording) ? (
                   <video
                     ref={videoRef}
                     key={selectedRecording.id}
-                    src={getPlaybackUrl(selectedRecording)}
+                    src={getPlaybackUrl(selectedRecording)!}
                     controls
                     autoPlay
                     className="w-full h-full object-contain"
                     poster={selectedRecording.thumbnailUrl ?? undefined}
                   />
+                ) : (
+                  <div className="text-center px-4">
+                    <HardDrive className="h-10 w-10 text-zinc-600 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-zinc-400">Saved Locally</p>
+                    <p className="text-xs text-zinc-600 mt-1">This recording is stored on your device.</p>
+                  </div>
                 )}
               </div>
 
@@ -597,16 +619,23 @@ export default function RecordingsPage() {
                   </div>
                 </div>
 
-                {/* Download */}
+                {/* Download / storage info */}
                 <div className="mt-4 pt-3 border-t border-zinc-800">
+                  {selectedRecording.playbackUrl?.startsWith("local://") ? (
+                    <div className="flex items-center gap-2 text-xs text-zinc-500">
+                      <HardDrive className="h-3.5 w-3.5" />
+                      <span>Saved on this device</span>
+                    </div>
+                  ) : (
                   <a
-                    href={getPlaybackUrl(selectedRecording)}
+                    href={getPlaybackUrl(selectedRecording) ?? "#"}
                     download={`${selectedRecording.cameraName}-${new Date(selectedRecording.startTime).toISOString().slice(0, 19)}.mp4`}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50 transition-colors duration-150 cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" />
                     Download Recording
                   </a>
+                  )}
                 </div>
               </div>
             </div>

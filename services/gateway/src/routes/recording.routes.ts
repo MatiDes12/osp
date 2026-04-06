@@ -147,6 +147,68 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
   );
 });
 
+// Bulk start recording on all online cameras for this tenant
+recordingRoutes.post("/start-all", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  const { data: cameras, error } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("status", "online");
+
+  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to fetch cameras", 500);
+
+  const ids = (cameras ?? []).map((cam) => cam.id as string);
+  let started = 0;
+
+  await Promise.all(
+    ids.map(async (cameraId) => {
+      try {
+        // Insert a recording row with status=recording if not already recording
+        const { data: existing } = await supabase
+          .from("recordings")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("camera_id", cameraId)
+          .eq("status", "recording")
+          .maybeSingle();
+        if (existing) return;
+
+        await supabase.from("recordings").insert({
+          tenant_id: tenantId,
+          camera_id: cameraId,
+          status: "recording",
+          trigger: "manual",
+          start_time: new Date().toISOString(),
+        });
+        started++;
+      } catch {
+        // Non-critical
+      }
+    }),
+  );
+
+  return c.json(createSuccessResponse({ started }));
+});
+
+// Bulk stop all active recordings for this tenant
+recordingRoutes.post("/stop-all", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const supabase = getSupabase();
+
+  const { error } = await supabase
+    .from("recordings")
+    .update({ status: "completed", end_time: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .eq("status", "recording");
+
+  if (error) throw new ApiError("INTERNAL_ERROR", "Failed to stop recordings", 500);
+
+  return c.json(createSuccessResponse({ stopped: true }));
+});
+
 // Get recording by ID with playback URL
 recordingRoutes.get("/:id", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");

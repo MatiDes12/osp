@@ -93,6 +93,21 @@ export async function getAppVersion(): Promise<string> {
   return process.env.NEXT_PUBLIC_APP_VERSION ?? "web";
 }
 
+/**
+ * Convert a local file path to a URL the Tauri webview can load.
+ * Uses the `asset://` protocol on macOS/Linux, `https://asset.localhost/` on Windows.
+ * Returns null when not running in Tauri.
+ */
+export function convertFileSrc(filePath: string): string | null {
+  if (!isTauri()) return null;
+  // Tauri v2 asset protocol
+  const encoded = encodeURIComponent(filePath).replace(/%2F/g, "/").replace(/%5C/g, "/");
+  const isWindows = typeof navigator !== "undefined" && navigator.platform.includes("Win");
+  return isWindows
+    ? `https://asset.localhost/${encoded}`
+    : `asset://localhost/${encoded}`;
+}
+
 /** Returns whether the local go2rtc sidecar is running and reachable. */
 export async function getGo2rtcStatus(): Promise<boolean> {
   const invoke = getInvoke();

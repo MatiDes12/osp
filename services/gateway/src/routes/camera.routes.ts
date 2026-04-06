@@ -770,6 +770,9 @@ cameraRoutes.post("/:id/record/stop", requireAuth("operator"), async (c) => {
   const tenantId = c.get("tenantId");
   const cameraId = c.req.param("id");
 
+  const body = await c.req.json().catch(() => ({}));
+  const localFilePath = (body as Record<string, unknown>).localFilePath as string | undefined;
+
   const recordingService = getRecordingService();
   const active = await recordingService.getActiveRecording(cameraId, tenantId);
 
@@ -781,7 +784,7 @@ cameraRoutes.post("/:id/record/stop", requireAuth("operator"), async (c) => {
     );
   }
 
-  const stopped = await recordingService.stopRecording(active.id as string);
+  const stopped = await recordingService.stopRecording(active.id as string, localFilePath);
 
   return c.json(createSuccessResponse(stopped));
 });
