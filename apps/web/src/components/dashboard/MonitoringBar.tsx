@@ -17,11 +17,12 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 async function setConfigKey(key: string, value: string) {
-  await fetch(`${API_URL}/api/v1/config/keys/${key}`, {
+  const res = await fetch(`${API_URL}/api/v1/config/keys/${key}`, {
     method: "PUT",
     headers: getAuthHeaders(),
     body: JSON.stringify({ value, scope: "tenant" }),
   });
+  if (!res.ok) throw new Error(`Config update failed: ${res.status}`);
 }
 
 interface ToggleProps {
@@ -184,12 +185,12 @@ export function MonitoringBar() {
   async function handleMotion() {
     if (motionBusy) return;
     const next = !motionEnabled;
+    setMotion(next); // optimistic
     setMotionBusy(true);
     try {
       await setConfigKey("MOTION_DETECTION_ENABLED", next ? "true" : "false");
-      setMotion(next);
     } catch {
-      // Revert on error
+      setMotion(!next); // revert
     } finally {
       setMotionBusy(false);
     }
@@ -224,12 +225,12 @@ export function MonitoringBar() {
   async function handleSnapshots() {
     if (snapshotsBusy) return;
     const next = !snapshotsEnabled;
+    setSnapshots(next); // optimistic
     setSnapshotsBusy(true);
     try {
       await setConfigKey("SNAPSHOTS_ENABLED", next ? "true" : "false");
-      setSnapshots(next);
     } catch {
-      // Revert on error
+      setSnapshots(!next); // revert
     } finally {
       setSnapshotsBusy(false);
     }

@@ -1355,7 +1355,10 @@ export default function CameraDetailPage() {
       document.removeEventListener("fullscreenchange", handleFSChange);
   }, []);
 
-  // Check active recording on mount
+  // Check active recording on mount.
+  // In Tauri mode the MediaRecorder is always gone after a page reload —
+  // any "recording" row in Supabase is an orphan. Auto-stop it so the UI
+  // starts clean and the counter doesn't show stale time.
   useEffect(() => {
     if (!cameraId) return;
     fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/status`, {
@@ -1364,10 +1367,18 @@ export default function CameraDetailPage() {
       .then((r) => r.json())
       .then((json) => {
         if (json.success && json.data?.isRecording && json.data.recording) {
-          setIsRecording(true);
-          setRecordingStartTime(
-            new Date(json.data.recording.start_time).getTime(),
-          );
+          if (isTauri()) {
+            // Orphan — stop it silently, don't restore UI state
+            fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
+              method: "POST",
+              headers: getAuthHeaders(),
+            }).catch(() => {});
+          } else {
+            setIsRecording(true);
+            setRecordingStartTime(
+              new Date(json.data.recording.start_time).getTime(),
+            );
+          }
         }
       })
       .catch(() => {});

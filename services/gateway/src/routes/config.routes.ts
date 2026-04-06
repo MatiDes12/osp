@@ -50,14 +50,22 @@ configRoutes.get("/keys/:key", requireAuth("admin"), async (c) => {
   return c.json(createSuccessResponse({ key, value: data.value as string }));
 });
 
-// Set a config value (admin only)
-configRoutes.put("/keys/:key", requireAuth("admin"), async (c) => {
+// Set a config value.
+// Admins can set global or tenant-scoped keys.
+// Operators/owners can only set tenant-scoped keys (their own tenant settings).
+configRoutes.put("/keys/:key", requireAuth("operator"), async (c) => {
   const key = c.req.param("key");
   const body = await c.req.json();
   const input = SetConfigSchema.parse(body);
 
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(key)) {
     throw new ApiError("VALIDATION_ERROR", "Invalid config key format", 400);
+  }
+
+  // Non-admins can only write tenant-scoped keys, never global
+  const userRole = c.get("userRole");
+  if (userRole !== "admin" && input.scope !== "tenant") {
+    throw new ApiError("AUTH_INSUFFICIENT_ROLE", "Only admins can set global config keys", 403);
   }
 
   const supabase = getSupabase();
