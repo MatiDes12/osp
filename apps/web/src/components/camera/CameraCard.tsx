@@ -146,7 +146,13 @@ const STATUS_CONFIG: Record<
   },
 };
 
-function getStatusConfig(status: string) {
+function getStatusConfig(status: string, lastSeenAt: string | null) {
+  // A camera that has never been seen by the agent (lastSeenAt null) is still
+  // initializing — treat error/offline as connecting so the user sees a spinner
+  // instead of a permanent red "Error" state on first add.
+  if ((status === "error" || status === "offline") && lastSeenAt === null) {
+    return STATUS_CONFIG["connecting"]!;
+  }
   return (STATUS_CONFIG[status] ?? STATUS_CONFIG["offline"])!;
 }
 
@@ -163,11 +169,12 @@ export const CameraCard = memo(function CameraCard({
   const isOnline = camera.status === "online";
   const isRecording =
     isActivelyRecording || camera.config.recordingMode !== "off";
+  const statusCfg = getStatusConfig(camera.status, camera.lastSeenAt ?? null);
+  const effectiveStatus = statusCfg.label === "CONNECTING" ? "connecting" : camera.status;
   const snapshotUrl = useSnapshotUrl(
     camera.id,
-    isOnline || camera.status === "connecting",
+    isOnline || effectiveStatus === "connecting",
   );
-  const statusCfg = getStatusConfig(camera.status);
 
   const showCheckbox = selectable && (hovered || selected);
 
@@ -195,7 +202,7 @@ export const CameraCard = memo(function CameraCard({
       {/* Placeholder shown when no snapshot is available */}
       {!snapshotUrl && (
         <div className="absolute inset-0 flex items-center justify-center">
-          {camera.status === "connecting" ? (
+          {effectiveStatus === "connecting" ? (
             <div className="h-6 w-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
           ) : !isOnline ? (
             <span className="text-zinc-600 text-sm">

@@ -1169,8 +1169,12 @@ export function LiveViewPlayer({
 
   // HTTP-based MSE fallback — uses go2rtc's /api/stream.mp4 via the gateway
   // HTTP proxy. This avoids WebSocket through the tunnel entirely.
+  // In Tauri (desktop), go2rtc runs locally so we connect directly without
+  // going through the gateway (which would 502 trying to proxy localhost:1984).
   if (state === "fallback-http") {
-    const httpUrl = `${API_URL}/api/v1/cameras/${encodeURIComponent(cameraId)}/live.mp4`;
+    const httpUrl = isTauri()
+      ? `http://localhost:1984/api/stream.mp4?src=${encodeURIComponent(cameraId)}`
+      : `${API_URL}/api/v1/cameras/${encodeURIComponent(cameraId)}/live.mp4`;
 
     if (typeof MediaSource !== "undefined") {
       return (
