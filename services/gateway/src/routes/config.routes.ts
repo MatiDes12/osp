@@ -4,8 +4,9 @@ import type { Env } from "../app.js";
 import { requireAuth } from "../middleware/auth.js";
 import { ApiError } from "../middleware/error-handler.js";
 import { getSupabase } from "../lib/supabase.js";
-import { invalidateCache } from "../lib/config.js";
+import { invalidateCache, get } from "../lib/config.js";
 import { createSuccessResponse } from "@osp/shared";
+import { isR2Configured, uploadBufferToR2 } from "../lib/r2.js";
 
 export const configRoutes = new Hono<Env>();
 
@@ -90,4 +91,21 @@ configRoutes.put("/keys/:key", requireAuth("admin"), async (c) => {
 
   invalidateCache();
   return c.json(createSuccessResponse({ key, updated: true }));
+});
+
+// POST /api/v1/config/test-r2 — verify R2 credentials by uploading a tiny test object
+configRoutes.post("/test-r2", requireAuth("admin"), async (c) => {
+  if (!isR2Configured()) {
+    throw new ApiError("CONFIG_MISSING", "R2 is not configured — set R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY", 400);
+  }
+  try {
+    await uploadBufferToR2(
+      Buffer.from("osp-r2-test"),
+      `_osp_test/connectivity-check.txt`,
+      "text/plain",
+    );
+    return c.json(createSuccessResponse({ ok: true }));
+  } catch (err) {
+    throw new ApiError("R2_CONNECTION_FAILED", `R2 connection failed: ${String(err)}`, 502);
+  }
 });

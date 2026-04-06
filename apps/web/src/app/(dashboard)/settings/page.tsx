@@ -24,6 +24,7 @@ import {
   NGROK_AUTHTOKEN_MIN_LEN,
   NGROK_AUTHTOKEN_DASHBOARD_URL,
 } from "@/lib/local-agent-credentials";
+import { decodeJWT } from "@/lib/jwt";
 import { getUseMeteredTurn, setUseMeteredTurn } from "@/lib/webrtc-prefs";
 import {
   Camera as CameraIcon,
@@ -328,35 +329,144 @@ function RecordingSettingsPanel() {
           </button>
         </div>
 
-        <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6 space-y-5">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-1">
-            Storage & Quality
-          </h3>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Retention Period
-            </label>
-            <select
-              disabled
-              className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60"
-            >
-              <option>30 days</option>
-            </select>
-            <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
+        {/* Cloud Storage (R2 / S3) */}
+        <CloudStoragePanel />
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Cloud Storage Panel (R2 / S3-compatible)                          */
+/* ------------------------------------------------------------------ */
+const R2_KEYS = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET_NAME", "R2_PUBLIC_URL"] as const;
+type R2Key = typeof R2_KEYS[number];
+
+const R2_FIELDS: { key: R2Key; label: string; placeholder: string; secret?: boolean }[] = [
+  { key: "R2_ACCOUNT_ID",         label: "Account ID",        placeholder: "abc123..." },
+  { key: "R2_BUCKET_NAME",        label: "Bucket Name",       placeholder: "osp-recordings" },
+  { key: "R2_ACCESS_KEY_ID",      label: "Access Key ID",     placeholder: "R2 API token ID" },
+  { key: "R2_SECRET_ACCESS_KEY",  label: "Secret Access Key", placeholder: "••••••••", secret: true },
+  { key: "R2_PUBLIC_URL",         label: "Public URL (optional)", placeholder: "https://pub.r2.dev/..." },
+];
+
+function CloudStoragePanel() {
+  const [values, setValues] = useState<Record<R2Key, string>>({
+    R2_ACCOUNT_ID: "", R2_ACCESS_KEY_ID: "", R2_SECRET_ACCESS_KEY: "", R2_BUCKET_NAME: "", R2_PUBLIC_URL: "",
+  });
+  const [show, setShow] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+
+  useEffect(() => {
+    const fetches = R2_KEYS.map((k) =>
+      fetch(`${API_URL}/api/v1/config/keys/${k}`, { headers: getAuthHeaders() })
+        .then((r) => r.json())
+        .then((j) => ({ key: k, val: j.success ? (j.data?.value ?? "") : "" }))
+        .catch(() => ({ key: k, val: "" })),
+    );
+    Promise.all(fetches).then((results) => {
+      const next = { ...values };
+      for (const { key, val } of results) next[key] = val;
+      setValues(next);
+      setLoading(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await Promise.all(
+        R2_KEYS.filter((k) => values[k].trim()).map((k) =>
+          fetch(`${API_URL}/api/v1/config/keys/${k}`, {
+            method: "PUT",
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ value: values[k].trim(), scope: "global" }),
+          }),
+        ),
+      );
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      showToast("Cloud storage settings saved", "success");
+    } catch {
+      showToast("Failed to save cloud storage settings", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isConfigured = !!(values.R2_ACCOUNT_ID && values.R2_ACCESS_KEY_ID && values.R2_SECRET_ACCESS_KEY && values.R2_BUCKET_NAME);
+
+  return (
+    <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold text-zinc-200">Cloud Storage</h3>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isConfigured ? "bg-green-500/10 text-green-400" : "bg-zinc-700 text-zinc-500"}`}>
+          {loading ? "..." : isConfigured ? "Configured" : "Not configured"}
+        </span>
+      </div>
+      <p className="text-xs text-zinc-500 mb-5">
+        Connect Cloudflare R2 (or any S3-compatible bucket) to store recordings and snapshots in the cloud. If not set, files are saved locally on the desktop.
+      </p>
+
+      <div className="space-y-3">
+        {R2_FIELDS.map(({ key, label, placeholder, secret }) => (
+          <div key={key}>
+            <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
+            <div className="relative">
+              <input
+                type={secret && !show[key] ? "password" : "text"}
+                value={values[key]}
+                disabled={loading}
+                onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.value }))}
+                placeholder={placeholder}
+                className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none disabled:opacity-50 pr-8"
+              />
+              {secret && (
+                <button
+                  type="button"
+                  onClick={() => setShow((p) => ({ ...p, [key]: !p[key] }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                >
+                  {show[key] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">
-              Storage Limit
-            </label>
-            <select
-              disabled
-              className="w-full appearance-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-500 cursor-not-allowed opacity-60"
-            >
-              <option>Unlimited</option>
-            </select>
-            <p className="text-[10px] text-zinc-600 mt-1">Coming soon</p>
-          </div>
-        </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 mt-5">
+        <button
+          onClick={handleSave}
+          disabled={saving || loading}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-500 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {saved ? "Saved!" : saving ? "Saving..." : "Save"}
+        </button>
+        {isConfigured && (
+          <button
+            onClick={async () => {
+              setTestStatus("testing");
+              try {
+                const res = await fetch(`${API_URL}/api/v1/config/test-r2`, { method: "POST", headers: getAuthHeaders() });
+                setTestStatus(res.ok ? "ok" : "error");
+              } catch { setTestStatus("error"); }
+              setTimeout(() => setTestStatus("idle"), 3000);
+            }}
+            disabled={testStatus === "testing"}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {testStatus === "testing" && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {testStatus === "ok" && <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />}
+            {testStatus === "error" && <AlertCircle className="w-3.5 h-3.5 text-red-400" />}
+            {testStatus === "idle" ? "Test Connection" : testStatus === "testing" ? "Testing..." : testStatus === "ok" ? "Connected!" : "Connection failed"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -503,16 +613,142 @@ function DesktopSettingsPanel() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Edit camera modal                                                  */
+/* ------------------------------------------------------------------ */
+function EditCameraModal({
+  camera,
+  onSave,
+  onCancel,
+}: {
+  readonly camera: Camera;
+  readonly onSave: (id: string, patch: { name: string; config: { recordingMode: string; motionSensitivity: number } }) => Promise<void>;
+  readonly onCancel: () => void;
+}) {
+  const [name, setName] = useState(camera.name);
+  const [recordingMode, setRecordingMode] = useState(camera.config.recordingMode);
+  const [sensitivity, setSensitivity] = useState(camera.config.motionSensitivity ?? 5);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onSave(camera.id, { name, config: { recordingMode, motionSensitivity: sensitivity } });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-md p-6 shadow-xl">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-zinc-50">Edit Camera</h3>
+          <button onClick={onCancel} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Camera Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:border-blue-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          {/* Connection URI (read-only) */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Connection URI</label>
+            <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2">
+              <span className="font-mono text-xs text-zinc-500 truncate flex-1">{camera.connectionUri}</span>
+              <span className="text-xs text-zinc-600 shrink-0">read-only</span>
+            </div>
+            <p className="text-xs text-zinc-600 mt-1">To change the URI, delete and re-add the camera.</p>
+          </div>
+
+          {/* Recording mode */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">Recording Mode</label>
+            <div className="flex gap-2">
+              {(["motion", "continuous", "off"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setRecordingMode(mode)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                    recordingMode === mode
+                      ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                      : "border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
+                  }`}
+                >
+                  {mode === "motion" ? "Motion" : mode === "continuous" ? "24/7" : "Off"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Motion sensitivity */}
+          {recordingMode !== "off" && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                Motion Sensitivity — <span className="text-blue-400">{sensitivity}</span>
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={sensitivity}
+                onChange={(e) => setSensitivity(Number(e.target.value))}
+                className="w-full accent-blue-500"
+              />
+              <div className="flex justify-between text-xs text-zinc-600 mt-0.5">
+                <span>Low</span><span>High</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !name.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 transition-colors disabled:opacity-40 cursor-pointer"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Delete confirmation modal                                          */
 /* ------------------------------------------------------------------ */
 function ConfirmDeleteModal({
   cameraName,
   onConfirm,
   onCancel,
+  isDeleting = false,
 }: {
   readonly cameraName: string;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
+  readonly isDeleting?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -522,12 +758,8 @@ function ConfirmDeleteModal({
             <AlertCircle className="h-5 w-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-zinc-50">
-              Delete Camera
-            </h3>
-            <p className="text-sm text-zinc-500">
-              This action cannot be undone.
-            </p>
+            <h3 className="text-lg font-semibold text-zinc-50">Delete Camera</h3>
+            <p className="text-sm text-zinc-500">This action cannot be undone.</p>
           </div>
         </div>
         <p className="text-sm text-zinc-400 mb-6">
@@ -538,15 +770,18 @@ function ConfirmDeleteModal({
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+            disabled={isDeleting}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors duration-150 disabled:opacity-40 cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors duration-150 cursor-pointer"
+            disabled={isDeleting}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors duration-150 disabled:opacity-60 cursor-pointer"
           >
-            Delete
+            {isDeleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isDeleting ? "Deleting..." : "Delete"}
           </button>
         </div>
       </div>
@@ -1597,7 +1832,17 @@ const CONFIG_SECTIONS: readonly {
   },
 ];
 
+// Config sections shown to everyone (owner/admin). Infrastructure-only
+// sections (Sentry, dual-write, internal tokens) stay hidden from non-admins.
+const CLIENT_CONFIG_LABELS = new Set(["AI Detection", "Push Notifications", "Email (SendGrid)", "License Plate Recognition (LPR)", "Motion Detection Tuning"]);
+
 function ConfigTab() {
+  const role = getCurrentUserRole();
+  const showAllSections = role === "admin";
+  const visibleSections = showAllSections
+    ? CONFIG_SECTIONS
+    : CONFIG_SECTIONS.filter((s) => CLIENT_CONFIG_LABELS.has(s.label));
+
   const [dbKeys, setDbKeys] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -1683,7 +1928,7 @@ function ConfigTab() {
         </div>
       ) : (
         <div className="space-y-6">
-          {CONFIG_SECTIONS.map((section) => (
+          {visibleSections.map((section) => (
             <div
               key={section.label}
               className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden"
@@ -2951,11 +3196,28 @@ export default function SettingsPage() {
   );
 }
 
+// Tabs only shown to admin-level users (developer / super-user).
+// Owner (client) gets a clean view without infrastructure noise.
+const ADMIN_ONLY_TABS = new Set<SettingsTab>(["sso", "edge", "config", "apikeys", "extensions", "billing"]);
+
+function getCurrentUserRole(): string {
+  if (typeof window === "undefined") return "viewer";
+  const token = localStorage.getItem("osp_access_token");
+  if (!token) return "viewer";
+  const payload = decodeJWT(token);
+  return (payload?.user_metadata?.["role"] as string) ??
+    (payload?.app_metadata?.["role"] as string) ??
+    (payload?.role as string) ??
+    "viewer";
+}
+
 function SettingsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialTab = (searchParams.get("tab") as SettingsTab) ?? "tenant";
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const currentRole = getCurrentUserRole();
+  const isAdmin = currentRole === "admin" || currentRole === "owner";
 
   // Tenant / General state
   const [tenantName, setTenantName] = useState("");
@@ -2994,7 +3256,11 @@ function SettingsPageInner() {
 
   // Camera delete state
   const [deletingCameraId, setDeletingCameraId] = useState<string | null>(null);
+  const [isDeletingCamera, setIsDeletingCamera] = useState(false);
   const cameraToDelete = cameras.find((c) => c.id === deletingCameraId);
+
+  // Camera edit state
+  const [editingCamera, setEditingCamera] = useState<Camera | null>(null);
 
   // Extensions state
   const [extTab, setExtTab] = useState<"installed" | "marketplace">(
@@ -3215,6 +3481,7 @@ function SettingsPageInner() {
   }, [inviteEmail, inviteRole, fetchUsers]);
 
   const handleDeleteCamera = useCallback(async (cameraId: string) => {
+    setIsDeletingCamera(true);
     try {
       const response = await fetch(`${API_URL}/api/v1/cameras/${cameraId}`, {
         method: "DELETE",
@@ -3223,6 +3490,7 @@ function SettingsPageInner() {
       const json = await response.json();
       if (json.success) {
         setCameras((prev) => prev.filter((c) => c.id !== cameraId));
+        setDeletingCameraId(null);
         showToast("Camera deleted successfully", "success");
       } else {
         showToast(json.error?.message ?? "Failed to delete camera", "error");
@@ -3230,9 +3498,29 @@ function SettingsPageInner() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Network error", "error");
     } finally {
-      setDeletingCameraId(null);
+      setIsDeletingCamera(false);
     }
   }, []);
+
+  const handleEditCamera = useCallback(
+    async (id: string, patch: { name: string; config: { recordingMode: string; motionSensitivity: number } }) => {
+      const response = await fetch(`${API_URL}/api/v1/cameras/${id}`, {
+        method: "PATCH",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(patch),
+      });
+      const json = await response.json();
+      if (json.success) {
+        setCameras((prev) => prev.map((c) => c.id === id ? { ...c, name: patch.name, config: { ...c.config, recordingMode: patch.config.recordingMode as "motion" | "continuous" | "off", motionSensitivity: patch.config.motionSensitivity } } : c));
+        setEditingCamera(null);
+        showToast("Camera updated", "success");
+      } else {
+        showToast(json.error?.message ?? "Failed to update camera", "error");
+        throw new Error(json.error?.message ?? "Failed to update camera");
+      }
+    },
+    [],
+  );
 
   // Unsaved changes warning
   useEffect(() => {
@@ -3252,7 +3540,11 @@ function SettingsPageInner() {
       {/* ── Left nav ──────────────────────────────────────────── */}
       <div className="w-56 shrink-0 bg-zinc-950 border-r border-zinc-800 py-4">
         <nav className="space-y-0.5 px-2">
-          {NAV_ITEMS.filter((item) => item.key !== "desktop" || isTauri()).map(
+          {NAV_ITEMS.filter((item) => {
+            if (item.key === "desktop" && !isTauri()) return false;
+            if (ADMIN_ONLY_TABS.has(item.key) && !isAdmin) return false;
+            return true;
+          }).map(
             (item) => {
               const Icon = item.icon;
               const active = activeTab === item.key;
@@ -3574,9 +3866,8 @@ function SettingsPageInner() {
                         }
                         className="w-full appearance-none rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
                       >
-                        <option value="viewer">Viewer</option>
-                        <option value="operator">Operator</option>
-                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer — can watch cameras and view events</option>
+                        <option value="operator">Operator — can manage cameras and acknowledge alerts</option>
                       </select>
                     </div>
                     <div className="flex justify-end gap-2 pt-2">
@@ -3706,19 +3997,16 @@ function SettingsPageInner() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
                                 <button
-                                  onClick={() =>
-                                    router.push(
-                                      `/cameras/${cam.id}?tab=settings`,
-                                    )
-                                  }
+                                  onClick={() => setEditingCamera(cam)}
                                   className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
-                                  title="Edit camera settings"
+                                  title="Edit camera"
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
                                 <button
                                   onClick={() => setDeletingCameraId(cam.id)}
                                   className="p-1 text-zinc-500 hover:text-red-400 transition-colors duration-150 cursor-pointer"
+                                  title="Delete camera"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -3941,12 +4229,22 @@ function SettingsPageInner() {
         {activeTab === "desktop" && <DesktopSettingsPanel />}
       </div>
 
+      {/* Edit camera modal */}
+      {editingCamera && (
+        <EditCameraModal
+          camera={editingCamera}
+          onSave={handleEditCamera}
+          onCancel={() => setEditingCamera(null)}
+        />
+      )}
+
       {/* Delete camera confirmation */}
       {deletingCameraId && cameraToDelete && (
         <ConfirmDeleteModal
           cameraName={cameraToDelete.name}
           onConfirm={() => handleDeleteCamera(deletingCameraId)}
-          onCancel={() => setDeletingCameraId(null)}
+          onCancel={() => { if (!isDeletingCamera) setDeletingCameraId(null); }}
+          isDeleting={isDeletingCamera}
         />
       )}
     </div>
