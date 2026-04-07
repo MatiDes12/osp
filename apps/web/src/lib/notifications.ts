@@ -1,12 +1,17 @@
 import { isTauri, showNativeNotification } from "./tauri";
+import { showToast } from "@/stores/toast";
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  // Tauri handles permissions via its plugin — no browser prompt needed.
   if (isTauri()) return true;
   if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
   const result = await Notification.requestPermission();
   return result === "granted";
+}
+
+/** True when the app window is currently visible and focused. */
+function isAppFocused(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "visible";
 }
 
 export function showNotification(
@@ -18,7 +23,14 @@ export function showNotification(
     readonly onClick?: () => void;
   },
 ): void {
-  // In the Tauri desktop shell, use native OS notifications (fire-and-forget).
+  if (isAppFocused()) {
+    // App is open and visible — show an in-app toast instead of OS notification
+    const msg = options?.body ? `${title} — ${options.body}` : title;
+    showToast(msg, "info");
+    return;
+  }
+
+  // App is minimized / in background — use native or browser notification
   if (isTauri()) {
     void showNativeNotification(title, options?.body ?? "");
     return;

@@ -53,7 +53,9 @@ const CreateEventSchema = z.object({
   metadata: z.record(z.unknown()).default({}),
   zoneId: z.string().uuid().optional(),
   intensity: z.number().min(0).max(100).default(50),
-  snapshotUrl: z.string().url().optional(),
+  // Accept http/https URLs, data: URIs (base64 JPEG when R2 not configured),
+  // and local:// paths (Tauri desktop local storage)
+  snapshotUrl: z.string().min(1).optional(),
 });
 
 eventRoutes.post("/", requireAuth("operator"), async (c) => {

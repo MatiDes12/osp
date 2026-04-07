@@ -262,14 +262,17 @@ class EventStreamManager {
                   : updated,
             });
 
-            // Show browser notification respecting user preferences
+            // Show notification respecting user preferences
             if (shouldShowNotification(event.severity)) {
-              const title =
-                event.type === "motion"
-                  ? "Motion Detected"
-                  : `Event: ${event.type}`;
-              showNotification(title, {
-                body: `Camera: ${event.cameraName || "Unknown"}`,
+              const typeLabel =
+                event.type === "motion" ? "Motion detected" :
+                event.type === "person" ? "Person detected" :
+                event.type === "vehicle" ? "Vehicle detected" :
+                event.type === "camera_offline" ? "Camera went offline" :
+                event.type === "camera_online" ? "Camera came online" :
+                `Alert: ${event.type}`;
+              showNotification(typeLabel, {
+                body: `${event.cameraName || "Camera"}${event.intensity ? ` · ${event.intensity}% intensity` : ""}`,
                 tag: `event-${event.id}`,
                 onClick: () => {
                   window.location.href = `/cameras/${event.cameraId}`;
