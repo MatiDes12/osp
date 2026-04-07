@@ -210,6 +210,16 @@ fn start_camera_ingest(
     }
 }
 
+/// Read a local file and return its contents as a base64-encoded string.
+/// Used by the recordings player to load locally-saved .webm files without
+/// relying on the asset:// protocol (which requires additional Tauri config).
+#[tauri::command]
+fn read_local_file(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(&path).map_err(|e| format!("read error: {e}"))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
 /// Save a recording blob (base64-encoded) to the user's Videos/OSP folder.
 /// Returns the absolute path of the saved file.
 #[tauri::command]
@@ -405,6 +415,7 @@ pub fn run() {
             get_go2rtc_status,
             start_camera_ingest,
             restart_camera_ingest,
+            read_local_file,
             save_recording,
         ])
         .build(tauri::generate_context!())

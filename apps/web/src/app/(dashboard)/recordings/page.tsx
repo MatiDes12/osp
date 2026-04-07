@@ -22,7 +22,7 @@ import { PageError } from "@/components/PageError";
 import { VirtualList } from "@/components/ui/VirtualList";
 import { exportRecordingsCSV } from "@/lib/export";
 import { showToast } from "@/stores/toast";
-import { isTauri, convertFileSrc } from "@/lib/tauri";
+import { isTauri, readLocalFileAsUrl } from "@/lib/tauri";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -195,29 +195,56 @@ export default function RecordingsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  // Holds a blob URL for the currently-selected local recording.
+  // We create it on-demand via the read_local_file Tauri command and revoke
+  // it when the selection changes to avoid memory leaks.
+  const [localBlobUrl, setLocalBlobUrl] = useState<string | null>(null);
+  const prevBlobUrl = useRef<string | null>(null);
+
+  // Revoke the previous blob URL when the selection changes
+  useEffect(() => {
+    if (prevBlobUrl.current) {
+      URL.revokeObjectURL(prevBlobUrl.current);
+      prevBlobUrl.current = null;
+    }
+    setLocalBlobUrl(null);
+
+    if (!selectedRecording) return;
+
+    const rawUrl = selectedRecording.playbackUrl || "";
+    if (!rawUrl.startsWith("local://") || !isTauri()) return;
+
+    const localPath = rawUrl.replace("local://", "");
+    // Detect mime type from file extension
+    const mime = localPath.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
+    void readLocalFileAsUrl(localPath, mime).then((url) => {
+      if (url) {
+        prevBlobUrl.current = url;
+        setLocalBlobUrl(url);
+      }
+    });
+  }, [selectedRecording]);
 
   /**
    * Build a playback URL with the auth token as a query param.
-   * This lets the <video> element use native range requests for seeking
-   * without having to download the whole file as a blob first.
+   * For local recordings on Tauri we return the blob URL resolved above.
    */
   const getPlaybackUrl = useCallback((rec: Recording): string | null => {
-    const rawUrl = rec.playbackUrl
-      ? rec.playbackUrl
-      : `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
+    const rawUrl = rec.playbackUrl || "";
 
     // local:// prefix means the file lives on the user's machine (Tauri desktop)
     if (rawUrl.startsWith("local://")) {
-      if (!isTauri()) return null; // can't play local files in the browser
-      const localPath = rawUrl.replace("local://", "");
-      return convertFileSrc(localPath);
+      if (!isTauri()) return null;
+      // Return the blob URL that was loaded async for the selected recording
+      return localBlobUrl;
     }
 
+    const apiUrl = rawUrl || `${API_URL}/api/v1/recordings/${encodeURIComponent(rec.id)}/play`;
     const token = localStorage.getItem("osp_access_token");
-    if (!token) return rawUrl;
-    const sep = rawUrl.includes("?") ? "&" : "?";
-    return `${rawUrl}${sep}token=${encodeURIComponent(token)}`;
-  }, []);
+    if (!token) return apiUrl;
+    const sep = apiUrl.includes("?") ? "&" : "?";
+    return `${apiUrl}${sep}token=${encodeURIComponent(token)}`;
+  }, [localBlobUrl]);
 
   const fetchData = useCallback(async (append = false) => {
     if (!append) {

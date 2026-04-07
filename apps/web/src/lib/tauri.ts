@@ -113,6 +113,31 @@ export function convertFileSrc(filePath: string): string | null {
     : `asset://localhost/${encoded}`;
 }
 
+/**
+ * Read a locally-saved recording file and return a blob URL the <video>
+ * element can play. Returns null when not in Tauri or if the read fails.
+ * The caller is responsible for calling URL.revokeObjectURL when done.
+ */
+export async function readLocalFileAsUrl(
+  filePath: string,
+  mimeType = "video/webm",
+): Promise<string | null> {
+  const invoke = getInvoke();
+  if (!invoke) return null;
+  try {
+    const base64 = await invoke<string>("read_local_file", { path: filePath });
+    const byteChars = atob(base64);
+    const bytes = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) {
+      bytes[i] = byteChars.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mimeType });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
 /** Returns whether the local go2rtc sidecar is running and reachable. */
 export async function getGo2rtcStatus(): Promise<boolean> {
   const invoke = getInvoke();

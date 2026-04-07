@@ -351,15 +351,19 @@ func (s *MotionService) handleMotionEvent(event EventData) {
 	}
 
 	payload := map[string]interface{}{
-		"cameraId":    event.CameraID,
-		"type":        "motion",
-		"severity":    calculateSeverity(event.Intensity),
-		"intensity":   event.Intensity,
-		"snapshotUrl": snapshotURL,
+		"cameraId": event.CameraID,
+		"type":     "motion",
+		"severity": calculateSeverity(event.Intensity),
+		"intensity": event.Intensity,
 		"metadata": map[string]interface{}{
 			"autoDetected": true,
 			"source":       "camera-ingest-motion-worker",
 		},
+	}
+	// Only include snapshotUrl when we actually have one — an empty string
+	// would fail the gateway's Zod validation.
+	if snapshotURL != "" {
+		payload["snapshotUrl"] = snapshotURL
 	}
 
 	body, err := json.Marshal(payload)

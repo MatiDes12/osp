@@ -54,8 +54,10 @@ const CreateEventSchema = z.object({
   zoneId: z.string().uuid().optional(),
   intensity: z.number().min(0).max(100).default(50),
   // Accept http/https URLs, data: URIs (base64 JPEG when R2 not configured),
-  // and local:// paths (Tauri desktop local storage)
-  snapshotUrl: z.string().min(1).optional(),
+  // and local:// paths (Tauri desktop local storage).
+  // Empty string is treated the same as absent (camera-ingest sends "" when
+  // the snapshot upload fails or produces no URL).
+  snapshotUrl: z.string().optional().transform((v) => v || undefined),
 });
 
 eventRoutes.post("/", requireAuth("operator"), async (c) => {
