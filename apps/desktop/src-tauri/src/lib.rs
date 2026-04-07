@@ -240,6 +240,54 @@ fn save_recording(app: tauri::AppHandle, filename: String, data_base64: String) 
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// Restarts camera-ingest with a fresh API token.
+/// Called by the frontend every ~45 minutes before the JWT expires.
+#[tauri::command]
+fn restart_camera_ingest(
+    app: tauri::AppHandle,
+    gateway_url: String,
+    api_token: String,
+    tenant_id: String,
+) {
+    // Kill existing process if running
+    if let Some(state) = app.try_state::<CameraIngestProcess>() {
+        if let Ok(mut guard) = state.0.lock() {
+            if let Some(child) = guard.take() {
+                let _ = child.kill();
+                eprintln!("[OSP] camera-ingest stopped for token refresh");
+            }
+        }
+    }
+
+    // Start fresh with new token
+    match app
+        .shell()
+        .sidecar("camera-ingest")
+        .map(|s| {
+            s.env("GATEWAY_URL", &gateway_url)
+             .env("API_URL", &gateway_url)
+             .env("API_TOKEN", &api_token)
+             .env("TENANT_ID", &tenant_id)
+             .env("GO2RTC_API_URL", "http://localhost:1984")
+             .env("GO2RTC_URL", "http://localhost:1984")
+             .env("SNAPSHOT_DIR", app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string())
+        })
+        .and_then(|s| s.spawn())
+    {
+        Ok((_rx, child)) => {
+            if let Some(state) = app.try_state::<CameraIngestProcess>() {
+                if let Ok(mut guard) = state.0.lock() {
+                    *guard = Some(child);
+                    eprintln!("[OSP] camera-ingest restarted with refreshed token");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[OSP] camera-ingest restart failed: {e}");
+        }
+    }
+}
+
 fn stop_camera_ingest(app: &tauri::AppHandle) {
     if let Some(state) = app.try_state::<CameraIngestProcess>() {
         if let Ok(mut guard) = state.0.lock() {
@@ -356,6 +404,7 @@ pub fn run() {
             show_main_window,
             get_go2rtc_status,
             start_camera_ingest,
+            restart_camera_ingest,
             save_recording,
         ])
         .build(tauri::generate_context!())

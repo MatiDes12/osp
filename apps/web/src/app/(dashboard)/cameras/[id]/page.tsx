@@ -1500,7 +1500,7 @@ export default function CameraDetailPage() {
               await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
                 method: "POST",
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ localFilePath: savedPath }),
+                body: JSON.stringify({ localFilePath: savedPath, sizeBytes: blob.size }),
               });
             } catch {
               // Non-critical

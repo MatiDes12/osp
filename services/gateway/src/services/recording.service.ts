@@ -97,7 +97,10 @@ export class RecordingService {
       throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
     }
 
-    // Check if there's already an active recording for this camera
+    // Check if there's already an active recording for this camera.
+    // Auto-stop stale rows (e.g. orphans from a previous Tauri session) instead
+    // of rejecting with 409 — this avoids silent failures when the user
+    // rapidly stops and re-starts a recording.
     const { data: existing } = await supabase
       .from("recordings")
       .select("id")
@@ -108,11 +111,21 @@ export class RecordingService {
       .maybeSingle();
 
     if (existing) {
-      throw new ApiError(
-        "RECORDING_ALREADY_ACTIVE",
-        "Camera already has an active recording",
-        409,
-      );
+      const staleId = existing.id as string;
+      // Abort any active in-memory capture
+      const activeCapture = this.activeRecordings.get(staleId);
+      if (activeCapture) {
+        activeCapture.abortController.abort();
+        this.activeRecordings.delete(staleId);
+      }
+      await supabase
+        .from("recordings")
+        .update({ status: "complete", end_time: new Date().toISOString() })
+        .eq("id", staleId);
+      logger.info("Auto-stopped stale recording before starting new one", {
+        staleId,
+        cameraId,
+      });
     }
 
     const storagePath = `recordings/${tenantId}/${cameraId}/${Date.now()}.mp4`;
@@ -222,7 +235,7 @@ export class RecordingService {
    *   When provided, storage_path is set to `local://<localFilePath>` so the frontend
    *   can serve it via the Tauri asset:// protocol.
    */
-  async stopRecording(recordingId: string, localFilePath?: string): Promise<Record<string, unknown>> {
+  async stopRecording(recordingId: string, localFilePath?: string, clientSizeBytes?: number): Promise<Record<string, unknown>> {
     const supabase = getSupabase();
 
     // Production path: stop via video-pipeline so it finalizes + uploads to R2.
@@ -306,6 +319,10 @@ export class RecordingService {
     if (localFilePath) {
       // Mark with local:// prefix so the frontend knows to use asset:// protocol
       finalStoragePath = `local://${localFilePath}`;
+      // Use the client-reported size (file lives on user's machine, not the server)
+      if (clientSizeBytes !== undefined && clientSizeBytes > 0) {
+        sizeBytes = clientSizeBytes;
+      }
     } else {
       finalStoragePath = await maybeUploadToR2(
         storagePath,

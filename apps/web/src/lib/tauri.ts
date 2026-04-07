@@ -100,8 +100,13 @@ export async function getAppVersion(): Promise<string> {
  */
 export function convertFileSrc(filePath: string): string | null {
   if (!isTauri()) return null;
-  // Tauri v2 asset protocol
-  const encoded = encodeURIComponent(filePath).replace(/%2F/g, "/").replace(/%5C/g, "/");
+  // Tauri v2 asset protocol.
+  // encodeURIComponent encodes everything including : → %3A and \ → %5C.
+  // We need to restore / for path separators, and : for Windows drive letters.
+  const encoded = encodeURIComponent(filePath)
+    .replace(/%3A/g, ":")   // restore drive letter colon (C: not C%3A)
+    .replace(/%2F/g, "/")   // restore forward slashes
+    .replace(/%5C/g, "/");  // convert backslashes to forward slashes
   const isWindows = typeof navigator !== "undefined" && navigator.platform.includes("Win");
   return isWindows
     ? `https://asset.localhost/${encoded}`
