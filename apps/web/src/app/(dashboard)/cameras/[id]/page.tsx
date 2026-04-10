@@ -1998,7 +1998,7 @@ export default function CameraDetailPage() {
 
               {/* Recording button */}
               <button
-                onClick={handleToggleRecording}
+                onClick={() => handleToggleRecording("manual")}
                 className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-colors cursor-pointer ${
                   isRecording
                     ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
