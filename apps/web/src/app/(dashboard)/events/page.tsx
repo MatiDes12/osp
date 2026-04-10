@@ -23,27 +23,14 @@ import { PageError } from "@/components/PageError";
 import { VirtualList } from "@/components/ui/VirtualList";
 import { exportEventsCSV, exportEventsJSON } from "@/lib/export";
 import { showToast } from "@/stores/toast";
-import { isTauri, convertFileSrc, readLocalFileAsUrl } from "@/lib/tauri";
+import { readLocalFileAsUrl } from "@/lib/tauri";
 import { cacheEvents, getCachedEvents } from "@/lib/local-db";
+import { SnapshotThumb } from "@/components/SnapshotThumb";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 /**
- * Convert a snapshotUrl to a displayable src.
- * local:// paths are converted to https://asset.localhost/... for Tauri.
- */
-function resolveSnapshotSrc(snapshotUrl: string): string {
-  if (snapshotUrl.startsWith("local://")) {
-    if (!isTauri()) return "";
-    return convertFileSrc(snapshotUrl.replace("local://", "")) ?? "";
-  }
-  return snapshotUrl;
-}
-
-/**
- * Async version — loads a local file via the read_local_file command and
- * returns a blob:// URL. Used for the full-size snapshot modal where reliability
- * matters more than speed.
+ * Async version — loads a local file as a blob URL for the full-size modal.
  */
 async function resolveSnapshotBlobUrl(snapshotUrl: string): Promise<string> {
   if (snapshotUrl.startsWith("local://")) {
@@ -1048,7 +1035,7 @@ export default function EventsPage() {
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-[72px] bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse"
+                  className="h-[88px] bg-zinc-900 rounded-lg border border-zinc-800 animate-pulse"
                 />
               ))}
             </div>
@@ -1061,7 +1048,7 @@ export default function EventsPage() {
           {!loading && !error && (
             <VirtualList
               items={filteredEvents}
-              itemHeight={72}
+              itemHeight={88}
               overscan={8}
               onLoadMore={loadMore}
               loadMoreThreshold={100}
@@ -1091,18 +1078,16 @@ export default function EventsPage() {
                   <div
                     key={event.id}
                     onClick={() => setSelectedEvent(event)}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${borderClass} transition-all duration-150 cursor-pointer ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border-l-4 ${borderClass} transition-all duration-150 cursor-pointer ${
                       event.acknowledged
-                        ? "bg-zinc-900/50 opacity-70"
-                        : "bg-zinc-900 hover:bg-zinc-800/50"
+                        ? "bg-zinc-900/50 opacity-60"
+                        : "bg-zinc-900 hover:bg-zinc-800/60"
                     } ${
                       isSelected ? "ring-1 ring-blue-500/50" : ""
-                    } ${selectedEvent?.id === event.id ? "bg-zinc-800/50" : ""}`}
+                    } ${selectedEvent?.id === event.id ? "bg-zinc-800/60 ring-1 ring-zinc-600/50" : ""}`}
                     style={
                       isNewFromWs
-                        ? {
-                            animation: "slideInEvent 300ms ease-out",
-                          }
+                        ? { animation: "slideInEvent 300ms ease-out" }
                         : undefined
                     }
                   >
@@ -1118,28 +1103,17 @@ export default function EventsPage() {
                       className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500/30 cursor-pointer shrink-0"
                     />
 
-                    {/* Thumbnail (hidden on mobile for compact layout) */}
-                    {event.snapshotUrl ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSnapshotModalEvent(event);
-                        }}
-                        className="hidden w-12 h-12 rounded bg-zinc-800 overflow-hidden shrink-0 sm:block cursor-zoom-in hover:ring-2 hover:ring-blue-500/50 transition-all"
-                        aria-label="View snapshot"
-                      >
-                        <img
-                          src={resolveSnapshotSrc(event.snapshotUrl)}
-                          alt="Event snapshot"
-                          className="w-full h-full object-cover"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                        />
-                      </button>
-                    ) : (
-                      <div className="hidden w-12 h-12 rounded bg-zinc-800 items-center justify-center shrink-0 sm:flex">
-                        <div className="w-6 h-6 rounded-full bg-zinc-700" />
-                      </div>
-                    )}
+                    {/* Snapshot thumbnail — always visible, click to enlarge */}
+                    <div
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <SnapshotThumb
+                        snapshotUrl={event.snapshotUrl}
+                        className="w-24 h-16 ring-1 ring-zinc-700/50"
+                        onClick={event.snapshotUrl ? () => setSnapshotModalEvent(event) : undefined}
+                      />
+                    </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">

@@ -53,6 +53,7 @@ import {
   isSnakeCaseRow,
 } from "@/lib/transforms";
 import { isTauri, convertFileSrc } from "@/lib/tauri";
+import { SnapshotThumb } from "@/components/SnapshotThumb";
 import { showToast } from "@/stores/toast";
 import { useStorageSettings } from "@/stores/storage-settings";
 
@@ -530,6 +531,7 @@ function EventsTab({
   const [ackingId, setAckingId] = useState<string | null>(null);
   const [bulkAcking, setBulkAcking] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [snapshotModalUrl, setSnapshotModalUrl] = useState<string | null>(null);
 
   const unacknowledgedIds = events
     .filter((e) => !e.acknowledged)
@@ -624,6 +626,27 @@ function EventsTab({
         )}
       </div>
 
+      {/* Snapshot lightbox */}
+      {snapshotModalUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setSnapshotModalUrl(null)}
+        >
+          <div className="relative max-w-3xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setSnapshotModalUrl(null)}
+              className="absolute -top-10 right-0 text-zinc-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <SnapshotThumb
+              snapshotUrl={snapshotModalUrl}
+              className="w-full aspect-video rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
       {filteredEvents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Bell className="w-8 h-8 text-zinc-600 mb-3" />
@@ -633,26 +656,20 @@ function EventsTab({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-zinc-800">
+        <div className="divide-y divide-zinc-800/60">
           {filteredEvents.map((event: OSPEvent) => (
             <div
               key={event.id}
-              className={`flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/40 transition-colors ${
+              className={`flex items-center gap-3 px-4 py-3 hover:bg-zinc-800/30 transition-colors ${
                 event.acknowledged ? "opacity-50" : ""
               }`}
             >
-              {/* Thumbnail */}
-              <div className="w-12 h-8 rounded bg-zinc-800 shrink-0 overflow-hidden flex items-center justify-center">
-                {event.snapshotUrl ? (
-                  <img
-                    src={event.snapshotUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <SeverityDot severity={event.severity} />
-                )}
-              </div>
+              {/* Snapshot thumbnail */}
+              <SnapshotThumb
+                snapshotUrl={event.snapshotUrl}
+                className="w-20 h-14 ring-1 ring-zinc-700/50 shrink-0"
+                onClick={event.snapshotUrl ? () => setSnapshotModalUrl(event.snapshotUrl) : undefined}
+              />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
