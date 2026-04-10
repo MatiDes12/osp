@@ -42,6 +42,64 @@ import {
 const ruleLogger = createLogger("rule-engine");
 const aiLogger = createLogger("ai-detection");
 
+// ---------------------------------------------------------------------------
+// Motion recording debouncer
+// Starts a recording on the first motion event for a camera, then resets a
+// 5-second "tail" timer on every subsequent motion event.  When no motion is
+// detected for 5 s the recording is stopped.  This replaces the old fixed
+// 30-second timed recording.
+// ---------------------------------------------------------------------------
+class MotionRecordingDebouncer {
+  private tailTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private recordingIds = new Map<string, string>();
+  // "starting" prevents duplicate onStart calls while the first is in-flight
+  private starting = new Set<string>();
+
+  handle(
+    key: string,
+    onStart: () => Promise<string | null>,
+    onStop: (id: string) => Promise<void>,
+    tailMs = 5_000,
+  ): void {
+    // Always reset the tail timer — motion is still active.
+    const existing = this.tailTimers.get(key);
+    if (existing) clearTimeout(existing);
+
+    if (!this.recordingIds.has(key) && !this.starting.has(key)) {
+      // No active recording and none starting — start one.
+      this.starting.add(key);
+      onStart()
+        .then((id) => {
+          this.starting.delete(key);
+          if (id) {
+            this.recordingIds.set(key, id);
+            this.scheduleTail(key, onStop, tailMs);
+          }
+        })
+        .catch(() => { this.starting.delete(key); });
+    } else {
+      // Recording already running (or starting) — just extend the tail.
+      this.scheduleTail(key, onStop, tailMs);
+    }
+  }
+
+  private scheduleTail(
+    key: string,
+    onStop: (id: string) => Promise<void>,
+    tailMs: number,
+  ): void {
+    const timer = setTimeout(async () => {
+      const id = this.recordingIds.get(key);
+      this.tailTimers.delete(key);
+      this.recordingIds.delete(key);
+      if (id) await onStop(id).catch(() => {});
+    }, tailMs);
+    this.tailTimers.set(key, timer);
+  }
+}
+
+const motionRecordingDebouncer = new MotionRecordingDebouncer();
+
 export const eventRoutes = new Hono<Env>();
 
 // ---------- Create event ----------
@@ -209,25 +267,34 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
         if (recordingMode === "motion") {
           const recordingService = getRecordingService();
-          // Skip if a recording is already active (debounce: don't stop-and-restart
-          // on every motion event — let the existing timed recording run out).
-          const existing = await recordingService.getActiveRecording(
-            input.cameraId,
-            tenantId,
-          );
-          if (existing) return;
+          const debounceKey = `${tenantId}:${input.cameraId}`;
 
-          const recordingId = await recordingService.startTimedRecording(
-            input.cameraId,
-            tenantId,
-            "motion",
-            30_000,
+          motionRecordingDebouncer.handle(
+            debounceKey,
+            // onStart — called once when motion is first detected
+            async () => {
+              const recordingId = await recordingService.startRecording(
+                input.cameraId,
+                tenantId,
+                "motion",
+              );
+              ruleLogger.info("Auto-started motion recording", {
+                eventId: ospEvent.id,
+                cameraId: input.cameraId,
+                recordingId,
+              });
+              return recordingId ?? null;
+            },
+            // onStop — called 5 s after the last motion event
+            async (recordingId: string) => {
+              await recordingService.stopRecording(recordingId);
+              ruleLogger.info("Auto-stopped motion recording (5 s tail)", {
+                cameraId: input.cameraId,
+                recordingId,
+              });
+            },
+            5_000,
           );
-          ruleLogger.info("Auto-started motion recording", {
-            eventId: ospEvent.id,
-            cameraId: input.cameraId,
-            recordingId,
-          });
         }
       } catch (err) {
         ruleLogger.warn("Failed to auto-start motion recording", {

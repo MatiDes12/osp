@@ -39,6 +39,7 @@ import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
 import { HLSPlayer } from "@/components/camera/HLSPlayer";
 import { useRecordings } from "@/hooks/use-recordings";
 import { useEvents } from "@/hooks/use-events";
+import { useEventStream } from "@/hooks/use-event-stream";
 import type {
   Camera as CameraType,
   CameraZone,
@@ -1308,6 +1309,11 @@ export default function CameraDetailPage() {
   // Tracks the Supabase recording row ID so we can stop it via API
   const activeRecordingIdRef = useRef<string | null>(null);
   const { saveMode, recordingsPath } = useStorageSettings();
+  // Refs for motion-triggered recording (avoids stale closure in timers)
+  const isRecordingRef = useRef(false);
+  const isMotionRecordingRef = useRef(false);
+  const motionTailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleToggleRecordingRef = useRef<((trigger?: "manual" | "motion") => Promise<void>) | null>(null);
 
   // Playback state
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
@@ -1403,6 +1409,11 @@ export default function CameraDetailPage() {
       .catch(() => {});
   }, [cameraId]);
 
+  // Keep ref in sync with recording state (used by motion timer callbacks)
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
   // Recording timer
   useEffect(() => {
     if (isRecording && recordingStartTime) {
@@ -1446,7 +1457,7 @@ export default function CameraDetailPage() {
     link.click();
   }, [camera?.name]);
 
-  const handleToggleRecording = useCallback(async () => {
+  const handleToggleRecording = useCallback(async (trigger: "manual" | "motion" = "manual") => {
     if (!cameraId) return;
 
     // ── Desktop (Tauri): record via MediaRecorder, save via native Rust ──────
@@ -1544,7 +1555,7 @@ export default function CameraDetailPage() {
               {
                 method: "POST",
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ trigger: "manual" }),
+                body: JSON.stringify({ trigger }),
               },
             );
             const json = await res.json();
@@ -1592,7 +1603,7 @@ export default function CameraDetailPage() {
           {
             method: "POST",
             headers: getAuthHeaders(),
-            body: JSON.stringify({ trigger: "manual" }),
+            body: JSON.stringify({ trigger }),
           },
         );
         const json = await res.json();
@@ -1606,6 +1617,55 @@ export default function CameraDetailPage() {
       }
     }
   }, [cameraId, isRecording, camera?.name]);
+
+  // Keep handleToggleRecordingRef always pointing to the latest version
+  useEffect(() => {
+    handleToggleRecordingRef.current = handleToggleRecording;
+  });
+
+  // Motion-triggered recording (desktop / Tauri only)
+  // Subscribe to real-time motion events for this camera.  On each motion
+  // event we start recording (if not already recording) and reset a 5-second
+  // tail timer.  When the timer fires with no new motion the recording stops.
+  const { events: liveMotionEvents } = useEventStream({
+    cameraIds: cameraId ? [cameraId] : [],
+    eventTypes: ["motion"],
+  });
+  const lastMotionEventIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return; // Motion recording handled server-side in cloud mode
+    if (camera?.config?.recordingMode !== "motion") return;
+
+    const latest = liveMotionEvents[0];
+    if (!latest || latest.id === lastMotionEventIdRef.current) return;
+    lastMotionEventIdRef.current = latest.id;
+
+    // Clear any existing tail timer — motion is still active
+    if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
+
+    if (!isRecordingRef.current) {
+      // Start recording triggered by motion
+      isMotionRecordingRef.current = true;
+      void handleToggleRecordingRef.current?.("motion");
+    }
+
+    // Schedule stop 5 s after the last motion event
+    motionTailTimerRef.current = setTimeout(() => {
+      motionTailTimerRef.current = null;
+      if (isMotionRecordingRef.current && isRecordingRef.current) {
+        isMotionRecordingRef.current = false;
+        void handleToggleRecordingRef.current?.("motion");
+      }
+    }, 5_000);
+  }, [liveMotionEvents, camera?.config?.recordingMode]);
+
+  // Clean up tail timer on unmount
+  useEffect(() => {
+    return () => {
+      if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
+    };
+  }, []);
 
   const handleTimelineSeek = useCallback(
     async (timestamp: string) => {
