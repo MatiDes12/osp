@@ -221,7 +221,7 @@ async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
     app.dialog()
         .file()
         .blocking_pick_folder()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| p.to_string())
 }
 
 /// Return the default recordings and snapshots directories.
