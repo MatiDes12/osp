@@ -16,6 +16,8 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useCameras } from "@/hooks/use-cameras";
 import { useTraySync } from "@/hooks/use-tray-sync";
 import { useTauriAgent } from "@/hooks/use-tauri-agent";
+import { useSyncEngine } from "@/hooks/use-sync-engine";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import { useEffect } from "react";
 import { requestNotificationPermission } from "@/lib/notifications";
 
@@ -33,6 +35,9 @@ export default function DashboardLayout({
 
   // Start bundled go2rtc + camera-ingest sidecars (desktop only, no-op on web)
   useTauriAgent();
+
+  // Background sync: cache remote data to IndexedDB, detect offline state
+  const { isOffline } = useSyncEngine();
 
   // Ask for notification permission once on first load
   useEffect(() => {
@@ -70,6 +75,7 @@ export default function DashboardLayout({
           }`}
         >
           <TopBar onMenuToggle={() => setMobileDrawerOpen((prev) => !prev)} />
+          <OfflineBanner visible={isOffline} />
 
           <ErrorBoundary>
             <main className="flex-1 overflow-y-auto p-4 pb-20 lg:p-6 lg:pb-6">

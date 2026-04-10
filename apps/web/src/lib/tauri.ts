@@ -138,6 +138,28 @@ export async function readLocalFileAsUrl(
   }
 }
 
+/** Open a native folder-picker dialog. Returns the selected path or null. */
+export async function pickFolder(): Promise<string | null> {
+  const invoke = getInvoke();
+  if (!invoke) return null;
+  try {
+    return await invoke<string | null>("pick_folder") ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Return the default recordings and snapshots directories for this app. */
+export async function getAppDirs(): Promise<{ recordings: string; snapshots: string } | null> {
+  const invoke = getInvoke();
+  if (!invoke) return null;
+  try {
+    return await invoke<{ recordings: string; snapshots: string }>("get_app_dirs");
+  } catch {
+    return null;
+  }
+}
+
 /** Returns whether the local go2rtc sidecar is running and reachable. */
 export async function getGo2rtcStatus(): Promise<boolean> {
   const invoke = getInvoke();

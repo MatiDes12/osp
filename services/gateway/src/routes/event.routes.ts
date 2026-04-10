@@ -190,10 +190,13 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
   })();
 
   // --- Auto-record on motion events ---
-  if (input.type === "motion") {
+  // Only attempt server-side recording when RECORDINGS_DIR is explicitly set
+  // (i.e. on-prem / Docker deployments where the gateway can reach a local
+  // go2rtc). In Vercel/cloud mode the gateway cannot access localhost:1984,
+  // so recording rows would always be 0 B and 0 s — skip them entirely.
+  if (input.type === "motion" && get("RECORDINGS_DIR")) {
     (async () => {
       try {
-        // Check if the camera has recording_mode set to "motion"
         const { data: cameraConfig } = await supabase
           .from("cameras")
           .select("config")
@@ -206,11 +209,19 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
 
         if (recordingMode === "motion") {
           const recordingService = getRecordingService();
+          // Skip if a recording is already active (debounce: don't stop-and-restart
+          // on every motion event — let the existing timed recording run out).
+          const existing = await recordingService.getActiveRecording(
+            input.cameraId,
+            tenantId,
+          );
+          if (existing) return;
+
           const recordingId = await recordingService.startTimedRecording(
             input.cameraId,
             tenantId,
             "motion",
-            30_000, // 30 seconds
+            30_000,
           );
           ruleLogger.info("Auto-started motion recording", {
             eventId: ospEvent.id,

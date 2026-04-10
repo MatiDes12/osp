@@ -16,7 +16,13 @@ import {
   toggleAutostart,
   showNativeNotification,
   getAppVersion,
+  pickFolder,
+  getAppDirs,
 } from "@/lib/tauri";
+import {
+  useStorageSettings,
+  type StorageSaveMode,
+} from "@/stores/storage-settings";
 import {
   getLocalNgrokAuthtoken,
   setLocalNgrokAuthtoken,
@@ -476,16 +482,22 @@ function CloudStoragePanel() {
 /*  Desktop App Settings Panel                                         */
 /* ------------------------------------------------------------------ */
 function DesktopSettingsPanel() {
-  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
-    null,
-  );
+  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(null);
   const [toggling, setToggling] = useState(false);
   const [testSent, setTestSent] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [defaultDirs, setDefaultDirs] = useState<{ recordings: string; snapshots: string } | null>(null);
+
+  const {
+    saveMode, setSaveMode,
+    recordingsPath, setRecordingsPath,
+    snapshotsPath, setSnapshotsPath,
+  } = useStorageSettings();
 
   useEffect(() => {
     getAutostartEnabled().then(setAutostartEnabled);
     getAppVersion().then(setAppVersion);
+    getAppDirs().then(setDefaultDirs);
   }, []);
 
   const handleAutostartToggle = async () => {
@@ -588,6 +600,110 @@ function DesktopSettingsPanel() {
               </>
             )}
           </button>
+        </div>
+      </div>
+
+      {/* ── Storage & Privacy ─────────────────────────────────── */}
+      <div className="bg-zinc-900 rounded-lg border border-zinc-800 p-5 space-y-5">
+        <div>
+          <p className="text-sm font-medium text-zinc-100 flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-zinc-400" />
+            Storage & Privacy
+          </p>
+          <p className="text-xs text-zinc-500 mt-1">
+            Control where recordings and snapshots are saved.
+          </p>
+        </div>
+
+        {/* Save mode toggle */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm text-zinc-300">Sync to cloud database</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              When on, recordings and events are also logged to the cloud so you
+              can view them from any device. When off, files stay only on this
+              machine.
+            </p>
+          </div>
+          <button
+            onClick={() => setSaveMode(saveMode === "local_and_db" ? "local_only" : "local_and_db")}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${
+              saveMode === "local_and_db" ? "bg-blue-500" : "bg-zinc-700"
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+              saveMode === "local_and_db" ? "translate-x-6" : "translate-x-1"
+            }`} />
+          </button>
+        </div>
+
+        {/* Recordings folder */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-zinc-400">Recordings folder</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={recordingsPath}
+              onChange={(e) => setRecordingsPath(e.target.value)}
+              placeholder={defaultDirs?.recordings ?? "Default (AppData/recordings)"}
+              className="flex-1 min-w-0 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {isTauri() && (
+              <button
+                onClick={async () => {
+                  const folder = await pickFolder();
+                  if (folder) setRecordingsPath(folder);
+                }}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+              >
+                Browse
+              </button>
+            )}
+          </div>
+          {recordingsPath && (
+            <button
+              onClick={() => setRecordingsPath("")}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Reset to default
+            </button>
+          )}
+        </div>
+
+        {/* Snapshots folder */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-zinc-400">Snapshots folder</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={snapshotsPath}
+              onChange={(e) => setSnapshotsPath(e.target.value)}
+              placeholder={defaultDirs?.snapshots ?? "Default (AppData/snapshots)"}
+              className="flex-1 min-w-0 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {isTauri() && (
+              <button
+                onClick={async () => {
+                  const folder = await pickFolder();
+                  if (folder) setSnapshotsPath(folder);
+                }}
+                className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+              >
+                Browse
+              </button>
+            )}
+          </div>
+          {snapshotsPath && (
+            <button
+              onClick={() => setSnapshotsPath("")}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Reset to default
+            </button>
+          )}
+          <p className="text-xs text-zinc-600">
+            Changes to the snapshots folder take effect after restarting the app.
+          </p>
         </div>
       </div>
 

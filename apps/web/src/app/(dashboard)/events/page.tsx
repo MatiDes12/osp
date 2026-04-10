@@ -23,8 +23,36 @@ import { PageError } from "@/components/PageError";
 import { VirtualList } from "@/components/ui/VirtualList";
 import { exportEventsCSV, exportEventsJSON } from "@/lib/export";
 import { showToast } from "@/stores/toast";
+import { isTauri, convertFileSrc, readLocalFileAsUrl } from "@/lib/tauri";
+import { cacheEvents, getCachedEvents } from "@/lib/local-db";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+/**
+ * Convert a snapshotUrl to a displayable src.
+ * local:// paths are converted to https://asset.localhost/... for Tauri.
+ */
+function resolveSnapshotSrc(snapshotUrl: string): string {
+  if (snapshotUrl.startsWith("local://")) {
+    if (!isTauri()) return "";
+    return convertFileSrc(snapshotUrl.replace("local://", "")) ?? "";
+  }
+  return snapshotUrl;
+}
+
+/**
+ * Async version — loads a local file via the read_local_file command and
+ * returns a blob:// URL. Used for the full-size snapshot modal where reliability
+ * matters more than speed.
+ */
+async function resolveSnapshotBlobUrl(snapshotUrl: string): Promise<string> {
+  if (snapshotUrl.startsWith("local://")) {
+    const localPath = snapshotUrl.replace("local://", "");
+    const blob = await readLocalFileAsUrl(localPath, "image/jpeg");
+    return blob ?? "";
+  }
+  return snapshotUrl;
+}
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem("osp_access_token");
@@ -244,9 +272,14 @@ export default function EventsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [clipModalUrl, setClipModalUrl] = useState<string | null>(null);
-  const [snapshotModalEvent, setSnapshotModalEvent] = useState<OSPEvent | null>(
-    null,
-  );
+  const [snapshotModalEvent, setSnapshotModalEvent] = useState<OSPEvent | null>(null);
+  const [snapshotModalSrc, setSnapshotModalSrc] = useState<string>("");
+
+  // Resolve the modal snapshot URL when it changes (async for local:// paths)
+  useEffect(() => {
+    if (!snapshotModalEvent?.snapshotUrl) { setSnapshotModalSrc(""); return; }
+    void resolveSnapshotBlobUrl(snapshotModalEvent.snapshotUrl).then(setSnapshotModalSrc);
+  }, [snapshotModalEvent]);
 
   // Real-time WebSocket events
   const { events: wsEvents, connected: wsConnected } = useEventStream({
@@ -338,6 +371,8 @@ export default function EventsPage() {
             setEvents((prev) => [...prev, ...newEvents]);
           } else {
             setEvents(newEvents);
+            // Cache first page to IndexedDB for offline access
+            void cacheEvents(newEvents);
           }
           if (json.meta) {
             const meta = json.meta as PaginationMeta;
@@ -348,7 +383,18 @@ export default function EventsPage() {
           setError(json.error?.message ?? "Failed to load events");
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Network error");
+        // Gateway unreachable — serve from local cache
+        if (!append) {
+          const cached = await getCachedEvents(PAGE_SIZE);
+          if (cached.length > 0) {
+            setEvents(cached);
+            setHasMore(false);
+          } else {
+            setError(err instanceof Error ? err.message : "Network error");
+          }
+        } else {
+          setError(err instanceof Error ? err.message : "Network error");
+        }
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -1083,9 +1129,10 @@ export default function EventsPage() {
                         aria-label="View snapshot"
                       >
                         <img
-                          src={event.snapshotUrl}
+                          src={resolveSnapshotSrc(event.snapshotUrl)}
                           alt="Event snapshot"
                           className="w-full h-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                       </button>
                     ) : (
@@ -1267,7 +1314,7 @@ export default function EventsPage() {
               </div>
             </div>
             <img
-              src={snapshotModalEvent.snapshotUrl}
+              src={snapshotModalSrc}
               alt="Event snapshot"
               className="w-full object-contain max-h-[70vh] bg-black"
             />

@@ -172,6 +172,7 @@ fn start_camera_ingest(
     gateway_url: String,
     api_token: String,
     tenant_id: String,
+    snapshot_dir: Option<String>,
 ) {
     if let Some(state) = app.try_state::<CameraIngestProcess>() {
         if let Ok(guard) = state.0.lock() {
@@ -181,6 +182,9 @@ fn start_camera_ingest(
             }
         }
     }
+
+    let default_snapshot_dir = app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string();
+    let resolved_snapshot_dir = snapshot_dir.filter(|s| !s.is_empty()).unwrap_or(default_snapshot_dir);
 
     match app
         .shell()
@@ -192,7 +196,7 @@ fn start_camera_ingest(
              .env("TENANT_ID", &tenant_id)
              .env("GO2RTC_API_URL", "http://localhost:1984")
              .env("GO2RTC_URL", "http://localhost:1984")
-             .env("SNAPSHOT_DIR", app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string())
+             .env("SNAPSHOT_DIR", &resolved_snapshot_dir)
         })
         .and_then(|s| s.spawn())
     {
@@ -210,6 +214,26 @@ fn start_camera_ingest(
     }
 }
 
+/// Open a native folder-picker dialog. Returns the selected path or null.
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    app.dialog()
+        .file()
+        .blocking_pick_folder()
+        .map(|p| p.to_string_lossy().to_string())
+}
+
+/// Return the default recordings and snapshots directories.
+#[tauri::command]
+fn get_app_dirs(app: tauri::AppHandle) -> serde_json::Value {
+    let base = app.path().app_data_dir().unwrap_or_default();
+    serde_json::json!({
+        "recordings": base.join("recordings").to_string_lossy().to_string(),
+        "snapshots":  base.join("snapshots").to_string_lossy().to_string(),
+    })
+}
+
 /// Read a local file and return its contents as a base64-encoded string.
 /// Used by the recordings player to load locally-saved .webm files without
 /// relying on the asset:// protocol (which requires additional Tauri config).
@@ -220,10 +244,10 @@ fn read_local_file(path: String) -> Result<String, String> {
     Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
-/// Save a recording blob (base64-encoded) to the user's Videos/OSP folder.
+/// Save a recording blob (base64-encoded) to the specified folder (or AppData/recordings).
 /// Returns the absolute path of the saved file.
 #[tauri::command]
-fn save_recording(app: tauri::AppHandle, filename: String, data_base64: String) -> Result<String, String> {
+fn save_recording(app: tauri::AppHandle, filename: String, data_base64: String, custom_dir: Option<String>) -> Result<String, String> {
     use std::fs;
     use base64::Engine;
 
@@ -232,12 +256,15 @@ fn save_recording(app: tauri::AppHandle, filename: String, data_base64: String) 
         .decode(&data_base64)
         .map_err(|e| format!("base64 decode error: {e}"))?;
 
-    // Save to <AppData>/recordings/
-    let recordings_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("path error: {e}"))?
-        .join("recordings");
+    // Use custom_dir if provided, otherwise fall back to <AppData>/recordings/
+    let recordings_dir = match custom_dir.filter(|s| !s.is_empty()) {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("path error: {e}"))?
+            .join("recordings"),
+    };
     fs::create_dir_all(&recordings_dir).map_err(|e| format!("mkdir error: {e}"))?;
 
     let safe_name: String = filename
@@ -258,6 +285,7 @@ fn restart_camera_ingest(
     gateway_url: String,
     api_token: String,
     tenant_id: String,
+    snapshot_dir: Option<String>,
 ) {
     // Kill existing process if running
     if let Some(state) = app.try_state::<CameraIngestProcess>() {
@@ -268,6 +296,9 @@ fn restart_camera_ingest(
             }
         }
     }
+
+    let default_snapshot_dir = app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string();
+    let resolved_snapshot_dir = snapshot_dir.filter(|s| !s.is_empty()).unwrap_or(default_snapshot_dir);
 
     // Start fresh with new token
     match app
@@ -280,7 +311,7 @@ fn restart_camera_ingest(
              .env("TENANT_ID", &tenant_id)
              .env("GO2RTC_API_URL", "http://localhost:1984")
              .env("GO2RTC_URL", "http://localhost:1984")
-             .env("SNAPSHOT_DIR", app.path().app_data_dir().unwrap_or_default().join("snapshots").to_string_lossy().to_string())
+             .env("SNAPSHOT_DIR", &resolved_snapshot_dir)
         })
         .and_then(|s| s.spawn())
     {
@@ -378,6 +409,7 @@ fn toggle_window_visibility(window: &WebviewWindow) {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -417,6 +449,8 @@ pub fn run() {
             restart_camera_ingest,
             read_local_file,
             save_recording,
+            pick_folder,
+            get_app_dirs,
         ])
         .build(tauri::generate_context!())
         .expect("error while running OSP desktop application")

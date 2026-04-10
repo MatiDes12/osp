@@ -23,6 +23,7 @@ import { VirtualList } from "@/components/ui/VirtualList";
 import { exportRecordingsCSV } from "@/lib/export";
 import { showToast } from "@/stores/toast";
 import { isTauri, readLocalFileAsUrl } from "@/lib/tauri";
+import { cacheRecordings, getCachedRecordings } from "@/lib/local-db";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -290,6 +291,8 @@ export default function RecordingsPage() {
           setRecordings((prev) => [...prev, ...newRecordings]);
         } else {
           setRecordings(newRecordings);
+          // Cache first page to IndexedDB for offline access
+          void cacheRecordings(newRecordings);
         }
         if (recordingsJson.meta) {
           setHasMore(recordingsJson.meta.hasMore as boolean);
@@ -307,7 +310,18 @@ export default function RecordingsPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      // Gateway unreachable — serve from local cache (initial load only)
+      if (!append) {
+        const cached = await getCachedRecordings(50);
+        if (cached.length > 0) {
+          setRecordings(cached);
+          setHasMore(false);
+        } else {
+          setError(err instanceof Error ? err.message : "Network error");
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Network error");
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);

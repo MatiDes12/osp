@@ -27,6 +27,10 @@ const MAX_EVENTS = 100;
 const PING_INTERVAL_MS = 30_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const INITIAL_RECONNECT_DELAY_MS = 1_000;
+// How long to wait for WebSocket to connect before switching to polling
+const WS_CONNECT_TIMEOUT_MS = 8_000;
+// How often to poll when WebSocket is unavailable (Vercel / no WS server)
+const POLL_INTERVAL_MS = 15_000;
 
 const SEVERITY_ORDER: Record<string, number> = {
   low: 0,
@@ -98,6 +102,10 @@ class EventStreamManager {
   private ws: WebSocket | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private wsConnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+  private pollMode = false;
+  private lastSeenEventAt: string | null = null;
   private reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
   private authFailCount = 0;
   private static readonly MAX_AUTH_FAILURES = 3;
@@ -143,6 +151,119 @@ class EventStreamManager {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+    if (this.wsConnectTimeout) {
+      clearTimeout(this.wsConnectTimeout);
+      this.wsConnectTimeout = null;
+    }
+  }
+
+  private startPolling() {
+    if (this.pollInterval) return;
+    this.pollMode = true;
+    this.setState({ connected: true, error: null }); // treat polling as "connected"
+
+    const poll = async () => {
+      const token = localStorage.getItem("osp_access_token");
+      if (!token) return;
+      const apiUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
+      try {
+        const params = new URLSearchParams({ limit: "20", page: "1" });
+        if (this.lastSeenEventAt) {
+          params.set("from", this.lastSeenEventAt);
+        }
+        const res = await fetch(`${apiUrl}/api/v1/events?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json() as {
+          success?: boolean;
+          data?: Array<Record<string, unknown>>;
+        };
+        if (!json.success || !Array.isArray(json.data) || json.data.length === 0) return;
+
+        // Sort ascending so we process oldest first
+        const rows = [...json.data].sort((a, b) =>
+          String(a["detected_at"] ?? "").localeCompare(String(b["detected_at"] ?? "")),
+        );
+
+        const newEvents: OSPEvent[] = [];
+        for (const row of rows) {
+          const ev: OSPEvent = {
+            id: row["id"] as string,
+            cameraId: row["camera_id"] as string,
+            cameraName: (row["camera_name"] as string) ?? "Camera",
+            zoneId: (row["zone_id"] as string | null) ?? null,
+            zoneName: null,
+            tenantId: row["tenant_id"] as string,
+            type: row["type"] as import("@osp/shared").EventType,
+            severity: row["severity"] as import("@osp/shared").EventSeverity,
+            detectedAt: row["detected_at"] as string,
+            metadata: (row["metadata"] as Record<string, unknown>) ?? {},
+            snapshotUrl: (row["snapshot_url"] as string | null) ?? null,
+            clipUrl: null,
+            intensity: (row["intensity"] as number) ?? 50,
+            acknowledged: (row["acknowledged"] as boolean) ?? false,
+            acknowledgedBy: null,
+            acknowledgedAt: null,
+            createdAt: row["created_at"] as string,
+          };
+          newEvents.push(ev);
+        }
+
+        if (newEvents.length > 0) {
+          // Update lastSeenEventAt so next poll only fetches newer events
+          const latest = newEvents[newEvents.length - 1]!;
+          this.lastSeenEventAt = latest.detectedAt;
+
+          // On the very first poll, just seed lastSeenEventAt — don't fire notifications
+          // for old events (would spam the user on page load).
+          if (newEvents.length > 0 && this.lastSeenEventAt !== null) {
+            const updated = [...newEvents.reverse(), ...this.state.events];
+            this.setState({
+              events: updated.length > MAX_EVENTS ? updated.slice(0, MAX_EVENTS) : updated,
+            });
+
+            // Show notifications for genuinely new events (only after first seed)
+            for (const event of newEvents) {
+              if (shouldShowNotification(event.severity)) {
+                const typeLabel =
+                  event.type === "motion" ? "Motion detected" :
+                  event.type === "person" ? "Person detected" :
+                  event.type === "vehicle" ? "Vehicle detected" :
+                  event.type === "camera_offline" ? "Camera went offline" :
+                  event.type === "camera_online" ? "Camera came online" :
+                  `Alert: ${event.type}`;
+                showNotification(typeLabel, {
+                  body: `${event.cameraName}${event.intensity ? ` · ${event.intensity}% intensity` : ""}`,
+                  tag: `event-${event.id}`,
+                  onClick: () => { window.location.href = `/cameras/${event.cameraId}`; },
+                });
+              }
+            }
+          }
+        }
+
+        // If lastSeenEventAt was null (first poll), set it now without notifications
+        if (!this.lastSeenEventAt && rows.length > 0) {
+          const lastRow = rows[rows.length - 1]!;
+          this.lastSeenEventAt = lastRow["detected_at"] as string;
+        }
+      } catch {
+        // Network error — stay in poll mode, retry next interval
+      }
+    };
+
+    // Run once immediately (to seed lastSeenEventAt), then on interval
+    void poll();
+    this.pollInterval = setInterval(() => void poll(), POLL_INTERVAL_MS);
+  }
+
+  private stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    this.pollMode = false;
   }
 
   private scheduleReconnect() {
@@ -230,7 +351,22 @@ class EventStreamManager {
       const ws = new WebSocket(wsUrl);
       this.ws = ws;
 
+      // If WebSocket doesn't open within the timeout, fall back to polling.
+      // This handles Vercel deployments where no WS server is running.
+      this.wsConnectTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          this.ws = null;
+          this.startPolling();
+        }
+      }, WS_CONNECT_TIMEOUT_MS);
+
       ws.onopen = () => {
+        if (this.wsConnectTimeout) {
+          clearTimeout(this.wsConnectTimeout);
+          this.wsConnectTimeout = null;
+        }
+        this.stopPolling(); // WS connected — stop any polling fallback
         this.setState({ connected: true, error: null });
         this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
         this.authFailCount = 0;
@@ -289,13 +425,15 @@ class EventStreamManager {
       };
 
       ws.onclose = (event) => {
-        this.setState({ connected: false });
         this.clearTimers();
         // Code 4001 = server rejected due to invalid/expired token.
-        // Attempt a token refresh before reconnecting; if it fails, stop retrying.
         if (event.code === 4001) {
+          this.setState({ connected: false });
           this.handleAuthFailedClose();
+        } else if (this.pollMode) {
+          // Already in poll mode — WS closed cleanly, just keep polling
         } else {
+          this.setState({ connected: false });
           this.authFailCount = 0;
           this.scheduleReconnect();
         }

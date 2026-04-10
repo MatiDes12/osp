@@ -54,6 +54,7 @@ import {
 } from "@/lib/transforms";
 import { isTauri, convertFileSrc } from "@/lib/tauri";
 import { showToast } from "@/stores/toast";
+import { useStorageSettings } from "@/stores/storage-settings";
 
 /** Resolve a recording's playback URL for the current environment. */
 function resolvePlaybackUrl(url: string): string | null {
@@ -1289,6 +1290,7 @@ export default function CameraDetailPage() {
   const recordingChunksRef = useRef<Blob[]>([]);
   // Tracks the Supabase recording row ID so we can stop it via API
   const activeRecordingIdRef = useRef<string | null>(null);
+  const { saveMode, recordingsPath } = useStorageSettings();
 
   // Playback state
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
@@ -1477,7 +1479,12 @@ export default function CameraDetailPage() {
               let binary = "";
               bytes.forEach((b) => (binary += String.fromCharCode(b)));
               const base64 = btoa(binary);
-              savedPath = (await invoke("save_recording", { filename: recFilename, dataBase64: base64 })) as string;
+              // Pass custom folder if set in storage settings
+              savedPath = (await invoke("save_recording", {
+                filename: recFilename,
+                dataBase64: base64,
+                customDir: recordingsPath || null,
+              })) as string;
             } catch {
               // Fall through to browser download
             }
@@ -1493,9 +1500,8 @@ export default function CameraDetailPage() {
             URL.revokeObjectURL(url);
           }
 
-          // Mark the Supabase row as complete, with the local file path so
-          // the recordings list can play it back via the asset:// protocol.
-          if (activeRecordingIdRef.current) {
+          // Mark the Supabase row as complete (skipped in local_only mode).
+          if (activeRecordingIdRef.current && saveMode !== "local_only") {
             try {
               await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
                 method: "POST",
@@ -1513,22 +1519,24 @@ export default function CameraDetailPage() {
           }
         };
 
-        // Tell Supabase a recording is starting (so it shows in the recordings list)
-        try {
-          const res = await fetch(
-            `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
-            {
-              method: "POST",
-              headers: getAuthHeaders(),
-              body: JSON.stringify({ trigger: "manual" }),
-            },
-          );
-          const json = await res.json();
-          if (json.success && json.data?.recordingId) {
-            activeRecordingIdRef.current = json.data.recordingId as string;
+        // Tell Supabase a recording is starting (skipped in local_only mode)
+        if (saveMode !== "local_only") {
+          try {
+            const res = await fetch(
+              `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
+              {
+                method: "POST",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ trigger: "manual" }),
+              },
+            );
+            const json = await res.json();
+            if (json.success && json.data?.recordingId) {
+              activeRecordingIdRef.current = json.data.recordingId as string;
+            }
+          } catch {
+            // Non-critical — recording still captured locally
           }
-        } catch {
-          // Non-critical — recording still captured locally
         }
 
         recorder.start(250);

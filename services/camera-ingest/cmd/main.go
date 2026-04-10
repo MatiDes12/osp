@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -49,6 +50,10 @@ func main() {
 	motionService := motion.NewMotionService(apiURL, apiToken, tenantID, go2rtcURL)
 	defer motionService.Close()
 
+	// Set up the offline retry queue in the same parent directory as snapshots
+	queueFile := filepath.Join(filepath.Dir(snapshotDir), "event-queue.jsonl")
+	motionService.SetQueueFile(queueFile)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -63,6 +68,9 @@ func main() {
 
 	// Start the polling loop in the background
 	go motionService.StartPolling(ctx)
+
+	// Replay any events that failed to POST while offline
+	go motionService.StartRetryQueue(ctx)
 
 	registered := make(map[string]bool)
 	reconcile := func() {

@@ -8,6 +8,7 @@ import type {
   UpdateCameraInput,
 } from "@osp/shared";
 import { transformCamera, isSnakeCaseRow } from "@/lib/transforms";
+import { cacheCameras, getCachedCameras } from "@/lib/local-db";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -56,16 +57,23 @@ export function useCameras(): UseCamerasReturn {
       const json = await response.json();
       if (json.success && json.data) {
         const raw = json.data as Record<string, unknown>[];
-        setCameras(
-          raw.map((r) =>
-            isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera),
-          ),
+        const fetched = raw.map((r) =>
+          isSnakeCaseRow(r) ? transformCamera(r) : (r as unknown as Camera),
         );
+        setCameras(fetched);
+        // Persist to local cache for offline access
+        void cacheCameras([...fetched]);
       } else {
         setError(json.error?.message ?? "Failed to fetch cameras");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Network error");
+      // Gateway unreachable — serve from local cache
+      const cached = await getCachedCameras();
+      if (cached.length > 0) {
+        setCameras(cached);
+      } else {
+        setError(err instanceof Error ? err.message : "Network error");
+      }
     } finally {
       setLoading(false);
       hasFetchedRef.current = true;

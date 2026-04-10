@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { isTauri } from "@/lib/tauri";
 import { getToken } from "@/hooks/use-auth";
 import { getTenantIdFromAccessToken } from "@/lib/jwt";
+import { useStorageSettings } from "@/stores/storage-settings";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -28,8 +29,11 @@ function getTauriInvoke() {
  * Starts the bundled camera-ingest sidecar after the user has authenticated.
  * Only runs in the Tauri desktop app. Idempotent — safe to call multiple times.
  * Automatically restarts the sidecar with a fresh token every 45 minutes.
+ * Picks up the custom snapshots folder from storage settings.
  */
 export function useTauriAgent() {
+  const { snapshotsPath } = useStorageSettings();
+
   useEffect(() => {
     if (!isTauri() || agentStarted) return;
 
@@ -47,6 +51,7 @@ export function useTauriAgent() {
       gatewayUrl: API_URL,
       apiToken: token,
       tenantId,
+      snapshotDir: snapshotsPath || null,
     }).catch((e) => {
       // Binary not present in dev mode — silent ignore
       console.debug("[OSP] camera-ingest sidecar:", e);
@@ -63,20 +68,17 @@ export function useTauriAgent() {
         if (!freshInvoke) return;
 
         const freshTenantId = getTenantIdFromAccessToken(freshToken) ?? "";
+        const currentSnapshotsPath = useStorageSettings.getState().snapshotsPath;
 
         freshInvoke("restart_camera_ingest", {
           gatewayUrl: API_URL,
           apiToken: freshToken,
           tenantId: freshTenantId,
+          snapshotDir: currentSnapshotsPath || null,
         }).catch((e) => {
           console.debug("[OSP] camera-ingest token refresh:", e);
         });
       }, TOKEN_REFRESH_INTERVAL_MS);
     }
-
-    return () => {
-      // Don't clear the timer on component unmount — the layout is always
-      // mounted while authenticated. The timer is module-level so it persists.
-    };
-  }, []);
+  }, [snapshotsPath]);
 }
