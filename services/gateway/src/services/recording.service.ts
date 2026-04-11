@@ -77,12 +77,29 @@ export class RecordingService {
 
   /**
    * Direct Supabase implementation of startRecording (fallback path).
+   *
+   * Hard guard: this only works when RECORDINGS_DIR is configured
+   * (i.e. Docker / on-prem where the gateway can actually reach go2rtc
+   * and write files).  On Vercel/cloud, both video-pipeline and
+   * RECORDINGS_DIR are absent, so every call here was previously creating
+   * an orphan row with a fake cloud-style storage_path and 0 bytes
+   * (rule engine → motion event → handleStartRecording → here).
+   * Throw instead so no garbage row is created.
    */
   private async startRecordingDirect(
     cameraId: string,
     tenantId: string,
     trigger: RecordingTrigger,
   ): Promise<string> {
+    const recordingsDir = get("RECORDINGS_DIR");
+    if (!recordingsDir) {
+      throw new ApiError(
+        "RECORDING_NOT_SUPPORTED",
+        "Server-side recording is not available in this deployment. Desktop clients should use POST /api/v1/cameras/:id/record/local after capturing locally.",
+        503,
+      );
+    }
+
     const supabase = getSupabase();
 
     // Verify camera belongs to tenant
@@ -161,64 +178,60 @@ export class RecordingService {
 
     const recordingId = recording.id as string;
 
-    // Start background video capture from go2rtc (only if go2rtc is reachable)
+    // Start background video capture from go2rtc.
+    // RECORDINGS_DIR is guaranteed set at this point by the guard at the top
+    // of this method.
     const go2rtcUrl = get("GO2RTC_URL") ?? "http://localhost:1984";
-    const recordingsDir = get("RECORDINGS_DIR");
+    const dir = join(recordingsDir, tenantId, cameraId);
+    mkdirSync(dir, { recursive: true });
 
-    // Only attempt local file capture if a RECORDINGS_DIR is explicitly set
-    // (i.e. running in Docker / on-prem). Skip silently in cloud/Vercel mode.
-    if (recordingsDir) {
-      const dir = join(recordingsDir, tenantId, cameraId);
-      mkdirSync(dir, { recursive: true });
+    const filePath = join(dir, `${recordingId}.mp4`);
+    const abortController = new AbortController();
 
-      const filePath = join(dir, `${recordingId}.mp4`);
-      const abortController = new AbortController();
+    const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
 
-      const mp4Url = `${go2rtcUrl}/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
-
-      // Pipe the MP4 stream to a file in the background
-      const mp4Fetch = fetch(mp4Url, { signal: abortController.signal });
-      mp4Fetch
-        .then(async (res) => {
-          if (!res.body) {
-            logger.warn("MP4 stream returned no body", { recordingId, cameraId });
-            return;
+    // Pipe the MP4 stream to a file in the background
+    const mp4Fetch = fetch(mp4Url, { signal: abortController.signal });
+    mp4Fetch
+      .then(async (res) => {
+        if (!res.body) {
+          logger.warn("MP4 stream returned no body", { recordingId, cameraId });
+          return;
+        }
+        const fileStream = createWriteStream(filePath);
+        const reader = res.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            fileStream.write(value);
           }
-          const fileStream = createWriteStream(filePath);
-          const reader = res.body.getReader();
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              fileStream.write(value);
-            }
-          } catch (err) {
-            if ((err as Error).name !== "AbortError") {
-              logger.error("MP4 capture error", { recordingId, error: String(err) });
-            }
-          } finally {
-            fileStream.end();
-          }
-        })
-        .catch((err) => {
+        } catch (err) {
           if ((err as Error).name !== "AbortError") {
-            logger.error("MP4 fetch error", { recordingId, error: String(err) });
+            logger.error("MP4 capture error", { recordingId, error: String(err) });
           }
-        });
-
-      this.activeRecordings.set(recordingId, {
-        abortController,
-        filePath,
-        cameraId,
-        startTime: Date.now(),
+        } finally {
+          fileStream.end();
+        }
+      })
+      .catch((err) => {
+        if ((err as Error).name !== "AbortError") {
+          logger.error("MP4 fetch error", { recordingId, error: String(err) });
+        }
       });
 
-      // Update storage_path to the actual file path
-      await supabase
-        .from("recordings")
-        .update({ storage_path: filePath })
-        .eq("id", recordingId);
-    }
+    this.activeRecordings.set(recordingId, {
+      abortController,
+      filePath,
+      cameraId,
+      startTime: Date.now(),
+    });
+
+    // Update storage_path to the actual file path
+    await supabase
+      .from("recordings")
+      .update({ storage_path: filePath })
+      .eq("id", recordingId);
 
     logger.info("Recording started (direct mode)", {
       recordingId,

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { isTauri } from "@/lib/tauri";
 import { getUseMeteredTurn } from "@/lib/webrtc-prefs";
+import { fetchCameraSnapshot } from "@/hooks/use-camera-capture";
 
 interface LiveViewPlayerProps {
   readonly cameraId: string;
@@ -666,30 +667,12 @@ export function LiveViewPlayer({
     streamInfoRef.current = streamInfo;
   }, [streamInfo]);
 
-  // Fetch a snapshot immediately to show while WebRTC connects
+  // Fetch a snapshot immediately to show while WebRTC connects.
+  // Uses the shared fetchCameraSnapshot helper so Tauri/web/HTTP-fallback
+  // logic isn't duplicated here.
   const prefetchSnapshot = useCallback(async () => {
-    try {
-      const cloudSnapshotUrl = `${API_URL}/api/v1/cameras/${cameraId}/snapshot`;
-      const localSnapshotUrl = `http://localhost:1984/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
-      const isLocal = isTauri();
-      const canReachLocal = !isLocal && window.location.protocol !== "https:";
-      let res = await fetch(isLocal ? localSnapshotUrl : cloudSnapshotUrl, {
-        headers: isLocal ? {} : getAuthHeaders(),
-        signal: AbortSignal.timeout(4000),
-      }).catch(() => null);
-      // On HTTP, try local go2rtc snapshot as fallback (no localStorage gate)
-      if ((!res || !res.ok) && canReachLocal) {
-        res = await fetch(localSnapshotUrl, {
-          signal: AbortSignal.timeout(4000),
-        }).catch(() => null);
-      }
-      if (!res?.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setSnapshotDataUrl(url);
-    } catch {
-      // Non-critical — just means no preview while connecting
-    }
+    const url = await fetchCameraSnapshot(cameraId);
+    if (url) setSnapshotDataUrl(url);
   }, [cameraId]);
 
   const stopMic = useCallback(() => {

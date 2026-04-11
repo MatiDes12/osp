@@ -10,7 +10,7 @@ import {
   Suspense,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { getToken } from "@/hooks/use-auth";
+import { useCameraSnapshot } from "@/hooks/use-camera-capture";
 
 // Lazy-load Three.js 3D view (heavy dependency, only loaded when user clicks "3D")
 const FloorPlan3DViewLazy = lazy(() =>
@@ -589,89 +589,7 @@ function drawObjIso(
   ctx.restore();
 }
 
-// ---------------------------------------------------------------------------
-//  Live Snapshot Hook (auto-refreshes every 10s)
-// ---------------------------------------------------------------------------
-
-function useSnapshotUrl(
-  cameraId: string | undefined,
-  enabled: boolean,
-): string | null {
-  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
-  const prevUrlRef = useRef<string | null>(null);
-  const fetchingRef = useRef(false);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
-
-  useEffect(() => {
-    if (!enabled || !cameraId) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchSnapshot = async () => {
-      if (fetchingRef.current) return;
-      fetchingRef.current = true;
-
-      try {
-        const token = getToken();
-        if (!token) return;
-
-        const res = await fetch(
-          `${API_URL}/api/v1/cameras/${cameraId}/snapshot`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-
-        if (res.ok && !cancelled) {
-          const blob = await res.blob();
-          const nextUrl = URL.createObjectURL(blob);
-
-          const img = new Image();
-          img.src = nextUrl;
-          try {
-            await img.decode();
-          } catch {
-            // decode() can fail for some formats
-          }
-
-          if (cancelled) {
-            URL.revokeObjectURL(nextUrl);
-            return;
-          }
-
-          const oldUrl = prevUrlRef.current;
-          prevUrlRef.current = nextUrl;
-          setSnapshotUrl(nextUrl);
-
-          if (oldUrl) {
-            requestAnimationFrame(() => {
-              setTimeout(() => URL.revokeObjectURL(oldUrl), 100);
-            });
-          }
-        }
-      } catch {
-        // Snapshot unavailable
-      } finally {
-        fetchingRef.current = false;
-      }
-    };
-
-    fetchSnapshot();
-    const interval = setInterval(fetchSnapshot, 10_000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      fetchingRef.current = false;
-      if (prevUrlRef.current) {
-        URL.revokeObjectURL(prevUrlRef.current);
-        prevUrlRef.current = null;
-      }
-    };
-  }, [cameraId, enabled, API_URL]);
-
-  return snapshotUrl;
-}
+// Snapshot fetching lives in hooks/use-camera-capture.ts — do NOT re-implement.
 
 // ---------------------------------------------------------------------------
 //  Camera Live Preview Popup
@@ -697,7 +615,7 @@ function CameraPopup({
   const sx = obj.x * zoom + ox;
   const sy = obj.y * zoom + oy;
   const isOnline = camera?.status === "online";
-  const snapshotUrl = useSnapshotUrl(camera?.id, isOnline);
+  const snapshotUrl = useCameraSnapshot(camera?.id, isOnline);
 
   return (
     <div

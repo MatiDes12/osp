@@ -4,7 +4,6 @@ import { publishEvent } from "../lib/event-publisher.js";
 import { createLogger } from "../lib/logger.js";
 import jpeg from "jpeg-js";
 import { getStreamService } from "./stream.service.js";
-import { getRecordingService } from "./recording.service.js";
 import { get } from "../lib/config.js";
 import {
   computePixelDiffRatio,
@@ -52,13 +51,6 @@ export class CameraHealthChecker {
   private readonly motionCooldownMs: number;
   private readonly previousFrames = new Map<string, RgbaFrame>();
   private readonly lastMotionAt = new Map<string, number>();
-  // Per-camera motion recording state
-  private readonly motionRecordingIds = new Map<string, string>(); // cameraId → active recordingId
-  private readonly motionStopTimers = new Map<
-    string,
-    ReturnType<typeof setTimeout>
-  >(); // cameraId → stop timer
-  private readonly motionTailMs: number;
   private motionDetectionInFlight = false;
 
   constructor(checkIntervalMs = 30_000) {
@@ -73,8 +65,6 @@ export class CameraHealthChecker {
       get("MOTION_COOLDOWN_MS") ?? "10000",
       10,
     );
-    // How long to keep recording after the last motion frame (default 10 s)
-    this.motionTailMs = Number.parseInt(get("MOTION_TAIL_MS") ?? "10000", 10);
   }
 
   start(): void {
@@ -120,9 +110,6 @@ export class CameraHealthChecker {
     }
     this.previousFrames.clear();
     this.lastMotionAt.clear();
-    for (const timer of this.motionStopTimers.values()) clearTimeout(timer);
-    this.motionStopTimers.clear();
-    this.motionRecordingIds.clear();
     logger.info("Camera health checker stopped");
   }
 
@@ -578,9 +565,9 @@ export class CameraHealthChecker {
       return;
     }
 
-    // Motion recording with tail: start recording on first motion, reset the
-    // stop timer on every subsequent motion frame, stop 10 s after the last one.
-    void this.handleMotionRecording(camera);
+    // NOTE: motion recording is NOT dispatched here.  A single authoritative
+    // path lives in event.routes.ts (via the rule engine / motion debouncer)
+    // so we don't fire two recordings for the same motion event.
 
     const eventMetadata = (created.metadata as Record<string, unknown>) ?? {};
     const ospEvent = {
@@ -608,64 +595,6 @@ export class CameraHealthChecker {
     } catch {
       // DB write succeeded, keep going
     }
-  }
-
-  /**
-   * Motion recording with tail logic:
-   *  - First motion frame → start recording
-   *  - Each subsequent motion frame → reset the stop timer (recording continues)
-   *  - MOTION_TAIL_MS after the last motion frame → stop recording
-   */
-  private handleMotionRecording(camera: CameraRow): void {
-    const cameraId = camera.id;
-
-    // Reset (or create) the stop timer every time motion fires.
-    const existingTimer = this.motionStopTimers.get(cameraId);
-    if (existingTimer) clearTimeout(existingTimer);
-
-    const stopTimer = setTimeout(() => {
-      this.motionStopTimers.delete(cameraId);
-      const recordingId = this.motionRecordingIds.get(cameraId);
-      if (!recordingId) return;
-      this.motionRecordingIds.delete(cameraId);
-      const recordingService = getRecordingService();
-      recordingService
-        .stopRecording(recordingId)
-        .then(() => {
-          logger.info("Motion recording stopped (no motion in tail window)", {
-            cameraId,
-            recordingId,
-            tailMs: this.motionTailMs,
-          });
-        })
-        .catch((err) => {
-          logger.warn("Failed to stop motion recording", {
-            cameraId,
-            recordingId,
-            error: String(err),
-          });
-        });
-    }, this.motionTailMs);
-
-    this.motionStopTimers.set(cameraId, stopTimer);
-
-    // If already recording, just let the timer reset above do the work.
-    if (this.motionRecordingIds.has(cameraId)) return;
-
-    // Start a new recording.
-    const recordingService = getRecordingService();
-    recordingService
-      .startRecording(cameraId, camera.tenant_id, "motion")
-      .then((recordingId) => {
-        this.motionRecordingIds.set(cameraId, recordingId);
-        logger.info("Motion recording started", { cameraId, recordingId });
-      })
-      .catch((err) => {
-        logger.warn("Failed to start motion recording", {
-          cameraId,
-          error: String(err),
-        });
-      });
   }
 
   private extractCameraSensitivity(config: CameraRow["config"]): number {

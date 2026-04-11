@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, memo } from "react";
+import { memo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Maximize2, Settings, MapPin, Check, Usb } from "lucide-react";
 import type { Camera } from "@osp/shared";
-import { getToken } from "@/hooks/use-auth";
 import type { CameraTag } from "@/hooks/use-tags";
-import { isTauri } from "@/lib/tauri";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+import { useCameraSnapshot } from "@/hooks/use-camera-capture";
 
 interface CameraCardProps {
   readonly camera: Camera;
@@ -30,93 +27,7 @@ function formatTime(dateString: string | null): string {
   });
 }
 
-function useSnapshotUrl(cameraId: string, enabled: boolean): string | null {
-  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
-  const prevUrlRef = useRef<string | null>(null);
-  const fetchingRef = useRef(false);
-
-  useEffect(() => {
-    if (!enabled) {
-      // Don't clear existing snapshot — avoids flash to black
-      // when camera briefly goes connecting->online
-      return;
-    }
-
-    let cancelled = false;
-
-    const fetchSnapshot = async () => {
-      // Guard against overlapping fetches (e.g., slow network)
-      if (fetchingRef.current) return;
-      fetchingRef.current = true;
-
-      try {
-        let res: Response;
-        if (isTauri()) {
-          res = await fetch(
-            `http://localhost:1984/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`,
-          );
-        } else {
-          const token = getToken();
-          if (!token) return;
-          res = await fetch(`${API_URL}/api/v1/cameras/${cameraId}/snapshot`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-
-        if (res.ok && !cancelled) {
-          const blob = await res.blob();
-          const nextUrl = URL.createObjectURL(blob);
-
-          // Preload and decode the image before swapping the visible src.
-          // Using decode() ensures the frame is fully rasterized, preventing
-          // any blank frame flash during the swap.
-          const img = new Image();
-          img.src = nextUrl;
-          try {
-            await img.decode();
-          } catch {
-            // decode() can fail for some formats — fall back to onload timing
-          }
-
-          if (cancelled) {
-            URL.revokeObjectURL(nextUrl);
-            return;
-          }
-
-          const oldUrl = prevUrlRef.current;
-          prevUrlRef.current = nextUrl;
-          setSnapshotUrl(nextUrl);
-
-          // Revoke old URL after browser has painted the new frame
-          if (oldUrl) {
-            requestAnimationFrame(() => {
-              setTimeout(() => URL.revokeObjectURL(oldUrl), 100);
-            });
-          }
-        }
-      } catch {
-        // Snapshot unavailable — keep current image, no flicker
-      } finally {
-        fetchingRef.current = false;
-      }
-    };
-
-    fetchSnapshot();
-    const interval = setInterval(fetchSnapshot, 10_000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      fetchingRef.current = false;
-      if (prevUrlRef.current) {
-        URL.revokeObjectURL(prevUrlRef.current);
-        prevUrlRef.current = null;
-      }
-    };
-  }, [cameraId, enabled]);
-
-  return snapshotUrl;
-}
+// Snapshot fetching lives in hooks/use-camera-capture.ts — do NOT re-implement.
 
 const STATUS_CONFIG: Record<
   string,
@@ -171,7 +82,7 @@ export const CameraCard = memo(function CameraCard({
     isActivelyRecording || camera.config.recordingMode !== "off";
   const statusCfg = getStatusConfig(camera.status, camera.lastSeenAt ?? null);
   const effectiveStatus = statusCfg.label === "CONNECTING" ? "connecting" : camera.status;
-  const snapshotUrl = useSnapshotUrl(
+  const snapshotUrl = useCameraSnapshot(
     camera.id,
     isOnline || effectiveStatus === "connecting",
   );

@@ -19,7 +19,7 @@ import { publishEvent } from "../lib/event-publisher.js";
 import { evaluateRules } from "../lib/rule-evaluator.js";
 import { executeActions } from "../lib/action-executor.js";
 import { get } from "../lib/config.js";
-import { getRecordingService } from "../services/recording.service.js";
+import { getMotionRecorder } from "../services/motion-recorder.service.js";
 import { createLogger } from "../lib/logger.js";
 import {
   getAIDetectionService,
@@ -42,63 +42,9 @@ import {
 const ruleLogger = createLogger("rule-engine");
 const aiLogger = createLogger("ai-detection");
 
-// ---------------------------------------------------------------------------
-// Motion recording debouncer
-// Starts a recording on the first motion event for a camera, then resets a
-// 5-second "tail" timer on every subsequent motion event.  When no motion is
-// detected for 5 s the recording is stopped.  This replaces the old fixed
-// 30-second timed recording.
-// ---------------------------------------------------------------------------
-class MotionRecordingDebouncer {
-  private tailTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private recordingIds = new Map<string, string>();
-  // "starting" prevents duplicate onStart calls while the first is in-flight
-  private starting = new Set<string>();
-
-  handle(
-    key: string,
-    onStart: () => Promise<string | null>,
-    onStop: (id: string) => Promise<void>,
-    tailMs = 5_000,
-  ): void {
-    // Always reset the tail timer — motion is still active.
-    const existing = this.tailTimers.get(key);
-    if (existing) clearTimeout(existing);
-
-    if (!this.recordingIds.has(key) && !this.starting.has(key)) {
-      // No active recording and none starting — start one.
-      this.starting.add(key);
-      onStart()
-        .then((id) => {
-          this.starting.delete(key);
-          if (id) {
-            this.recordingIds.set(key, id);
-            this.scheduleTail(key, onStop, tailMs);
-          }
-        })
-        .catch(() => { this.starting.delete(key); });
-    } else {
-      // Recording already running (or starting) — just extend the tail.
-      this.scheduleTail(key, onStop, tailMs);
-    }
-  }
-
-  private scheduleTail(
-    key: string,
-    onStop: (id: string) => Promise<void>,
-    tailMs: number,
-  ): void {
-    const timer = setTimeout(async () => {
-      const id = this.recordingIds.get(key);
-      this.tailTimers.delete(key);
-      this.recordingIds.delete(key);
-      if (id) await onStop(id).catch(() => {});
-    }, tailMs);
-    this.tailTimers.set(key, timer);
-  }
-}
-
-const motionRecordingDebouncer = new MotionRecordingDebouncer();
+// Motion-triggered recording lives in services/motion-recorder.service.ts.
+// All motion events route through getMotionRecorder() so there's only one
+// debouncer and one start/stop dispatcher in the whole process.
 
 export const eventRoutes = new Hono<Env>();
 
@@ -248,62 +194,19 @@ eventRoutes.post("/", requireAuth("operator"), async (c) => {
   })();
 
   // --- Auto-record on motion events ---
-  // Only attempt server-side recording when RECORDINGS_DIR is explicitly set
-  // (i.e. on-prem / Docker deployments where the gateway can reach a local
-  // go2rtc). In Vercel/cloud mode the gateway cannot access localhost:1984,
-  // so recording rows would always be 0 B and 0 s — skip them entirely.
-  if (input.type === "motion" && get("RECORDINGS_DIR")) {
-    (async () => {
-      try {
-        const { data: cameraConfig } = await supabase
-          .from("cameras")
-          .select("config")
-          .eq("id", input.cameraId)
-          .eq("tenant_id", tenantId)
-          .single();
-
-        const config = cameraConfig?.config as Record<string, unknown> | null;
-        const recordingMode = config?.recording_mode ?? config?.recordingMode;
-
-        if (recordingMode === "motion") {
-          const recordingService = getRecordingService();
-          const debounceKey = `${tenantId}:${input.cameraId}`;
-
-          motionRecordingDebouncer.handle(
-            debounceKey,
-            // onStart — called once when motion is first detected
-            async () => {
-              const recordingId = await recordingService.startRecording(
-                input.cameraId,
-                tenantId,
-                "motion",
-              );
-              ruleLogger.info("Auto-started motion recording", {
-                eventId: ospEvent.id,
-                cameraId: input.cameraId,
-                recordingId,
-              });
-              return recordingId ?? null;
-            },
-            // onStop — called 5 s after the last motion event
-            async (recordingId: string) => {
-              await recordingService.stopRecording(recordingId);
-              ruleLogger.info("Auto-stopped motion recording (5 s tail)", {
-                cameraId: input.cameraId,
-                recordingId,
-              });
-            },
-            5_000,
-          );
-        }
-      } catch (err) {
-        ruleLogger.warn("Failed to auto-start motion recording", {
+  // All gating (RECORDINGS_DIR check, recording_mode opt-in, debounce) lives
+  // inside MotionRecorderService so the behavior is the same no matter who
+  // produces the motion event.
+  if (input.type === "motion") {
+    void getMotionRecorder()
+      .handleMotionEvent(input.cameraId, tenantId)
+      .catch((err) => {
+        ruleLogger.warn("Motion recorder dispatch failed", {
           eventId: ospEvent.id,
           cameraId: input.cameraId,
           error: String(err),
         });
-      }
-    })();
+      });
   }
 
   // --- AI detection on motion events (fire-and-forget) ---

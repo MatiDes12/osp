@@ -612,6 +612,18 @@ async function handleStartRecording(
       })
       .eq("id", recordingId);
   } catch (err) {
+    // RECORDING_NOT_SUPPORTED is expected on cloud deployments where
+    // server-side capture isn't possible — downgrade to debug so motion
+    // bursts don't spam the error log, and don't re-throw (the action
+    // simply becomes a no-op for this deployment).
+    const code = (err as { code?: string } | null)?.code;
+    if (code === "RECORDING_NOT_SUPPORTED") {
+      logger.debug("Skipping rule-triggered recording (not supported in this deployment)", {
+        cameraId: event.cameraId,
+        eventId: event.id,
+      });
+      return;
+    }
     logger.error("Failed to start recording", {
       cameraId: event.cameraId,
       error: String(err),
