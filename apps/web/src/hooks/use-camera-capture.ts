@@ -447,8 +447,13 @@ export function useCameraCapture(
         }
       };
 
-      // 2 s chunks = half the dataavailable callbacks vs 1 s, less main-thread churn
-      recorder.start(2000);
+      // No timeslice: collect the entire recording in one blob so the WebM has
+      // a single, contiguous cluster with correct timestamps from start to end.
+      // Multi-chunk concatenation from WebRTC sources can produce timestamp
+      // drift between clusters that makes playback appear laggy or stuttery.
+      // All data lands in ondataavailable when stop() is called.
+      // At 1.2 Mbps a 10-min recording is ~90 MB in memory — acceptable.
+      recorder.start();
       setIsRecording(true);
       setRecordingStartTime(Date.now());
     },

@@ -145,6 +145,41 @@ export class RecordingService {
       });
     }
 
+    // Pre-check: verify go2rtc can serve this camera's stream before creating a
+    // DB row.  If the HEAD request fails (USB camera not reachable from Docker,
+    // go2rtc stream not registered, etc.) bail early so we don't create an
+    // orphan row that will end up with size_bytes=0.
+    const go2rtcUrlCheck = get("GO2RTC_URL") ?? "http://localhost:1984";
+    const streamCheckUrl = `${go2rtcUrlCheck}/api/frame.jpeg?src=${encodeURIComponent(cameraId)}`;
+    try {
+      const checkRes = await fetch(streamCheckUrl, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (!checkRes.ok) {
+        logger.debug("go2rtc stream unavailable for camera, skipping motion recording", {
+          cameraId,
+          status: checkRes.status,
+        });
+        throw new ApiError(
+          "RECORDING_NOT_SUPPORTED",
+          "Camera stream is not available for server-side recording",
+          503,
+        );
+      }
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      logger.debug("go2rtc stream check failed, skipping motion recording", {
+        cameraId,
+        error: String(err),
+      });
+      throw new ApiError(
+        "RECORDING_NOT_SUPPORTED",
+        "Camera stream is not available for server-side recording",
+        503,
+      );
+    }
+
     const storagePath = `recordings/${tenantId}/${cameraId}/${Date.now()}.mp4`;
 
     const { data: recording, error } = await supabase
@@ -353,6 +388,21 @@ export class RecordingService {
         recording.tenant_id as string,
         recording.camera_id as string,
       );
+    }
+
+    // If the recording produced no data at all (go2rtc stream unavailable, USB
+    // camera not reachable by Docker, etc.) delete the row instead of persisting
+    // a misleading "complete" record with 0 bytes.  localFilePath recordings are
+    // always kept — the client is authoritative for those.
+    if (sizeBytes === 0 && !localFilePath) {
+      await supabase.from("recordings").delete().eq("id", recordingId);
+      logger.info("Deleted 0-byte recording (stream produced no data)", {
+        recordingId,
+        cameraId: recording.camera_id as string,
+        durationSec,
+      });
+      // Return a minimal object so callers don't need to handle null.
+      return { id: recordingId, status: "deleted", size_bytes: 0 };
     }
 
     const updatePayload: Record<string, unknown> = {
