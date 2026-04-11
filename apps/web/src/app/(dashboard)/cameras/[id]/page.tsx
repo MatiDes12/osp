@@ -1495,16 +1495,53 @@ export default function CameraDetailPage() {
       const ts = startIso.replace(/[:.]/g, "-").slice(0, 19);
       const safeName = (camera?.name ?? cameraId).replace(/[^a-zA-Z0-9-_]/g, "_");
 
-      recordingChunksRef.current = [];
-      // Prefer VP8 over VP9 — significantly less CPU during live capture
-      // (VP9 was causing the user to see "slow camera during recording").
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
-        ? "video/webm;codecs=vp8,opus"
-        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
-          ? "video/webm;codecs=vp9,opus"
-          : "video/webm";
+      // Build a recording stream that ONLY contains the tracks we actually
+      // need.  Passing the full WebRTC MediaStream to MediaRecorder forces
+      // it to spin up encoders for every track even when we don't care about
+      // them, which is a big CPU hit on low-end machines.
+      const hasAudio = stream.getAudioTracks().some((t) => t.readyState === "live");
+      const recordingStream = new MediaStream();
+      for (const t of liveVideoTracks) recordingStream.addTrack(t);
+      if (hasAudio) {
+        for (const t of stream.getAudioTracks()) {
+          if (t.readyState === "live") recordingStream.addTrack(t);
+        }
+      }
 
-      const recorder = new MediaRecorder(stream, { mimeType });
+      recordingChunksRef.current = [];
+
+      // Pick the cheapest encoder the WebView supports. On Windows WebView2
+      // and Chromium, `video/mp4;codecs=avc1` uses the platform's H.264
+      // hardware encoder which is dramatically faster than software VP8/VP9
+      // and is the main cause of the "laggy live feed while recording" bug.
+      // Fall back to VP8 (software) only if H.264 is unavailable.
+      const candidates = hasAudio
+        ? [
+            "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+            "video/mp4;codecs=avc1",
+            "video/webm;codecs=h264,opus",
+            "video/webm;codecs=vp8,opus",
+            "video/webm",
+          ]
+        : [
+            "video/mp4;codecs=avc1.42E01E",
+            "video/mp4;codecs=avc1",
+            "video/webm;codecs=h264",
+            "video/webm;codecs=vp8",
+            "video/webm",
+          ];
+      const mimeType =
+        candidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm";
+      const fileExt = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+
+      // Cap the bitrate — MediaRecorder's default can be 2.5 Mbps+ which
+      // pegs the CPU on software encoders. 1.2 Mbps is plenty for a
+      // surveillance feed at 720p/1fps-30fps.
+      const recorder = new MediaRecorder(recordingStream, {
+        mimeType,
+        videoBitsPerSecond: 1_200_000,
+        ...(hasAudio ? { audioBitsPerSecond: 64_000 } : {}),
+      });
       mediaRecorderRef.current = recorder;
       localRecordingStartIsoRef.current = startIso;
       localRecordingTriggerRef.current = trigger;
@@ -1515,7 +1552,7 @@ export default function CameraDetailPage() {
 
       recorder.onstop = async () => {
         const blob = new Blob(recordingChunksRef.current, { type: mimeType });
-        const recFilename = `${safeName}-${ts}.webm`;
+        const recFilename = `${safeName}-${ts}.${fileExt}`;
         const capturedStartIso = localRecordingStartIsoRef.current;
         const capturedTrigger = localRecordingTriggerRef.current;
         localRecordingStartIsoRef.current = null;
@@ -1584,7 +1621,9 @@ export default function CameraDetailPage() {
       };
 
       // ── Start capture IMMEDIATELY — no awaiting the DB call ──
-      recorder.start(1000);
+      // 2000 ms chunks = half the dataavailable callbacks vs 1000 ms, which
+      // reduces main-thread churn during recording.
+      recorder.start(2000);
       setIsRecording(true);
       setRecordingStartTime(Date.now());
     },
