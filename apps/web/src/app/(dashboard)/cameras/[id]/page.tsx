@@ -1306,8 +1306,10 @@ export default function CameraDetailPage() {
   // Local recording (Tauri desktop)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
-  // Tracks the Supabase recording row ID so we can stop it via API
-  const activeRecordingIdRef = useRef<string | null>(null);
+  // Wall-clock start time of the current local capture (used to compute
+  // duration_sec for the single-shot /record/local finalize call).
+  const localRecordingStartIsoRef = useRef<string | null>(null);
+  const localRecordingTriggerRef = useRef<"manual" | "motion">("manual");
   const { saveMode, recordingsPath } = useStorageSettings();
   // Refs for motion-triggered recording (avoids stale closure in timers)
   const isRecordingRef = useRef(false);
@@ -1476,7 +1478,21 @@ export default function CameraDetailPage() {
         (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
       if (!stream) return;
 
-      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      // Guard: the stream must have at least one live video track, otherwise
+      // MediaRecorder will produce a 0-byte blob.  This happens when the live
+      // view is reconnecting or the go2rtc WebRTC producer has dropped.
+      const liveVideoTracks = stream
+        .getVideoTracks()
+        .filter((t) => t.readyState === "live" && t.enabled);
+      if (liveVideoTracks.length === 0) {
+        if (trigger === "manual") {
+          showToast("Live feed not ready — wait a moment and try again", "error");
+        }
+        return;
+      }
+
+      const startIso = new Date().toISOString();
+      const ts = startIso.replace(/[:.]/g, "-").slice(0, 19);
       const safeName = (camera?.name ?? cameraId).replace(/[^a-zA-Z0-9-_]/g, "_");
 
       recordingChunksRef.current = [];
@@ -1490,6 +1506,8 @@ export default function CameraDetailPage() {
 
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
+      localRecordingStartIsoRef.current = startIso;
+      localRecordingTriggerRef.current = trigger;
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) recordingChunksRef.current.push(e.data);
@@ -1498,10 +1516,21 @@ export default function CameraDetailPage() {
       recorder.onstop = async () => {
         const blob = new Blob(recordingChunksRef.current, { type: mimeType });
         const recFilename = `${safeName}-${ts}.webm`;
+        const capturedStartIso = localRecordingStartIsoRef.current;
+        const capturedTrigger = localRecordingTriggerRef.current;
+        localRecordingStartIsoRef.current = null;
+
+        // If MediaRecorder produced no data, DO NOT create any DB row or
+        // file — nothing was actually captured, and we don't want to litter
+        // the recordings list with 0-byte entries.
+        if (blob.size === 0) {
+          return;
+        }
+
         const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
 
         let savedPath: string | null = null;
-        if (invoke && blob.size > 0) {
+        if (invoke) {
           try {
             const arrayBuffer = await blob.arrayBuffer();
             const bytes = new Uint8Array(arrayBuffer);
@@ -1518,64 +1547,46 @@ export default function CameraDetailPage() {
           }
         }
 
-        if (!savedPath && blob.size > 0) {
-          // Fallback: browser download (e.g. dev mode)
+        if (!savedPath) {
+          // Fallback: browser download (e.g. dev mode, Tauri invoke failed)
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url; a.download = recFilename;
           document.body.appendChild(a); a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+          return;
         }
 
-        // Always mark the Supabase row complete — even if blob is 0B — so
-        // the row doesn't linger in "recording" state and get auto-stopped
-        // with 0 bytes by the next startRecording call.
-        if (activeRecordingIdRef.current && saveMode !== "local_only") {
-          try {
-            await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
+        showToast("Recording saved to your device", "success");
+
+        // Create a single finalized DB row (skip in local_only mode).
+        if (saveMode === "local_only" || !capturedStartIso) return;
+
+        try {
+          await fetch(
+            `${API_URL}/api/v1/cameras/${cameraId}/record/local`,
+            {
               method: "POST",
               headers: getAuthHeaders(),
-              body: JSON.stringify({ localFilePath: savedPath, sizeBytes: blob.size }),
-            });
-          } catch {
-            // Non-critical
-          }
-          activeRecordingIdRef.current = null;
-        }
-
-        if (savedPath) {
-          showToast("Recording saved to your device", "success");
+              body: JSON.stringify({
+                startTime: capturedStartIso,
+                endTime: new Date().toISOString(),
+                localFilePath: savedPath,
+                sizeBytes: blob.size,
+                trigger: capturedTrigger,
+              }),
+            },
+          );
+        } catch {
+          // Non-critical — file is already saved to disk
         }
       };
 
       // ── Start capture IMMEDIATELY — no awaiting the DB call ──
-      // This fixes the 7-9s perceived lag the user reported.
       recorder.start(1000);
       setIsRecording(true);
       setRecordingStartTime(Date.now());
-
-      // Fire DB row creation in the background (unless local_only mode)
-      if (saveMode !== "local_only") {
-        void (async () => {
-          try {
-            const res = await fetch(
-              `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
-              {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ trigger }),
-              },
-            );
-            const json = await res.json();
-            if (json.success && json.data?.recordingId) {
-              activeRecordingIdRef.current = json.data.recordingId as string;
-            }
-          } catch {
-            // Non-critical — recording still captured locally
-          }
-        })();
-      }
     },
     [cameraId, camera?.name, saveMode, recordingsPath],
   );

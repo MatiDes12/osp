@@ -790,6 +790,77 @@ cameraRoutes.post("/:id/record/stop", requireAuth("operator"), async (c) => {
   return c.json(createSuccessResponse(stopped));
 });
 
+// Create a finalized, locally-captured recording in one shot.
+// Used by the Tauri desktop client after MediaRecorder finishes capturing —
+// the client already has the final blob, file path, and duration, so there
+// is no start/stop race to manage and no chance of orphaned 0-byte rows.
+const CreateLocalRecordingSchema = z.object({
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  localFilePath: z.string().min(1),
+  sizeBytes: z.number().int().nonnegative(),
+  trigger: z.enum(["manual", "motion", "schedule", "api"]).default("manual"),
+});
+
+cameraRoutes.post("/:id/record/local", requireAuth("operator"), async (c) => {
+  const tenantId = c.get("tenantId");
+  const cameraId = c.req.param("id");
+
+  const body = await c.req.json().catch(() => ({}));
+  const input = CreateLocalRecordingSchema.parse(body);
+
+  const supabase = getSupabase();
+
+  // Verify camera belongs to tenant
+  const { data: camera, error: cameraError } = await supabase
+    .from("cameras")
+    .select("id")
+    .eq("id", cameraId)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (cameraError || !camera) {
+    throw new ApiError("CAMERA_NOT_FOUND", "Camera not found", 404);
+  }
+
+  const startMs = new Date(input.startTime).getTime();
+  const endMs = new Date(input.endTime).getTime();
+  const durationSec = Math.max(0, Math.round((endMs - startMs) / 1000));
+
+  // Retention: 7 days from now (matches computeRetentionDate in recording.service)
+  const retention = new Date();
+  retention.setDate(retention.getDate() + 7);
+
+  const { data: recording, error } = await supabase
+    .from("recordings")
+    .insert({
+      camera_id: cameraId,
+      tenant_id: tenantId,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      duration_sec: durationSec,
+      trigger: input.trigger,
+      status: "complete",
+      format: "mp4",
+      // local:// prefix tells the frontend to load via Tauri asset:// protocol
+      storage_path: `local://${input.localFilePath}`,
+      size_bytes: input.sizeBytes,
+      retention_until: retention.toISOString(),
+    })
+    .select("*")
+    .single();
+
+  if (error || !recording) {
+    throw new ApiError(
+      "RECORDING_CREATE_FAILED",
+      "Failed to create local recording row",
+      500,
+    );
+  }
+
+  return c.json(createSuccessResponse(recording), 201);
+});
+
 // Get active recording status for a camera
 cameraRoutes.get("/:id/record/status", requireAuth("viewer"), async (c) => {
   const tenantId = c.get("tenantId");
