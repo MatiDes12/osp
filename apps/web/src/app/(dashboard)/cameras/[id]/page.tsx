@@ -1457,98 +1457,107 @@ export default function CameraDetailPage() {
     link.click();
   }, [camera?.name]);
 
-  const handleToggleRecording = useCallback(async (trigger: "manual" | "motion" = "manual") => {
-    if (!cameraId) return;
+  // ── Desktop (Tauri) explicit start/stop helpers ─────────────────────────
+  // These bypass the toggle-by-state pattern so callers (motion useEffect,
+  // manual button) can express intent unambiguously and avoid races.
+  const startDesktopRecording = useCallback(
+    (trigger: "manual" | "motion") => {
+      if (!cameraId) return;
+      // Already recording — no-op
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        return;
+      }
 
-    // ── Desktop (Tauri): record via MediaRecorder, save via native Rust ──────
-    if (isTauri()) {
-      if (isRecording) {
-        // Stopping: flip UI immediately; onstop handler will call the API once the file is saved
-        mediaRecorderRef.current?.stop();
-        setIsRecording(false);
-        setRecordingStartTime(null);
-      } else {
-        const video = videoContainerRef.current?.querySelector("video");
-        if (!video) return;
+      const video = videoContainerRef.current?.querySelector("video");
+      if (!video) return;
 
-        // Prefer the live WebRTC stream (no re-encode, no lag).
-        // Only fall back to captureStream() if srcObject is unavailable.
-        const stream =
-          (video.srcObject as MediaStream | null) ??
-          (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
-        if (!stream) return;
+      const stream =
+        (video.srcObject as MediaStream | null) ??
+        (video as HTMLVideoElement & { captureStream?: () => MediaStream }).captureStream?.();
+      if (!stream) return;
 
-        const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const safeName = (camera?.name ?? cameraId).replace(/[^a-zA-Z0-9-_]/g, "_");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const safeName = (camera?.name ?? cameraId).replace(/[^a-zA-Z0-9-_]/g, "_");
 
-        recordingChunksRef.current = [];
-        const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+      recordingChunksRef.current = [];
+      // Prefer VP8 over VP9 — significantly less CPU during live capture
+      // (VP9 was causing the user to see "slow camera during recording").
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
+        ? "video/webm;codecs=vp8,opus"
+        : MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
           ? "video/webm;codecs=vp9,opus"
           : "video/webm";
 
-        const recorder = new MediaRecorder(stream, { mimeType });
-        mediaRecorderRef.current = recorder;
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
 
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordingChunksRef.current.push(e.data);
-        };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordingChunksRef.current.push(e.data);
+      };
 
-        recorder.onstop = async () => {
-          const blob = new Blob(recordingChunksRef.current, { type: mimeType });
-          if (blob.size === 0) return;
-          const recFilename = `${safeName}-${ts}.webm`;
-          const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
+      recorder.onstop = async () => {
+        const blob = new Blob(recordingChunksRef.current, { type: mimeType });
+        const recFilename = `${safeName}-${ts}.webm`;
+        const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;
 
-          let savedPath: string | null = null;
-          if (invoke) {
-            try {
-              const arrayBuffer = await blob.arrayBuffer();
-              const bytes = new Uint8Array(arrayBuffer);
-              let binary = "";
-              bytes.forEach((b) => (binary += String.fromCharCode(b)));
-              const base64 = btoa(binary);
-              // Pass custom folder if set in storage settings
-              savedPath = (await invoke("save_recording", {
-                filename: recFilename,
-                dataBase64: base64,
-                customDir: recordingsPath || null,
-              })) as string;
-            } catch {
-              // Fall through to browser download
-            }
+        let savedPath: string | null = null;
+        if (invoke && blob.size > 0) {
+          try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = "";
+            bytes.forEach((b) => (binary += String.fromCharCode(b)));
+            const base64 = btoa(binary);
+            savedPath = (await invoke("save_recording", {
+              filename: recFilename,
+              dataBase64: base64,
+              customDir: recordingsPath || null,
+            })) as string;
+          } catch {
+            // Fall through to browser download
           }
+        }
 
-          if (!savedPath) {
-            // Fallback: browser download (e.g. dev mode)
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = recFilename;
-            document.body.appendChild(a); a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+        if (!savedPath && blob.size > 0) {
+          // Fallback: browser download (e.g. dev mode)
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url; a.download = recFilename;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
+        // Always mark the Supabase row complete — even if blob is 0B — so
+        // the row doesn't linger in "recording" state and get auto-stopped
+        // with 0 bytes by the next startRecording call.
+        if (activeRecordingIdRef.current && saveMode !== "local_only") {
+          try {
+            await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
+              method: "POST",
+              headers: getAuthHeaders(),
+              body: JSON.stringify({ localFilePath: savedPath, sizeBytes: blob.size }),
+            });
+          } catch {
+            // Non-critical
           }
+          activeRecordingIdRef.current = null;
+        }
 
-          // Mark the Supabase row as complete (skipped in local_only mode).
-          if (activeRecordingIdRef.current && saveMode !== "local_only") {
-            try {
-              await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/stop`, {
-                method: "POST",
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ localFilePath: savedPath, sizeBytes: blob.size }),
-              });
-            } catch {
-              // Non-critical
-            }
-            activeRecordingIdRef.current = null;
-          }
+        if (savedPath) {
+          showToast("Recording saved to your device", "success");
+        }
+      };
 
-          if (savedPath) {
-            showToast("Recording saved to your device", "success");
-          }
-        };
+      // ── Start capture IMMEDIATELY — no awaiting the DB call ──
+      // This fixes the 7-9s perceived lag the user reported.
+      recorder.start(1000);
+      setIsRecording(true);
+      setRecordingStartTime(Date.now());
 
-        // Tell Supabase a recording is starting (skipped in local_only mode)
-        if (saveMode !== "local_only") {
+      // Fire DB row creation in the background (unless local_only mode)
+      if (saveMode !== "local_only") {
+        void (async () => {
           try {
             const res = await fetch(
               `${API_URL}/api/v1/cameras/${cameraId}/record/start`,
@@ -1565,11 +1574,45 @@ export default function CameraDetailPage() {
           } catch {
             // Non-critical — recording still captured locally
           }
-        }
+        })();
+      }
+    },
+    [cameraId, camera?.name, saveMode, recordingsPath],
+  );
 
-        recorder.start(250);
-        setIsRecording(true);
-        setRecordingStartTime(Date.now());
+  const stopDesktopRecording = useCallback(() => {
+    // Always cancel any pending motion tail timer and clear the flag so
+    // the next motion event can correctly start a fresh recording.
+    if (motionTailTimerRef.current) {
+      clearTimeout(motionTailTimerRef.current);
+      motionTailTimerRef.current = null;
+    }
+    isMotionRecordingRef.current = false;
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setIsRecording(false);
+      setRecordingStartTime(null);
+      return;
+    }
+    try {
+      recorder.stop();
+    } catch {
+      // no-op
+    }
+    setIsRecording(false);
+    setRecordingStartTime(null);
+  }, []);
+
+  const handleToggleRecording = useCallback(async (trigger: "manual" | "motion" = "manual") => {
+    if (!cameraId) return;
+
+    // ── Desktop (Tauri): record via MediaRecorder, save via native Rust ──────
+    if (isTauri()) {
+      if (isRecording) {
+        stopDesktopRecording();
+      } else {
+        startDesktopRecording(trigger);
       }
       return;
     }
@@ -1616,7 +1659,7 @@ export default function CameraDetailPage() {
         setRecordingStartTime(null);
       }
     }
-  }, [cameraId, isRecording, camera?.name]);
+  }, [cameraId, isRecording, camera?.name, startDesktopRecording, stopDesktopRecording]);
 
   // Keep handleToggleRecordingRef always pointing to the latest version
   useEffect(() => {
@@ -1632,6 +1675,15 @@ export default function CameraDetailPage() {
     eventTypes: ["motion"],
   });
   const lastMotionEventIdRef = useRef<string | null>(null);
+  // Refs mirror the start/stop functions so the motion effect always has
+  // the latest closure without listing them as dependencies (which would
+  // re-run the effect on every render and re-schedule timers).
+  const startDesktopRecordingRef = useRef(startDesktopRecording);
+  const stopDesktopRecordingRef = useRef(stopDesktopRecording);
+  useEffect(() => {
+    startDesktopRecordingRef.current = startDesktopRecording;
+    stopDesktopRecordingRef.current = stopDesktopRecording;
+  });
 
   useEffect(() => {
     if (!isTauri()) return; // Motion recording handled server-side in cloud mode
@@ -1641,21 +1693,28 @@ export default function CameraDetailPage() {
     if (!latest || latest.id === lastMotionEventIdRef.current) return;
     lastMotionEventIdRef.current = latest.id;
 
+    // If a MANUAL recording is already in progress (user clicked the red
+    // button), don't interfere — let it run until the user stops it.
+    const recorderState = mediaRecorderRef.current?.state;
+    const recorderActive =
+      recorderState === "recording" || recorderState === "paused";
+    if (recorderActive && !isMotionRecordingRef.current) return;
+
     // Clear any existing tail timer — motion is still active
     if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
 
-    if (!isRecordingRef.current) {
-      // Start recording triggered by motion
+    if (!isMotionRecordingRef.current) {
+      // Start recording triggered by motion (explicit, not toggled)
       isMotionRecordingRef.current = true;
-      void handleToggleRecordingRef.current?.("motion");
+      startDesktopRecordingRef.current("motion");
     }
 
     // Schedule stop 5 s after the last motion event
     motionTailTimerRef.current = setTimeout(() => {
       motionTailTimerRef.current = null;
-      if (isMotionRecordingRef.current && isRecordingRef.current) {
+      if (isMotionRecordingRef.current) {
         isMotionRecordingRef.current = false;
-        void handleToggleRecordingRef.current?.("motion");
+        stopDesktopRecordingRef.current();
       }
     }, 5_000);
   }, [liveMotionEvents, camera?.config?.recordingMode]);

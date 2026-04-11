@@ -238,32 +238,42 @@ export class RecordingService {
   async stopRecording(recordingId: string, localFilePath?: string, clientSizeBytes?: number): Promise<Record<string, unknown>> {
     const supabase = getSupabase();
 
-    // Production path: stop via video-pipeline so it finalizes + uploads to R2.
-    try {
-      const client = getVideoPipelineClient();
-      const result = await client.stopRecording(recordingId);
-      if (result.success) {
-        const { data: updated, error } = await supabase
-          .from("recordings")
-          .select("*")
-          .eq("id", recordingId)
-          .single();
+    // Desktop/Tauri mode: when the client captured the video itself and is
+    // reporting the saved local path, skip the video-pipeline entirely and
+    // go straight to the direct path which writes localFilePath + sizeBytes
+    // into the DB row.  The gRPC path would otherwise overwrite those with
+    // R2 metadata (or succeed with mock data and never persist them).
+    const useLocalClientPath =
+      typeof localFilePath === "string" && localFilePath.length > 0;
 
-        if (error || !updated) {
-          throw new ApiError(
-            "RECORDING_STOP_FAILED",
-            "Recording stopped in video-pipeline but failed to load updated row",
-            500,
-          );
+    if (!useLocalClientPath) {
+      // Production path: stop via video-pipeline so it finalizes + uploads to R2.
+      try {
+        const client = getVideoPipelineClient();
+        const result = await client.stopRecording(recordingId);
+        if (result.success) {
+          const { data: updated, error } = await supabase
+            .from("recordings")
+            .select("*")
+            .eq("id", recordingId)
+            .single();
+
+          if (error || !updated) {
+            throw new ApiError(
+              "RECORDING_STOP_FAILED",
+              "Recording stopped in video-pipeline but failed to load updated row",
+              500,
+            );
+          }
+
+          return updated as Record<string, unknown>;
         }
-
-        return updated as Record<string, unknown>;
+      } catch (err) {
+        if (!(err instanceof GrpcFallbackError)) {
+          throw err;
+        }
+        // Fall through to direct mode.
       }
-    } catch (err) {
-      if (!(err instanceof GrpcFallbackError)) {
-        throw err;
-      }
-      // Fall through to direct mode.
     }
 
     const now = new Date().toISOString();

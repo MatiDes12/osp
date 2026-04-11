@@ -30,7 +30,11 @@ func DefaultConfig() Config {
 		Sensitivity:     5,
 		MinArea:         500.0,
 		FrameSkip:       1,
-		CooldownSeconds: 10,
+		// 2 s cooldown so continuous motion fires events every ~2 s.  The
+		// frontend / gateway tail is 5 s, so it comfortably covers the gap
+		// between events while still distinguishing a motion "burst" from
+		// sustained activity.
+		CooldownSeconds: 2,
 	}
 }
 
