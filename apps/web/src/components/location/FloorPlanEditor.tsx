@@ -592,6 +592,74 @@ function drawObjIso(
 // Snapshot fetching lives in hooks/use-camera-capture.ts — do NOT re-implement.
 
 // ---------------------------------------------------------------------------
+//  Inline always-visible live mini-preview tile for a linked camera
+// ---------------------------------------------------------------------------
+
+function CameraInlineLive({
+  obj,
+  camera,
+  screenX,
+  screenY,
+  zoom,
+  onOpenPopup,
+}: {
+  obj: FloorObject;
+  camera: { id: string; name: string; status: string };
+  screenX: number;
+  screenY: number;
+  zoom: number;
+  onOpenPopup: (id: string) => void;
+}) {
+  const snapshotUrl = useCameraSnapshot(camera.id, true);
+  const isLive = !!snapshotUrl;
+
+  // Scale the tile slightly with zoom but clamp so it stays legible
+  const width = Math.max(88, Math.min(140, 110 * zoom));
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenPopup(obj.id);
+      }}
+      className="absolute z-20 rounded-md border border-zinc-700/80 bg-zinc-900/90 backdrop-blur-sm shadow-lg overflow-hidden hover:border-blue-500 transition-colors cursor-pointer"
+      style={{
+        left: screenX + 18,
+        top: screenY - Math.round(width * (9 / 16) + 14),
+        width,
+      }}
+    >
+      <div className="relative aspect-video bg-black">
+        {snapshotUrl ? (
+          <img
+            src={snapshotUrl}
+            alt={camera.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full text-zinc-600 text-[9px]">
+            Connecting…
+          </div>
+        )}
+        <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 px-1 rounded bg-black/50">
+          <span
+            className={`h-1 w-1 rounded-full ${isLive ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+          />
+          <span
+            className={`text-[7px] font-bold uppercase ${isLive ? "text-green-400" : "text-red-400"}`}
+          >
+            {isLive ? "Live" : "Off"}
+          </span>
+        </div>
+      </div>
+      <p className="px-1 py-0.5 text-[8px] font-medium text-zinc-200 truncate text-left">
+        {camera.name}
+      </p>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
 //  Camera Live Preview Popup
 // ---------------------------------------------------------------------------
 
@@ -614,8 +682,11 @@ function CameraPopup({
 }) {
   const sx = obj.x * zoom + ox;
   const sy = obj.y * zoom + oy;
-  const isOnline = camera?.status === "online";
-  const snapshotUrl = useCameraSnapshot(camera?.id, isOnline);
+  // Always try to fetch the snapshot for any linked camera — gating on the
+  // cached `camera?.status` caused the popup to lie about "Offline" when
+  // the cameras list hadn't refreshed since the camera came back up.
+  const snapshotUrl = useCameraSnapshot(camera?.id, !!camera?.id);
+  const isLive = !!snapshotUrl;
 
   return (
     <div
@@ -632,11 +703,7 @@ function CameraPopup({
           />
         ) : (
           <div className="flex items-center justify-center h-full text-zinc-600 text-xs">
-            {!camera
-              ? "Not Linked"
-              : !isOnline
-                ? "Camera Offline"
-                : "Loading..."}
+            {!camera ? "Not Linked" : "Connecting..."}
           </div>
         )}
         <button
@@ -645,7 +712,7 @@ function CameraPopup({
         >
           <X className="h-3 w-3" />
         </button>
-        {camera?.status === "online" && (
+        {isLive && (
           <div className="absolute top-2 left-2 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
             <span className="text-[9px] font-bold text-green-400 uppercase">
@@ -739,11 +806,22 @@ export function FloorPlanEditor({
   const dragIdRef = useRef<string | null>(null);
   const dragOffRef = useRef<Point>({ x: 0, y: 0 });
 
-  // Filter objects by current floor level
-  const visibleObjects = useMemo(
-    () => objects.filter((o) => (o.floorLevel ?? 0) === currentFloor),
-    [objects, currentFloor],
-  );
+  // Filter objects by current floor level, and overlay live camera status
+  // from the cameras prop so drawing reflects the real online/offline state
+  // instead of the stale `cameraStatus` that was cached when the camera was
+  // first linked.
+  const visibleObjects = useMemo(() => {
+    const filtered = objects.filter(
+      (o) => (o.floorLevel ?? 0) === currentFloor,
+    );
+    if (!cameras) return filtered;
+    const liveStatus = new Map(cameras.map((c) => [c.id, c.status]));
+    return filtered.map((o) =>
+      o.type === "camera" && o.cameraId && liveStatus.has(o.cameraId)
+        ? { ...o, cameraStatus: liveStatus.get(o.cameraId) }
+        : o,
+    );
+  }, [objects, currentFloor, cameras]);
 
   const selectedObj = useMemo(
     () => objects.find((o) => o.id === selectedId),
@@ -1186,14 +1264,56 @@ export function FloorPlanEditor({
           );
         }
       } else {
-        // Iso / 3D view
+        // Iso / 3D view — compute the iso bbox of visible objects so the
+        // scene can be centered in the canvas instead of drifting off the
+        // left edge (iso X can be negative when y > x, which is why
+        // "changing dimensions" looked like objects jumped / disappeared).
+        let isoOx = offset.x;
+        let isoOy = offset.y;
+        if (visibleObjects.length > 0) {
+          let miX = Infinity,
+            maX = -Infinity,
+            miY = Infinity,
+            maY = -Infinity;
+          for (const obj of visibleObjects) {
+            const h =
+              (obj.wallHeight ??
+                (obj.type === "room"
+                  ? 40
+                  : obj.type === "wall"
+                    ? 50
+                    : 15)) * zoom;
+            const corners = [
+              toIso(obj.x * zoom, obj.y * zoom, 0),
+              toIso((obj.x + obj.w) * zoom, obj.y * zoom, 0),
+              toIso((obj.x + obj.w) * zoom, (obj.y + obj.h) * zoom, 0),
+              toIso(obj.x * zoom, (obj.y + obj.h) * zoom, 0),
+              toIso(obj.x * zoom, obj.y * zoom, h),
+              toIso((obj.x + obj.w) * zoom, obj.y * zoom, h),
+              toIso((obj.x + obj.w) * zoom, (obj.y + obj.h) * zoom, h),
+              toIso(obj.x * zoom, (obj.y + obj.h) * zoom, h),
+            ];
+            for (const c of corners) {
+              if (c.x < miX) miX = c.x;
+              if (c.x > maX) maX = c.x;
+              if (c.y < miY) miY = c.y;
+              if (c.y > maY) maY = c.y;
+            }
+          }
+          const contentW = maX - miX;
+          const contentH = maY - miY;
+          // Center the iso content in the canvas, then apply the user's pan
+          // offset on top so dragging still works.
+          isoOx = (r.width - contentW) / 2 - miX + (offset.x - 60);
+          isoOy = (r.height - contentH) / 2 - miY + (offset.y - 60);
+        }
         for (const obj of visibleObjects) {
           drawObjIso(
             ctx!,
             obj,
             zoom,
-            offset.x,
-            offset.y,
+            isoOx,
+            isoOy,
             obj.id === selectedId,
           );
         }
@@ -1566,6 +1686,28 @@ export function FloorPlanEditor({
               }}
             />
 
+            {/* Always-on inline live previews for linked cameras (2D only) */}
+            {viewMode === "2d" &&
+              visibleObjects.map((obj) => {
+                if (obj.type !== "camera" || !obj.cameraId) return null;
+                if (popupCameraId === obj.id) return null; // big popup takes over
+                const linked = cameras?.find((c) => c.id === obj.cameraId);
+                if (!linked) return null;
+                const screenX = obj.x * zoom + offset.x;
+                const screenY = obj.y * zoom + offset.y;
+                return (
+                  <CameraInlineLive
+                    key={`inline-${obj.id}`}
+                    obj={obj}
+                    camera={linked}
+                    screenX={screenX}
+                    screenY={screenY}
+                    zoom={zoom}
+                    onOpenPopup={(id) => setPopupCameraId(id)}
+                  />
+                );
+              })}
+
             {/* Camera popup */}
             {popupObj && popupObj.type === "camera" && (
               <CameraPopup
@@ -1750,11 +1892,13 @@ export function FloorPlanEditor({
 
                     {selectedObj.cameraId && (
                       <button
-                        onClick={() => setPopupCameraId(selectedId)}
+                        onClick={() => {
+                          window.location.href = `/cameras/${selectedObj.cameraId}`;
+                        }}
                         className="w-full mt-1 flex items-center justify-center gap-1 px-2 py-1 text-[10px] rounded bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors cursor-pointer"
                       >
                         <Eye className="h-3 w-3" />
-                        Preview Live Feed
+                        Open Full Live View
                       </button>
                     )}
 

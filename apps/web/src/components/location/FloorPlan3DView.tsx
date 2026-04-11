@@ -357,8 +357,11 @@ function CameraPopup3D({
   onClose: () => void;
   onNavigate: (id: string) => void;
 }) {
-  const isOnline = camera.status === "online";
-  const snapshotUrl = useCameraSnapshot(camera.id, isOnline);
+  // Always attempt the snapshot for any linked camera. Gating on `status`
+  // causes the popup to show "Offline" when the cached status is stale but
+  // the camera is actually reachable.
+  const snapshotUrl = useCameraSnapshot(camera.id, true);
+  const isLive = !!snapshotUrl;
 
   return (
     <div className="w-64 rounded-lg border border-zinc-700 bg-zinc-900/95 shadow-xl overflow-hidden backdrop-blur-sm">
@@ -371,7 +374,7 @@ function CameraPopup3D({
           />
         ) : (
           <div className="flex items-center justify-center h-full text-zinc-600 text-xs">
-            {!isOnline ? "Camera Offline" : "Loading..."}
+            Connecting...
           </div>
         )}
         <button
@@ -380,7 +383,7 @@ function CameraPopup3D({
         >
           <X className="h-3 w-3" />
         </button>
-        {camera.status === "online" && (
+        {isLive && (
           <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
             <span className="text-[8px] font-bold text-green-400 uppercase">
@@ -406,6 +409,73 @@ function CameraPopup3D({
 }
 
 // ---------------------------------------------------------------------------
+//  Inline always-visible live preview billboard above a linked camera
+// ---------------------------------------------------------------------------
+
+function CameraLiveBillboard({
+  obj,
+  camera,
+  onNavigate,
+}: {
+  obj: FloorObject;
+  camera: { id: string; name: string; status: string };
+  onNavigate: (id: string) => void;
+}) {
+  // Always try to grab a frame — don't gate on stale `status`.
+  const snapshotUrl = useCameraSnapshot(camera.id, true);
+  const isLive = !!snapshotUrl;
+  const x = obj.x * SCALE;
+  const z = obj.y * SCALE;
+
+  return (
+    <Html
+      position={[x, 3.1, z]}
+      center
+      distanceFactor={6}
+      occlude={false}
+      style={{ pointerEvents: "auto" }}
+    >
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onNavigate(camera.id);
+        }}
+        className="w-32 rounded-md border border-zinc-700 bg-zinc-900/95 shadow-xl overflow-hidden backdrop-blur-sm cursor-pointer hover:border-blue-500 transition-colors"
+      >
+        <div className="relative aspect-video bg-black">
+          {snapshotUrl ? (
+            <img
+              src={snapshotUrl}
+              alt={camera.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-zinc-600 text-[8px]">
+              Connecting…
+            </div>
+          )}
+          <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5">
+            <span
+              className={`h-1 w-1 rounded-full ${isLive ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+            />
+            <span
+              className={`text-[6px] font-bold uppercase ${isLive ? "text-green-400" : "text-red-400"}`}
+            >
+              {isLive ? "Live" : "Off"}
+            </span>
+          </div>
+        </div>
+        <div className="px-1 py-0.5">
+          <p className="text-[7px] font-medium text-zinc-200 truncate text-left">
+            {camera.name}
+          </p>
+        </div>
+      </button>
+    </Html>
+  );
+}
+
+// ---------------------------------------------------------------------------
 //  Scene content
 // ---------------------------------------------------------------------------
 
@@ -417,6 +487,7 @@ function SceneContent({
   popupCamera,
   onClosePopup,
   onNavigateCamera,
+  showLiveBillboards,
 }: {
   objects: readonly FloorObject[];
   cameras?: readonly { id: string; name: string; status: string }[];
@@ -425,17 +496,35 @@ function SceneContent({
   popupCamera: { id: string; name: string; status: string } | undefined;
   onClosePopup: () => void;
   onNavigateCamera: (id: string) => void;
+  showLiveBillboards: boolean;
 }) {
-  // Calculate scene size from objects
-  const sceneSize = useMemo(() => {
-    if (objects.length === 0) return 10;
-    let maxX = 0,
-      maxY = 0;
+  // Calculate scene bbox / centroid from objects so the camera and orbit
+  // target match what the 2D view shows instead of drifting off-center when
+  // the floor plan grows or shrinks.
+  const { sceneSize, centerX, centerZ } = useMemo(() => {
+    if (objects.length === 0)
+      return { sceneSize: 10, centerX: 0, centerZ: 0 };
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     for (const obj of objects) {
-      maxX = Math.max(maxX, (obj.x + Math.abs(obj.w)) * SCALE);
-      maxY = Math.max(maxY, (obj.y + Math.abs(obj.h)) * SCALE);
+      const x1 = obj.x * SCALE;
+      const y1 = obj.y * SCALE;
+      const x2 = (obj.x + obj.w) * SCALE;
+      const y2 = (obj.y + obj.h) * SCALE;
+      minX = Math.min(minX, x1, x2);
+      minY = Math.min(minY, y1, y2);
+      maxX = Math.max(maxX, x1, x2);
+      maxY = Math.max(maxY, y1, y2);
     }
-    return Math.max(maxX, maxY, 5) * 1.5;
+    const w = maxX - minX;
+    const d = maxY - minY;
+    return {
+      sceneSize: Math.max(w, d, 5) * 1.5,
+      centerX: (minX + maxX) / 2,
+      centerZ: (minY + maxY) / 2,
+    };
   }, [objects]);
 
   const cameraMap = useMemo(() => {
@@ -454,7 +543,7 @@ function SceneContent({
 
       <PerspectiveCamera
         makeDefault
-        position={[sceneSize, sceneSize * 0.8, sceneSize]}
+        position={[centerX + sceneSize, sceneSize * 0.8, centerZ + sceneSize]}
         fov={50}
       />
       <OrbitControls
@@ -463,7 +552,7 @@ function SceneContent({
         maxPolarAngle={Math.PI / 2.1}
         minDistance={1}
         maxDistance={sceneSize * 4}
-        target={[sceneSize * 0.3, 0, sceneSize * 0.3]}
+        target={[centerX, 0, centerZ]}
       />
 
       <Ground size={sceneSize} />
@@ -501,6 +590,25 @@ function SceneContent({
         }
       })}
 
+      {/* Always-visible live billboards for linked cameras */}
+      {showLiveBillboards &&
+        objects.map((obj) => {
+          if (obj.type !== "camera" || !obj.cameraId) return null;
+          const linked = cameraMap.get(obj.cameraId);
+          if (!linked) return null;
+          // Hide the floating billboard for the camera currently showing the
+          // big popup (avoids stacking two previews in the same spot).
+          if (popupCameraObj?.id === obj.id) return null;
+          return (
+            <CameraLiveBillboard
+              key={`live-${obj.id}`}
+              obj={obj}
+              camera={linked}
+              onNavigate={onNavigateCamera}
+            />
+          );
+        })}
+
       {/* Camera popup as HTML overlay in 3D space */}
       {popupCameraObj && popupCamera && (
         <Html
@@ -530,6 +638,7 @@ interface FloorPlan3DViewProps {
 
 export function FloorPlan3DView({ objects, cameras }: FloorPlan3DViewProps) {
   const [popupObjId, setPopupObjId] = useState<string | null>(null);
+  const [showLiveBillboards, setShowLiveBillboards] = useState(true);
 
   const popupObj = useMemo(
     () =>
@@ -561,15 +670,29 @@ export function FloorPlan3DView({ objects, cameras }: FloorPlan3DViewProps) {
           onNavigateCamera={(id) => {
             window.location.href = `/cameras/${id}`;
           }}
+          showLiveBillboards={showLiveBillboards}
         />
       </Canvas>
+
+      {/* Toggle live billboards */}
+      <button
+        onClick={() => setShowLiveBillboards((v) => !v)}
+        className={`absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
+          showLiveBillboards
+            ? "bg-blue-500/20 text-blue-400 border-blue-500/40"
+            : "bg-zinc-900/80 text-zinc-500 border-zinc-700"
+        }`}
+        title="Toggle inline live previews"
+      >
+        {showLiveBillboards ? "Live On" : "Live Off"}
+      </button>
 
       {/* Controls hint */}
       <div className="absolute bottom-3 left-3 text-[10px] text-zinc-600 space-y-0.5">
         <p>Left drag: Rotate</p>
         <p>Right drag: Pan</p>
         <p>Scroll: Zoom</p>
-        <p>Double-click camera: Live preview</p>
+        <p>Double-click camera: Focus preview</p>
       </div>
     </div>
   );
