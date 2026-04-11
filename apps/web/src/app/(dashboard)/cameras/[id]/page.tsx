@@ -1411,26 +1411,41 @@ export default function CameraDetailPage() {
   const lastMotionEventIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isTauri()) return;
-    if (camera?.config?.recordingMode !== "motion") return;
+    if (!isTauri()) {
+      console.debug("[motion-rec] skipped: not Tauri");
+      return;
+    }
+    if (camera?.config?.recordingMode !== "motion") {
+      console.debug("[motion-rec] skipped: recordingMode =", camera?.config?.recordingMode);
+      return;
+    }
 
     const latest = liveMotionEvents[0];
     if (!latest || latest.id === lastMotionEventIdRef.current) return;
     lastMotionEventIdRef.current = latest.id;
 
+    console.debug("[motion-rec] motion event received, id =", latest.id, "isRecording =", isRecording, "isMotionRecording =", isMotionRecordingRef.current);
+
     // Don't interfere with a manual recording already in progress.
-    if (isRecording && !isMotionRecordingRef.current) return;
+    if (isRecording && !isMotionRecordingRef.current) {
+      console.debug("[motion-rec] skipped: manual recording in progress");
+      return;
+    }
 
     if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
 
     if (!isMotionRecordingRef.current) {
       isMotionRecordingRef.current = true;
+      console.debug("[motion-rec] starting motion recording...");
       void startCaptureRef.current("motion");
+    } else {
+      console.debug("[motion-rec] extending tail (already recording)");
     }
 
     motionTailTimerRef.current = setTimeout(() => {
       motionTailTimerRef.current = null;
       if (isMotionRecordingRef.current) {
+        console.debug("[motion-rec] tail expired, stopping...");
         isMotionRecordingRef.current = false;
         stopCaptureRef.current();
       }

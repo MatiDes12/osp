@@ -289,20 +289,26 @@ export function useCameraCapture(
       }
 
       const video = videoContainerRef.current?.querySelector("video");
-      if (!video) return;
+      if (!video) {
+        console.warn("[capture] startDesktopRecording: no <video> found in container");
+        return;
+      }
 
       const stream =
         (video.srcObject as MediaStream | null) ??
         (
           video as HTMLVideoElement & { captureStream?: () => MediaStream }
         ).captureStream?.();
-      if (!stream) return;
+      if (!stream) {
+        console.warn("[capture] startDesktopRecording: no stream (srcObject null and captureStream unavailable)");
+        return;
+      }
 
       // Require a live video track, otherwise MediaRecorder produces 0-byte
       // output silently. Happens while the live view is reconnecting.
-      const liveVideoTracks = stream
-        .getVideoTracks()
-        .filter((t) => t.readyState === "live" && t.enabled);
+      const allVideoTracks = stream.getVideoTracks();
+      const liveVideoTracks = allVideoTracks.filter((t) => t.readyState === "live" && t.enabled);
+      console.debug("[capture] startDesktopRecording: videoTracks =", allVideoTracks.length, "live =", liveVideoTracks.length, allVideoTracks.map(t => `${t.readyState}/${t.enabled ? "on" : "off"}`));
       if (liveVideoTracks.length === 0) {
         if (trigger === "manual") {
           showToast(
@@ -310,6 +316,7 @@ export function useCameraCapture(
             "error",
           );
         }
+        console.warn("[capture] startDesktopRecording: no live tracks — recording skipped for trigger:", trigger);
         return;
       }
 
@@ -453,6 +460,7 @@ export function useCameraCapture(
       // drift between clusters that makes playback appear laggy or stuttery.
       // All data lands in ondataavailable when stop() is called.
       // At 1.2 Mbps a 10-min recording is ~90 MB in memory — acceptable.
+      console.debug("[capture] MediaRecorder starting, mimeType =", mimeType, "trigger =", trigger);
       recorder.start();
       setIsRecording(true);
       setRecordingStartTime(Date.now());
