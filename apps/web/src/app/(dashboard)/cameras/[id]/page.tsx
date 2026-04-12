@@ -1513,11 +1513,16 @@ export default function CameraDetailPage() {
               (seekMs - new Date(match.startTime).getTime()) / 1000;
             // Append auth token so the video element can make range requests
             const base = recs[0]!.playbackUrl;
-            const token = localStorage.getItem("osp_access_token");
-            const authedUrl = token
-              ? `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
-              : base;
-            apply(authedUrl, offsetSec);
+            // Don't add ?token to local Tauri asset:// URLs
+            if (base.startsWith("asset://") || base.startsWith("local://")) {
+              apply(base, offsetSec);
+            } else {
+              const token = localStorage.getItem("osp_access_token");
+              const authedUrl = token
+                ? `${base}${base.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+                : base;
+              apply(authedUrl, offsetSec);
+            }
           }
         }
       } catch {}
@@ -1981,6 +1986,14 @@ export default function CameraDetailPage() {
             <RecordingTab
               cameraId={camera.id}
               onPlay={(url, offset) => {
+                // asset:// URLs are served directly by Tauri from local disk —
+                // they don't go through the gateway so no auth token is needed
+                // (and adding ?token= breaks the Tauri asset:// protocol).
+                if (url.startsWith("asset://") || url.startsWith("local://")) {
+                  setPlaybackUrl(url);
+                  setPlaybackOffset(offset ?? 0);
+                  return;
+                }
                 const token = localStorage.getItem("osp_access_token");
                 const authedUrl = token
                   ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
