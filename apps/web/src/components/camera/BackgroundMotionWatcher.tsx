@@ -102,6 +102,7 @@ interface Watcher {
   // settings (kept as refs so saves see current values)
   recordingsPathRef: { current: string | null };
   saveModeRef: { current: string };
+  _eventThrottle: number; // epoch ms of last posted event — throttle to 1 per 10s
   destroyed: boolean;
 }
 
@@ -220,6 +221,23 @@ function onMotion(w: Watcher) {
     w.tailTimer = null;
     stopRecording(w);
   }, TAIL_MS);
+
+  // Post motion event to gateway so it appears in the sidebar and triggers
+  // WS notifications. Fire-and-forget — recording is not blocked by this.
+  if (!w._eventThrottle || Date.now() - w._eventThrottle > 10_000) {
+    w._eventThrottle = Date.now();
+    void fetch(`${API_URL}/api/v1/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      body: JSON.stringify({
+        cameraId: w.cameraId,
+        type: "motion",
+        severity: "medium",
+        intensity: 60,
+        metadata: { source: "local_frame_diff" },
+      }),
+    }).catch(() => { /* non-critical */ });
+  }
 }
 
 async function sampleFrame(w: Watcher) {
@@ -284,6 +302,7 @@ function createWatcher(
     tailTimer: null,
     recordingsPathRef,
     saveModeRef,
+    _eventThrottle: 0,
     destroyed: false,
   };
 
@@ -311,8 +330,11 @@ export function BackgroundMotionWatcher({ cameras }: { readonly cameras: readonl
   useEffect(() => {
     if (!isTauri()) return;
 
+    // Don't filter by status — in the desktop app the cloud health-checker
+    // can't reach local go2rtc so cameras stay "connecting" indefinitely.
+    // If a camera has no stream, sampleFrame() fails silently on every poll.
     const wanted = cameras.filter(
-      (c) => c.config?.recordingMode === "motion" && c.status === "online",
+      (c) => c.config?.recordingMode === "motion",
     );
     const wantedIds = new Set(wanted.map((c) => c.id));
     const map = watchersRef.current;
