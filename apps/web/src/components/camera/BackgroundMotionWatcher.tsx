@@ -24,7 +24,7 @@ const SAMPLE_W = 160;
 const SAMPLE_H = 90;
 const PIXEL_DIFF_THRESHOLD = 15;
 const MOTION_RATIO = 0.015;
-const TAIL_MS = 5_000;
+const TAIL_MS = 8_500;
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 function getAuthHeaders(): Record<string, string> {
@@ -94,6 +94,7 @@ interface Watcher {
   // recording
   pc: RTCPeerConnection | null;
   recorder: MediaRecorder | null;
+  starting: boolean; // true while openWhep is in-flight — prevents concurrent starts
   chunks: Blob[];
   mimeType: string;
   startIso: string | null;
@@ -159,10 +160,16 @@ function stopRecording(w: Watcher) {
 }
 
 async function startRecording(w: Watcher) {
+  if (w.starting) return; // openWhep already in-flight — don't open a second connection
   if (w.recorder && w.recorder.state !== "inactive") return; // already recording
 
+  w.starting = true;
   const result = await openWhep(w.cameraId);
-  if (!result || w.destroyed) {
+  w.starting = false;
+
+  // If the tail timer already fired while we were connecting (motion was brief
+  // and WHEP was slow), abort — don't start a recording that will never stop.
+  if (!result || w.destroyed || w.tailTimer === null) {
     result?.pc.close();
     return;
   }
@@ -205,7 +212,7 @@ async function startRecording(w: Watcher) {
 }
 
 function onMotion(w: Watcher) {
-  if (!w.recorder || w.recorder.state === "inactive") {
+  if (!w.starting && (!w.recorder || w.recorder.state === "inactive")) {
     void startRecording(w);
   }
   if (w.tailTimer) clearTimeout(w.tailTimer);
@@ -270,6 +277,7 @@ function createWatcher(
     pollTimer: null,
     pc: null,
     recorder: null,
+    starting: false,
     chunks: [],
     mimeType: "video/webm",
     startIso: null,
