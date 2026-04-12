@@ -312,28 +312,11 @@ async function handleConnection(
 }
 
 /**
- * Starts the WebSocket server on a dedicated port and subscribes to Redis
- * pub/sub for cross-instance event distribution.
+ * Shared setup: Redis pub/sub subscription + keepalive timer.
+ * Called by both attachEventServer and startWebSocketServer.
  */
-export function startWebSocketServer(): void {
-  const port = Number.parseInt(get("WS_PORT") ?? "3002", 10);
-
-  wss = new WebSocketServer({ port });
-
-  wss.on("connection", (ws, req) => {
-    handleConnection(ws, req).catch((err) => {
-      logger.error("Error handling WS connection", { error: String(err) });
-      ws.close(1011, "Internal error");
-    });
-  });
-
-  wss.on("error", (err) => {
-    logger.error("WebSocket server error", { error: String(err) });
-  });
-
-  logger.info("WebSocket server started", { port: String(port) });
-
-  // Start Redis subscription
+function startSharedInfra(): void {
+  // Redis subscription
   try {
     subscriber = getRedis().duplicate();
 
@@ -377,6 +360,64 @@ export function startWebSocketServer(): void {
       }
     }
   }, KEEPALIVE_INTERVAL_MS);
+}
+
+/**
+ * Attaches the events WebSocket handler to an existing HTTP server on the
+ * /ws/events path.  This lets fly.io proxy WS upgrades through its standard
+ * HTTPS listener (port 443 → internal 3000) instead of requiring a second
+ * exposed port (3002) that is blocked by the TLS/HTTP handler layer.
+ */
+export function attachEventServer(httpServer: import("node:http").Server): void {
+  wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+    if (url.pathname !== "/ws/events") {
+      // Not for us — let other handlers (stream-proxy) deal with it
+      return;
+    }
+
+    wss!.handleUpgrade(req, socket as import("net").Socket, head, (ws) => {
+      handleConnection(ws, req).catch((err) => {
+        logger.error("Error handling WS connection", { error: String(err) });
+        ws.close(1011, "Internal error");
+      });
+    });
+  });
+
+  wss.on("error", (err) => {
+    logger.error("WebSocket server error", { error: String(err) });
+  });
+
+  logger.info("Events WebSocket attached to HTTP server at /ws/events");
+
+  startSharedInfra();
+}
+
+/**
+ * @deprecated Use attachEventServer(httpServer) instead.
+ * Kept for local dev scenarios where no HTTP server is available.
+ */
+export function startWebSocketServer(): void {
+  const port = Number.parseInt(get("WS_PORT") ?? "3002", 10);
+
+  wss = new WebSocketServer({ port });
+
+  wss.on("connection", (ws, req) => {
+    handleConnection(ws, req).catch((err) => {
+      logger.error("Error handling WS connection", { error: String(err) });
+      ws.close(1011, "Internal error");
+    });
+  });
+
+  wss.on("error", (err) => {
+    logger.error("WebSocket server error", { error: String(err) });
+  });
+
+  logger.info("WebSocket server started (standalone)", { port: String(port) });
+
+  startSharedInfra();
 }
 
 /**

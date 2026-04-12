@@ -15,7 +15,7 @@ initSentry("osp-gateway");
 
 import { serve } from "@hono/node-server";
 import { app } from "./app.js";
-import { startWebSocketServer, stopWebSocketServer } from "./ws/server.js";
+import { attachEventServer, stopWebSocketServer } from "./ws/server.js";
 import type { Server } from "node:http";
 import { attachStreamProxy } from "./ws/stream-proxy.js";
 import {
@@ -73,27 +73,28 @@ const healthChecker = new CameraHealthChecker();
 async function start(): Promise<void> {
   await checkDependencies();
 
-  // Start the dedicated WebSocket server (includes Redis pub/sub subscription)
-  startWebSocketServer();
-
   // Start periodic camera health checks (every 30s)
   healthChecker.start();
 
   const port = Number.parseInt(get("GATEWAY_PORT") ?? "3000", 10);
-  const wsPort = Number.parseInt(get("WS_PORT") ?? "3002", 10);
 
   const httpServer = serve({
     fetch: app.fetch,
     port,
-  });
+  }) as unknown as Server;
 
   // Attach WebSocket proxy for camera live streams (MSE over WS)
-  attachStreamProxy(httpServer as unknown as Server);
+  attachStreamProxy(httpServer);
+
+  // Attach events WebSocket server on same HTTP server at /ws/events
+  // This allows fly.io to proxy WS upgrades through the standard HTTPS
+  // listener (443 → 3000) instead of a separate port.
+  attachEventServer(httpServer);
 
   const bootTime = Math.round(performance.now() - startTime);
 
   logStartupBanner("OSP API Gateway", port, {
-    websocket: `ws://localhost:${wsPort}`,
+    websocket: `ws://localhost:${port}/ws/events`,
     boot_time: `${bootTime}ms`,
     node: process.version,
     env: get("NODE_ENV") ?? "development",

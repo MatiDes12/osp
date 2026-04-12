@@ -40,24 +40,29 @@ const SEVERITY_ORDER: Record<string, number> = {
 };
 
 function getWsUrl(): string {
-  // Dedicated WebSocket server URL (separate port from the HTTP API)
+  // Explicit override (must include path, e.g. wss://osp-gateway.fly.dev/ws/events)
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
   if (wsUrl) {
-    return wsUrl;
+    // If the override doesn't include a path, append /ws/events
+    const u = new URL(wsUrl);
+    if (u.pathname === "/" || u.pathname === "") {
+      u.pathname = "/ws/events";
+    }
+    return u.toString();
   }
 
-  // Fallback: derive from API URL, replacing protocol and using WS port
+  // Derive from API URL — events WS lives on the same server at /ws/events
+  // (no separate port needed; fly.io proxies WS upgrades through the standard
+  //  HTTPS listener on port 443 → internal 3000)
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
   const isSecure =
     apiUrl.startsWith("https://") ||
     (typeof window !== "undefined" && window.location.protocol === "https:");
   const protocol = isSecure ? "wss:" : "ws:";
 
-  // Extract hostname (without port) and use the dedicated WS port
-  const hostWithPort = apiUrl.replace(/^https?:\/\//, "");
-  const hostname = hostWithPort.split(":")[0] ?? "localhost";
-  const wsPort = process.env.NEXT_PUBLIC_WS_PORT ?? "3002";
-  return `${protocol}//${hostname}:${wsPort}`;
+  // Keep host:port as-is (for local dev the port is part of the API URL)
+  const hostWithPort = apiUrl.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return `${protocol}//${hostWithPort}/ws/events`;
 }
 
 function passesFilter(

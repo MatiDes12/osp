@@ -1513,8 +1513,9 @@ export default function CameraDetailPage() {
               (seekMs - new Date(match.startTime).getTime()) / 1000;
             // Append auth token so the video element can make range requests
             const base = recs[0]!.playbackUrl;
-            // Don't add ?token to local Tauri asset:// URLs
-            if (base.startsWith("asset://") || base.startsWith("local://")) {
+            // Don't add ?token to local Tauri asset:// URLs.
+            // On Windows WebView2, convertFileSrc() returns https://asset.localhost/... not asset://
+            if (base.startsWith("asset://") || base.startsWith("local://") || base.includes("asset.localhost")) {
               apply(base, offsetSec);
             } else {
               const token = localStorage.getItem("osp_access_token");
@@ -1989,7 +1990,8 @@ export default function CameraDetailPage() {
                 // asset:// URLs are served directly by Tauri from local disk —
                 // they don't go through the gateway so no auth token is needed
                 // (and adding ?token= breaks the Tauri asset:// protocol).
-                if (url.startsWith("asset://") || url.startsWith("local://")) {
+                // On Windows WebView2, convertFileSrc() returns https://asset.localhost/... not asset://
+                if (url.startsWith("asset://") || url.startsWith("local://") || url.includes("asset.localhost")) {
                   setPlaybackUrl(url);
                   setPlaybackOffset(offset ?? 0);
                   return;
