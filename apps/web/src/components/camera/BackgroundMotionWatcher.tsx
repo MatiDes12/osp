@@ -38,7 +38,7 @@ function safe(name: string) { return name.replace(/[^a-zA-Z0-9-_]/g, "_"); }
 
 // ─── WHEP helper ─────────────────────────────────────────────────────────────
 
-async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
+function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
   console.debug("[motion] openWhep: connecting to go2rtc for", cameraId);
 
   // Use the same ICE config as LiveViewPlayer — without STUN the browser only
@@ -49,34 +49,12 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
 
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-
-  try {
-    const res = await fetch(`${GO2RTC}/api/webrtc?src=${encodeURIComponent(cameraId)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "offer", sdp: offer.sdp }),
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) {
-      console.warn("[motion] openWhep: go2rtc returned", res.status, "for", cameraId);
-      pc.close(); return null;
-    }
-
-    const text = await res.text();
-    let answerSdp: string;
-    try { answerSdp = (JSON.parse(text) as { sdp?: string }).sdp ?? text; }
-    catch { answerSdp = text; }
-
-    await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-    console.debug("[motion] openWhep: remote description set, ICE state:", pc.iceConnectionState);
-  } catch (err) {
-    console.warn("[motion] openWhep: signaling failed", err);
-    pc.close();
-    return null;
-  }
-
+  // ── Set up ALL handlers BEFORE any signaling ──────────────────────────────
+  // ontrack can fire as a microtask during setRemoteDescription processing.
+  // If we set pc.ontrack after awaiting setRemoteDescription (as we did before)
+  // the event fires before the handler is registered and the track is silently
+  // dropped — which is why ICE connected but no video tracks ever arrived.
+  // This mirrors the ordering in LiveViewPlayer.connectWebRTC.
   return new Promise((resolve) => {
     const stream = new MediaStream();
     let resolved = false;
@@ -90,7 +68,7 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
 
     const timeout = setTimeout(() => {
       const hasVideo = stream.getVideoTracks().length > 0;
-      console.warn("[motion] openWhep: 8s timeout — ICE state:", pc.iceConnectionState, hasVideo ? "has video, resolving" : "NO TRACKS, returning null");
+      console.warn("[motion] openWhep: 8s timeout — ICE:", pc.iceConnectionState, hasVideo ? "has video, resolving" : "NO TRACKS");
       done(hasVideo ? { pc, stream } : null);
     }, 8_000);
 
@@ -99,31 +77,59 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
       console.debug("[motion] openWhep: track received:", e.track.kind, e.track.readyState);
     };
 
-    // Resolve as soon as ICE connects AND we have a video track — mirrors
-    // how LiveViewPlayer waits for oniceconnectionstatechange.
     pc.oniceconnectionstatechange = () => {
       const s = pc.iceConnectionState;
-      console.debug("[motion] openWhep: ICE state →", s);
+      console.debug("[motion] openWhep: ICE →", s);
       if (s === "connected" || s === "completed") {
         if (stream.getVideoTracks().length > 0) {
           done({ pc, stream });
         } else {
-          // ICE connected but tracks haven't arrived yet — wait a moment
+          // Tracks should already be here; give a short grace period in case
+          // the ontrack microtask fires just after the ICE state change.
           setTimeout(() => {
             if (stream.getVideoTracks().length > 0) {
               done({ pc, stream });
             } else {
-              console.warn("[motion] openWhep: ICE connected but no video tracks");
-              done(null);
+              console.warn("[motion] openWhep: ICE connected but still no video tracks");
+              pc.close(); done(null);
             }
-          }, 2_000);
+          }, 500);
         }
       } else if (s === "failed" || s === "disconnected") {
-        console.warn("[motion] openWhep: ICE", s, "— cannot record");
-        pc.close();
-        done(null);
+        console.warn("[motion] openWhep: ICE", s);
+        pc.close(); done(null);
       }
     };
+
+    // ── Signaling (after handlers are wired) ─────────────────────────────────
+    void (async () => {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        const res = await fetch(`${GO2RTC}/api/webrtc?src=${encodeURIComponent(cameraId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "offer", sdp: offer.sdp }),
+          signal: AbortSignal.timeout(8_000),
+        });
+        if (!res.ok) {
+          console.warn("[motion] openWhep: go2rtc returned", res.status);
+          pc.close(); done(null); return;
+        }
+
+        const text = await res.text();
+        let answerSdp: string;
+        try { answerSdp = (JSON.parse(text) as { sdp?: string }).sdp ?? text; }
+        catch { answerSdp = text; }
+
+        await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+        console.debug("[motion] openWhep: remote description set, ICE:", pc.iceConnectionState);
+      } catch (err) {
+        console.warn("[motion] openWhep: signaling failed", err);
+        pc.close(); done(null);
+      }
+    })();
   });
 }
 
