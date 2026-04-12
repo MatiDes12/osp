@@ -59,6 +59,17 @@ export default function LocationDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Parse the cameras list response into CameraSummary[]
+  const parseCameras = useCallback(
+    (raw: Record<string, unknown>[]) =>
+      raw.map((c) => ({
+        id: (c.id ?? "") as string,
+        name: (c.name ?? "") as string,
+        status: (c.status ?? "offline") as string,
+      })),
+    [],
+  );
+
   // Fetch location + ALL cameras from the tenant (not just this location)
   // so the user can link any camera to the floor plan
   useEffect(() => {
@@ -91,14 +102,7 @@ export default function LocationDetailPage({
 
         const camJson = await camRes.json();
         if (camJson.success && camJson.data) {
-          const raw = camJson.data as Record<string, unknown>[];
-          setCameras(
-            raw.map((c) => ({
-              id: (c.id ?? "") as string,
-              name: (c.name ?? "") as string,
-              status: (c.status ?? "offline") as string,
-            })),
-          );
+          setCameras(parseCameras(camJson.data as Record<string, unknown>[]));
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
@@ -108,7 +112,28 @@ export default function LocationDetailPage({
     }
 
     load();
-  }, [id]);
+  }, [id, parseCameras]);
+
+  // Poll camera status every 10 s so linked cameras on the floor plan
+  // reflect the real online/offline state instead of whatever was cached
+  // at page load.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/cameras`, {
+          headers: getAuthHeaders(),
+          signal: AbortSignal.timeout(5000),
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCameras(parseCameras(json.data as Record<string, unknown>[]));
+        }
+      } catch {
+        // Non-critical — keep stale list on failure.
+      }
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [parseCameras]);
 
   // Save floor plan to location
   const handleSaveFloorPlan = useCallback(

@@ -185,18 +185,27 @@ function Window3D({ obj }: { obj: FloorObject }) {
 function Camera3D({
   obj,
   isOnline,
+  cameraStatus,
   cameraName,
   onDoubleClick,
 }: {
   obj: FloorObject;
   isOnline: boolean;
+  cameraStatus?: string;
   cameraName?: string;
   onDoubleClick: () => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const x = obj.x * SCALE;
   const z = obj.y * SCALE;
-  const color = isOnline ? "#22C55E" : obj.cameraId ? "#EF4444" : "#3B82F6";
+  // Green = online, Amber = connecting, Red = offline/error, Blue = unlinked
+  const color = !obj.cameraId
+    ? "#3B82F6"
+    : isOnline
+      ? "#22C55E"
+      : cameraStatus === "offline" || cameraStatus === "error"
+        ? "#EF4444"
+        : "#F59E0B";
   const rot = ((obj.rotation ?? 0) * Math.PI) / 180;
 
   // Gentle floating animation for online cameras
@@ -576,6 +585,7 @@ function SceneContent({
                 key={obj.id}
                 obj={obj}
                 isOnline={linked?.status === "online"}
+                cameraStatus={linked?.status}
                 cameraName={linked?.name}
                 onDoubleClick={() => onCameraClick(obj.id)}
               />

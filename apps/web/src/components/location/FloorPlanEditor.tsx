@@ -303,12 +303,15 @@ function drawObj2D(
     }
     case "camera": {
       const r = 12 * zoom;
-      const isOnline = obj.cameraStatus === "online";
-      const baseColor = isOnline
-        ? "#22C55E"
-        : obj.cameraId
-          ? "#EF4444"
-          : "#3B82F6";
+      const camStatus = obj.cameraStatus;
+      // Green = online, Yellow = connecting, Red = offline/error, Blue = unlinked
+      const baseColor = !obj.cameraId
+        ? "#3B82F6"
+        : camStatus === "online"
+          ? "#22C55E"
+          : camStatus === "offline" || camStatus === "error"
+            ? "#EF4444"
+            : "#F59E0B"; // connecting / unknown → amber
 
       // FOV cone
       const fovLen = 50 * zoom;
@@ -346,14 +349,14 @@ function drawObj2D(
 
       // Status ring
       if (obj.cameraId) {
-        ctx.strokeStyle = isOnline ? "#22C55E" : "#EF4444";
+        ctx.strokeStyle = baseColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(sx, sy, r + 3 * zoom, 0, Math.PI * 2);
         ctx.stroke();
 
         // Pulse for online
-        if (isOnline) {
+        if (camStatus === "online") {
           ctx.strokeStyle = "#22C55E40";
           ctx.lineWidth = 1;
           ctx.beginPath();
@@ -615,47 +618,99 @@ function CameraInlineLive({
 
   // Scale the tile slightly with zoom but clamp so it stays legible
   const width = Math.max(88, Math.min(140, 110 * zoom));
+  const height = Math.round(width * (9 / 16));
+
+  // Local drag offset — tile can be moved around but the tether line stays
+  // anchored to the camera marker on the floor plan.
+  const [dragOff, setDragOff] = useState<Point>({ x: 18, y: -(height + 14) });
+  const draggingRef = useRef(false);
+  const dragMouseRef = useRef<Point>({ x: 0, y: 0 });
+  const dragStartRef = useRef<Point>({ x: 0, y: 0 });
+
+  const tileLeft = screenX + dragOff.x;
+  const tileTop = screenY + dragOff.y;
+  // Tether anchor: center-bottom of the tile → camera dot
+  const tileCenterX = tileLeft + width / 2;
+  const tileCenterY = tileTop + height + 16; // 16 = name row height
 
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenPopup(obj.id);
-      }}
-      className="absolute z-20 rounded-md border border-zinc-700/80 bg-zinc-900/90 backdrop-blur-sm shadow-lg overflow-hidden hover:border-blue-500 transition-colors cursor-pointer"
-      style={{
-        left: screenX + 18,
-        top: screenY - Math.round(width * (9 / 16) + 14),
-        width,
-      }}
-    >
-      <div className="relative aspect-video bg-black">
-        {snapshotUrl ? (
-          <img
-            src={snapshotUrl}
-            alt={camera.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-[9px]">
-            Connecting…
+    <>
+      {/* Tether line from camera dot to preview tile */}
+      <svg
+        className="absolute inset-0 z-10 pointer-events-none"
+        style={{ overflow: "visible" }}
+      >
+        <line
+          x1={screenX}
+          y1={screenY}
+          x2={tileCenterX}
+          y2={tileCenterY}
+          stroke={isLive ? "#22C55E" : "#71717A"}
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          opacity={0.5}
+        />
+      </svg>
+
+      {/* Draggable tile */}
+      <div
+        className="absolute z-20 rounded-md border border-zinc-700/80 bg-zinc-900/90 backdrop-blur-sm shadow-lg overflow-hidden hover:border-blue-500 transition-[border-color] cursor-grab active:cursor-grabbing select-none"
+        style={{ left: tileLeft, top: tileTop, width }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          e.stopPropagation();
+          draggingRef.current = true;
+          dragMouseRef.current = { x: e.clientX, y: e.clientY };
+          dragStartRef.current = { ...dragOff };
+
+          const onMove = (ev: MouseEvent) => {
+            if (!draggingRef.current) return;
+            setDragOff({
+              x: dragStartRef.current.x + (ev.clientX - dragMouseRef.current.x),
+              y: dragStartRef.current.y + (ev.clientY - dragMouseRef.current.y),
+            });
+          };
+          const onUp = () => {
+            draggingRef.current = false;
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+          };
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onOpenPopup(obj.id);
+        }}
+      >
+        <div className="relative aspect-video bg-black">
+          {snapshotUrl ? (
+            <img
+              src={snapshotUrl}
+              alt={camera.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-zinc-600 text-[9px]">
+              Connecting…
+            </div>
+          )}
+          <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 px-1 rounded bg-black/50">
+            <span
+              className={`h-1 w-1 rounded-full ${isLive ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+            />
+            <span
+              className={`text-[7px] font-bold uppercase ${isLive ? "text-green-400" : "text-red-400"}`}
+            >
+              {isLive ? "Live" : "Off"}
+            </span>
           </div>
-        )}
-        <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 px-1 rounded bg-black/50">
-          <span
-            className={`h-1 w-1 rounded-full ${isLive ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
-          />
-          <span
-            className={`text-[7px] font-bold uppercase ${isLive ? "text-green-400" : "text-red-400"}`}
-          >
-            {isLive ? "Live" : "Off"}
-          </span>
         </div>
+        <p className="px-1 py-0.5 text-[8px] font-medium text-zinc-200 truncate text-left">
+          {camera.name}
+        </p>
       </div>
-      <p className="px-1 py-0.5 text-[8px] font-medium text-zinc-200 truncate text-left">
-        {camera.name}
-      </p>
-    </button>
+    </>
   );
 }
 
