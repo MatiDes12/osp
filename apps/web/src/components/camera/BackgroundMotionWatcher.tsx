@@ -40,7 +40,12 @@ function safe(name: string) { return name.replace(/[^a-zA-Z0-9-_]/g, "_"); }
 
 async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
   console.debug("[motion] openWhep: connecting to go2rtc for", cameraId);
-  const pc = new RTCPeerConnection();
+
+  // Use the same ICE config as LiveViewPlayer — without STUN the browser only
+  // generates bare host candidates and ICE connectivity checks fail silently.
+  const pc = new RTCPeerConnection({
+    iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
+  });
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
 
@@ -65,7 +70,7 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
     catch { answerSdp = text; }
 
     await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-    console.debug("[motion] openWhep: remote description set, waiting for tracks...");
+    console.debug("[motion] openWhep: remote description set, ICE state:", pc.iceConnectionState);
   } catch (err) {
     console.warn("[motion] openWhep: signaling failed", err);
     pc.close();
@@ -74,18 +79,49 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
 
   return new Promise((resolve) => {
     const stream = new MediaStream();
+    let resolved = false;
+
+    const done = (result: { pc: RTCPeerConnection; stream: MediaStream } | null) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
     const timeout = setTimeout(() => {
       const hasVideo = stream.getVideoTracks().length > 0;
-      console.warn("[motion] openWhep: 8s timeout —", hasVideo ? "has video, resolving" : "NO TRACKS, returning null");
-      resolve(hasVideo ? { pc, stream } : null);
+      console.warn("[motion] openWhep: 8s timeout — ICE state:", pc.iceConnectionState, hasVideo ? "has video, resolving" : "NO TRACKS, returning null");
+      done(hasVideo ? { pc, stream } : null);
     }, 8_000);
 
     pc.ontrack = (e) => {
       stream.addTrack(e.track);
       console.debug("[motion] openWhep: track received:", e.track.kind, e.track.readyState);
-      if (stream.getVideoTracks().length > 0) {
-        clearTimeout(timeout);
-        resolve({ pc, stream });
+    };
+
+    // Resolve as soon as ICE connects AND we have a video track — mirrors
+    // how LiveViewPlayer waits for oniceconnectionstatechange.
+    pc.oniceconnectionstatechange = () => {
+      const s = pc.iceConnectionState;
+      console.debug("[motion] openWhep: ICE state →", s);
+      if (s === "connected" || s === "completed") {
+        if (stream.getVideoTracks().length > 0) {
+          done({ pc, stream });
+        } else {
+          // ICE connected but tracks haven't arrived yet — wait a moment
+          setTimeout(() => {
+            if (stream.getVideoTracks().length > 0) {
+              done({ pc, stream });
+            } else {
+              console.warn("[motion] openWhep: ICE connected but no video tracks");
+              done(null);
+            }
+          }, 2_000);
+        }
+      } else if (s === "failed" || s === "disconnected") {
+        console.warn("[motion] openWhep: ICE", s, "— cannot record");
+        pc.close();
+        done(null);
       }
     };
   });
