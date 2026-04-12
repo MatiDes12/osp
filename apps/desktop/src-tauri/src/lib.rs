@@ -346,10 +346,11 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let autostart = MenuItem::with_id(app, "autostart", "Start at Login", true, None::<&str>)?;
+    let devtools = MenuItem::with_id(app, "devtools", "Open DevTools", true, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "Quit OSP", true, None::<&str>)?;
 
-    let menu = Menu::with_items(app, &[&show, &sep1, &autostart, &sep2, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &sep1, &autostart, &devtools, &sep2, &quit])?;
 
     TrayIconBuilder::with_id("osp-tray")
         .tooltip("OSP — Open Surveillance Platform")
@@ -370,6 +371,11 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
                     let _ = mgr.disable();
                 } else {
                     let _ = mgr.enable();
+                }
+            }
+            "devtools" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.open_devtools();
                 }
             }
             "quit" => {
