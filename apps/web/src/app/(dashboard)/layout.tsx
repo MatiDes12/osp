@@ -14,6 +14,7 @@ import { useSidebarStore } from "@/stores/sidebar";
 import { useRouteLogger } from "@/hooks/use-action-logger";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useCameras } from "@/hooks/use-cameras";
+import { BackgroundMotionWatcher } from "@/components/camera/BackgroundMotionWatcher";
 import { useTraySync } from "@/hooks/use-tray-sync";
 import { useTauriAgent } from "@/hooks/use-tauri-agent";
 import { useSyncEngine } from "@/hooks/use-sync-engine";
@@ -87,6 +88,9 @@ export default function DashboardLayout({
 
       {/* Mobile bottom navigation */}
       <MobileNav />
+
+      {/* Background motion detection for desktop — no-op on web */}
+      <BackgroundMotionWatcher cameras={cameras} />
 
       <ToastContainer />
       <ShortcutsModal

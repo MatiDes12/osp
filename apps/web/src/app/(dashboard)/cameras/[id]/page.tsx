@@ -1317,9 +1317,6 @@ export default function CameraDetailPage() {
     startCaptureRef.current = startCapture;
     stopCaptureRef.current = stopCapture;
   });
-  const isMotionRecordingRef = useRef(false);
-  const motionTailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Playback state
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackOffset, setPlaybackOffset] = useState(0);
@@ -1394,36 +1391,6 @@ export default function CameraDetailPage() {
     } catch {}
   }, []);
 
-  // Local frame-diff motion handler — fires from LiveViewPlayer's canvas detector.
-  // No cloud, no WebSocket, no tunnel needed. Works offline.
-  const handleLocalMotion = useCallback((_intensity: number) => {
-    if (!isTauri()) return;
-    if (camera?.config?.recordingMode !== "motion") return;
-    // Don't interfere with a manual recording already in progress.
-    if (isRecording && !isMotionRecordingRef.current) return;
-
-    if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
-
-    if (!isMotionRecordingRef.current) {
-      isMotionRecordingRef.current = true;
-      void startCaptureRef.current("motion");
-    }
-
-    motionTailTimerRef.current = setTimeout(() => {
-      motionTailTimerRef.current = null;
-      if (isMotionRecordingRef.current) {
-        isMotionRecordingRef.current = false;
-        stopCaptureRef.current();
-      }
-    }, 5_000);
-  }, [camera?.config?.recordingMode, isRecording]);
-
-  // Clean up tail timer on unmount
-  useEffect(() => {
-    return () => {
-      if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
-    };
-  }, []);
 
   const handleTimelineSeek = useCallback(
     async (timestamp: string) => {
@@ -1838,7 +1805,6 @@ export default function CameraDetailPage() {
             cameraName={camera.name}
             className="w-full aspect-video"
             twoWayAudioSupported={camera.capabilities.twoWayAudio}
-            onMotion={isTauri() && camera.config?.recordingMode === "motion" ? handleLocalMotion : undefined}
           />
 
           <ZoneDrawer

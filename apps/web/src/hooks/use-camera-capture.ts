@@ -454,14 +454,12 @@ export function useCameraCapture(
         }
       };
 
-      // No timeslice: collect the entire recording in one blob so the WebM has
-      // a single, contiguous cluster with correct timestamps from start to end.
-      // Multi-chunk concatenation from WebRTC sources can produce timestamp
-      // drift between clusters that makes playback appear laggy or stuttery.
-      // All data lands in ondataavailable when stop() is called.
-      // At 1.2 Mbps a 10-min recording is ~90 MB in memory — acceptable.
+      // 200ms timeslice: forces a timestamp checkpoint into the WebM container
+      // every 200ms so seek/playback works correctly.  Small enough to avoid the
+      // inter-cluster drift seen with 2000ms chunks; chunks concatenate cleanly
+      // because WebM continuation segments share the same header + timeline.
       console.debug("[capture] MediaRecorder starting, mimeType =", mimeType, "trigger =", trigger);
-      recorder.start();
+      recorder.start(200);
       setIsRecording(true);
       setRecordingStartTime(Date.now());
     },

@@ -12,8 +12,6 @@ interface LiveViewPlayerProps {
   readonly className?: string;
   readonly onError?: (error: string) => void;
   readonly twoWayAudioSupported?: boolean;
-  /** Called with motion intensity 0–100 when local frame-diff detects movement. */
-  readonly onMotion?: (intensity: number) => void;
 }
 
 interface StreamInfo {
@@ -635,7 +633,6 @@ export function LiveViewPlayer({
   className,
   onError,
   twoWayAudioSupported = false,
-  onMotion,
 }: LiveViewPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -670,81 +667,6 @@ export function LiveViewPlayer({
     streamInfoRef.current = streamInfo;
   }, [streamInfo]);
 
-  // Local frame-diff motion detector — runs entirely in the browser, no cloud.
-  // Samples the live video at 2 fps onto a tiny 160×90 canvas, computes per-pixel
-  // grayscale diff vs the previous frame, and fires onMotion(intensity) whenever
-  // the fraction of changed pixels exceeds the threshold.
-  const onMotionRef = useRef(onMotion);
-  onMotionRef.current = onMotion;
-  useEffect(() => {
-    if (!onMotion) return; // only run when caller wants motion events
-
-    const SAMPLE_W = 160;
-    const SAMPLE_H = 90;
-    const PIXEL_DIFF_THRESHOLD = 15;   // 0–255 luminance change to count as changed
-    const MOTION_RATIO_THRESHOLD = 0.015; // 1.5% of pixels changed → motion
-
-    const canvas = document.createElement("canvas");
-    canvas.width = SAMPLE_W;
-    canvas.height = SAMPLE_H;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-
-    let prevData: Uint8ClampedArray | null = null;
-    let handle: ReturnType<typeof setInterval> | null = null;
-
-    const sample = () => {
-      const video = videoRef.current;
-      if (!video || video.readyState < 2 || video.paused) return;
-
-      ctx.drawImage(video, 0, 0, SAMPLE_W, SAMPLE_H);
-      const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H);
-
-      if (prevData) {
-        let changed = 0;
-        const total = SAMPLE_W * SAMPLE_H;
-        for (let i = 0; i < data.length; i += 4) {
-          const lum = (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
-          const prevLum = (prevData[i]! + prevData[i + 1]! + prevData[i + 2]!) / 3;
-          if (Math.abs(lum - prevLum) > PIXEL_DIFF_THRESHOLD) changed++;
-        }
-        const ratio = changed / total;
-        if (ratio >= MOTION_RATIO_THRESHOLD) {
-          onMotionRef.current?.(Math.min(100, Math.round(ratio * 400)));
-        }
-      }
-
-      prevData = new Uint8ClampedArray(data);
-    };
-
-    // Start sampling once the video is playing
-    const startSampling = () => {
-      if (handle) return;
-      handle = setInterval(sample, 500);
-    };
-    const stopSampling = () => {
-      if (handle) { clearInterval(handle); handle = null; }
-      prevData = null;
-    };
-
-    const video = videoRef.current;
-    if (video) {
-      video.addEventListener("playing", startSampling);
-      video.addEventListener("pause", stopSampling);
-      video.addEventListener("ended", stopSampling);
-      if (!video.paused && video.readyState >= 2) startSampling();
-    }
-
-    return () => {
-      stopSampling();
-      if (video) {
-        video.removeEventListener("playing", startSampling);
-        video.removeEventListener("pause", stopSampling);
-        video.removeEventListener("ended", stopSampling);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!onMotion]);
 
   // Fetch a snapshot immediately to show while WebRTC connects.
   // Uses the shared fetchCameraSnapshot helper so Tauri/web/HTTP-fallback
