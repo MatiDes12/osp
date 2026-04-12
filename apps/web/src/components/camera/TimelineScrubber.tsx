@@ -810,6 +810,66 @@ export function TimelineScrubber({
         )}
       </div>
 
+      {/* ── Snapshot strip ── */}
+      {(() => {
+        const snaps = renderedEvents.filter((e) => e.thumbnailUrl);
+        if (snaps.length === 0) return null;
+        return (
+          <div className="px-3 pb-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Camera className="w-3 h-3 text-zinc-500" />
+              <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-medium">
+                Snapshots
+              </span>
+              <span className="text-[9px] text-zinc-700">
+                ({snaps.length})
+              </span>
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-track-zinc-900 scrollbar-thumb-zinc-700">
+              {snaps.map((evt) => {
+                const ec = getEvtColor(evt.type);
+                return (
+                  <button
+                    key={evt.eventId}
+                    onClick={() =>
+                      setSnapshotModal({
+                        src: evt.thumbnailUrl!,
+                        label: ec.label,
+                        timestamp: evt.timestamp,
+                      })
+                    }
+                    className="shrink-0 group relative rounded-lg border border-zinc-800 hover:border-zinc-600 overflow-hidden bg-black cursor-pointer transition-colors"
+                    style={{ width: 112 }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={evt.thumbnailUrl!}
+                      alt={`${ec.label} snapshot`}
+                      className="w-full aspect-video object-cover group-hover:brightness-110 transition-[filter]"
+                    />
+                    {/* Overlay badges */}
+                    <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 px-1 rounded bg-black/60">
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: ec.dot }}
+                      />
+                      <span className="text-[7px] font-bold text-zinc-200">
+                        {ec.label}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 inset-x-0 px-1 py-0.5 bg-gradient-to-t from-black/80 to-transparent">
+                      <span className="text-[8px] text-zinc-300 font-mono">
+                        {formatHHMMSS(new Date(evt.timestamp))}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Snapshot lightbox modal ── */}
       {snapshotModal && (
         <div

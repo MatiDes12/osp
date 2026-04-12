@@ -107,7 +107,7 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
       .order("start_time", { ascending: true }),
     supabase
       .from("events")
-      .select("id, type, severity, detected_at, metadata")
+      .select("id, type, severity, detected_at, metadata, snapshot_url")
       .eq("tenant_id", tenantId)
       .eq("camera_id", cameraId)
       .gte("detected_at", dayStart)
@@ -132,7 +132,9 @@ recordingRoutes.get("/timeline", requireAuth("viewer"), async (c) => {
     type: e.type as string,
     severity: e.severity as string,
     timestamp: e.detected_at as string,
+    // Prefer the dedicated snapshot_url column; fall back to metadata.snapshotUrl
     thumbnailUrl:
+      (e.snapshot_url as string | null) ??
       ((e.metadata as Record<string, unknown>)?.snapshotUrl as string | null) ??
       null,
   }));
