@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -420,7 +421,7 @@ export function TimelineScrubber({
     );
   }
 
-  return (
+  const scrubber = (
     <div
       className={`bg-zinc-900/80 rounded-xl border border-zinc-800 backdrop-blur-sm ${className ?? ""}`}
     >
@@ -885,15 +886,22 @@ export function TimelineScrubber({
         );
       })()}
 
-      {/* ── Snapshot lightbox modal ── */}
-      {snapshotModal && (
+    </div>
+  );
+
+  // Render modal via portal at document.body — escapes ancestor stacking contexts
+  // and ancestor transforms that break position:fixed containment.
+  const modal = snapshotModal
+    ? createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ zIndex: 9999 }}
           onClick={() => setSnapshotModal(null)}
         >
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
           <div
-            className="relative z-10 max-w-3xl w-full mx-4 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden"
+            className="relative max-w-3xl w-full mx-4 rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden"
+            style={{ zIndex: 10000 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
@@ -958,8 +966,15 @@ export function TimelineScrubber({
               </a>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
+  return (
+    <>
+      {scrubber}
+      {modal}
+    </>
   );
 }

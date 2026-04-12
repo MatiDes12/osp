@@ -52,17 +52,18 @@ import {
   transformRecordings,
   isSnakeCaseRow,
 } from "@/lib/transforms";
-import { isTauri, convertFileSrc } from "@/lib/tauri";
+import { isTauri, readLocalFileAsUrl } from "@/lib/tauri";
 import { SnapshotThumb } from "@/components/SnapshotThumb";
 import { useCameraCapture } from "@/hooks/use-camera-capture";
 
-/** Resolve a recording's playback URL for the current environment. */
-function resolvePlaybackUrl(url: string): string | null {
-  if (url.startsWith("local://")) {
-    if (!isTauri()) return null;
-    return convertFileSrc(url.replace("local://", ""));
-  }
-  return url;
+/** Resolve a local:// recording path to a playable blob URL via Tauri IPC.
+ *  Returns null when not in Tauri or the file can't be read. */
+async function resolveLocalPlaybackUrl(url: string): Promise<string | null> {
+  if (!url.startsWith("local://")) return url;
+  if (!isTauri()) return null;
+  const localPath = url.replace("local://", "");
+  const mime = localPath.toLowerCase().endsWith(".mp4") ? "video/mp4" : "video/webm";
+  return readLocalFileAsUrl(localPath, mime);
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -305,9 +306,12 @@ function RecordingTab({
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            {rec.playbackUrl && resolvePlaybackUrl(rec.playbackUrl) && (
+            {rec.playbackUrl && (
               <button
-                onClick={() => onPlay(resolvePlaybackUrl(rec.playbackUrl)!, 0)}
+                onClick={async () => {
+                  const url = await resolveLocalPlaybackUrl(rec.playbackUrl!);
+                  if (url) onPlay(url, 0);
+                }}
                 className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors cursor-pointer"
                 title="Play recording"
               >
@@ -1444,12 +1448,11 @@ export default function CameraDetailPage() {
           if (recs.length > 0 && recs[0]!.playbackUrl) {
             const offsetSec =
               (seekMs - new Date(match.startTime).getTime()) / 1000;
-            // Append auth token so the video element can make range requests
             const base = recs[0]!.playbackUrl;
-            // Don't add ?token to local Tauri asset:// URLs.
-            // On Windows WebView2, convertFileSrc() returns https://asset.localhost/... not asset://
-            if (base.startsWith("asset://") || base.startsWith("local://") || base.includes("asset.localhost")) {
-              apply(base, offsetSec);
+            if (base.startsWith("local://")) {
+              // Read via IPC to get a blob URL — asset.localhost doesn't work on external origins
+              const blobUrl = await resolveLocalPlaybackUrl(base);
+              if (blobUrl) apply(blobUrl, offsetSec);
             } else {
               const token = localStorage.getItem("osp_access_token");
               const authedUrl = token
@@ -1920,11 +1923,9 @@ export default function CameraDetailPage() {
             <RecordingTab
               cameraId={camera.id}
               onPlay={(url, offset) => {
-                // asset:// URLs are served directly by Tauri from local disk —
-                // they don't go through the gateway so no auth token is needed
-                // (and adding ?token= breaks the Tauri asset:// protocol).
-                // On Windows WebView2, convertFileSrc() returns https://asset.localhost/... not asset://
-                if (url.startsWith("asset://") || url.startsWith("local://") || url.includes("asset.localhost")) {
+                // blob: URLs (local files read via IPC) and asset:// URLs
+                // don't need an auth token — just set directly.
+                if (url.startsWith("blob:") || url.startsWith("asset://") || url.includes("asset.localhost")) {
                   setPlaybackUrl(url);
                   setPlaybackOffset(offset ?? 0);
                   return;
