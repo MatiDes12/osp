@@ -14,6 +14,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useTimeline } from "@/hooks/use-recordings";
+import { readLocalFileAsUrl } from "@/lib/tauri";
+import { SnapshotThumb } from "@/components/SnapshotThumb";
 
 interface TimelineScrubberProps {
   readonly cameraId: string;
@@ -170,11 +172,26 @@ export function TimelineScrubber({
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("24h");
   const [zoomCenterHour, setZoomCenterHour] = useState(12); // hour of day the zoom window is centered on
   const [snapshotModal, setSnapshotModal] = useState<{
-    src: string;
+    src: string; // raw URL (may be local://)
     label: string;
     timestamp: string;
   } | null>(null);
+  const [modalResolvedSrc, setModalResolvedSrc] = useState<string | null>(null);
   const [nowPercent, setNowPercent] = useState<number | null>(null);
+
+  // Resolve local:// modal URLs via IPC so asset.localhost isn't needed
+  useEffect(() => {
+    if (!snapshotModal) { setModalResolvedSrc(null); return; }
+    const raw = snapshotModal.src;
+    if (raw.startsWith("local://")) {
+      setModalResolvedSrc(null);
+      void readLocalFileAsUrl(raw.replace("local://", ""), "image/jpeg").then(
+        (url) => setModalResolvedSrc(url ?? raw),
+      );
+    } else {
+      setModalResolvedSrc(raw);
+    }
+  }, [snapshotModal]);
 
   useEffect(() => {
     if (date) setCurrentDate(date);
@@ -673,11 +690,10 @@ export function TimelineScrubber({
                     {hover.nearEvent ? (
                       <div className="bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl overflow-hidden text-left min-w-[150px]">
                         {hover.nearEvent.thumbnailUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={hover.nearEvent.thumbnailUrl}
+                          <SnapshotThumb
+                            snapshotUrl={hover.nearEvent.thumbnailUrl}
                             alt="Event snapshot"
-                            className="w-full h-20 object-cover"
+                            className="w-full h-20 rounded-none"
                           />
                         )}
                         <div className="px-2.5 py-2 space-y-1">
@@ -841,11 +857,10 @@ export function TimelineScrubber({
                     className="shrink-0 group relative rounded-lg border border-zinc-800 hover:border-zinc-600 overflow-hidden bg-black cursor-pointer transition-colors"
                     style={{ width: 112 }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={evt.thumbnailUrl!}
+                    <SnapshotThumb
+                      snapshotUrl={evt.thumbnailUrl}
                       alt={`${ec.label} snapshot`}
-                      className="w-full aspect-video object-cover group-hover:brightness-110 transition-[filter]"
+                      className="w-full aspect-video rounded-none"
                     />
                     {/* Overlay badges */}
                     <div className="absolute top-0.5 left-0.5 flex items-center gap-0.5 px-1 rounded bg-black/60">
@@ -906,12 +921,18 @@ export function TimelineScrubber({
                 </svg>
               </button>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={snapshotModal.src}
-              alt={`${snapshotModal.label} snapshot`}
-              className="w-full object-contain max-h-[70vh] bg-black"
-            />
+            {modalResolvedSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={modalResolvedSrc}
+                alt={`${snapshotModal.label} snapshot`}
+                className="w-full object-contain max-h-[70vh] bg-black"
+              />
+            ) : (
+              <div className="w-full h-48 flex items-center justify-center bg-black">
+                <div className="w-5 h-5 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+              </div>
+            )}
             <div className="flex items-center justify-between px-4 py-2 border-t border-zinc-800">
               <button
                 onClick={() => {
