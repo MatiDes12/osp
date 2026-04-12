@@ -16,6 +16,7 @@
 import { useEffect, useRef } from "react";
 import { isTauri } from "@/lib/tauri";
 import { useStorageSettings } from "@/stores/storage-settings";
+import { useMonitoringStore } from "@/stores/monitoring";
 import type { Camera } from "@osp/shared";
 
 const GO2RTC = "http://localhost:1984";
@@ -38,6 +39,7 @@ function safe(name: string) { return name.replace(/[^a-zA-Z0-9-_]/g, "_"); }
 // ─── WHEP helper ─────────────────────────────────────────────────────────────
 
 async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
+  console.debug("[motion] openWhep: connecting to go2rtc for", cameraId);
   const pc = new RTCPeerConnection();
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
@@ -52,7 +54,10 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
       body: JSON.stringify({ type: "offer", sdp: offer.sdp }),
       signal: AbortSignal.timeout(8_000),
     });
-    if (!res.ok) { pc.close(); return null; }
+    if (!res.ok) {
+      console.warn("[motion] openWhep: go2rtc returned", res.status, "for", cameraId);
+      pc.close(); return null;
+    }
 
     const text = await res.text();
     let answerSdp: string;
@@ -60,7 +65,9 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
     catch { answerSdp = text; }
 
     await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-  } catch {
+    console.debug("[motion] openWhep: remote description set, waiting for tracks...");
+  } catch (err) {
+    console.warn("[motion] openWhep: signaling failed", err);
     pc.close();
     return null;
   }
@@ -68,11 +75,14 @@ async function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stre
   return new Promise((resolve) => {
     const stream = new MediaStream();
     const timeout = setTimeout(() => {
-      resolve(stream.getVideoTracks().length > 0 ? { pc, stream } : null);
+      const hasVideo = stream.getVideoTracks().length > 0;
+      console.warn("[motion] openWhep: 8s timeout —", hasVideo ? "has video, resolving" : "NO TRACKS, returning null");
+      resolve(hasVideo ? { pc, stream } : null);
     }, 8_000);
 
     pc.ontrack = (e) => {
       stream.addTrack(e.track);
+      console.debug("[motion] openWhep: track received:", e.track.kind, e.track.readyState);
       if (stream.getVideoTracks().length > 0) {
         clearTimeout(timeout);
         resolve({ pc, stream });
@@ -102,6 +112,9 @@ interface Watcher {
   // settings (kept as refs so saves see current values)
   recordingsPathRef: { current: string | null };
   saveModeRef: { current: string };
+  /** When true, global continuous recording is active — skip WHEP recording,
+   *  only post the event/snapshot so it appears on the timeline. */
+  recordingEnabledRef: { current: boolean };
   _eventThrottle: number; // epoch ms of last posted event — throttle to 1 per 10s
   destroyed: boolean;
 }
@@ -114,7 +127,11 @@ function pickMime(hasAudio: boolean): string {
 }
 
 async function saveRecording(w: Watcher, blob: Blob, startIso: string) {
-  if (blob.size === 0) return;
+  console.debug("[motion] saveRecording:", w.cameraName, "blob size:", blob.size);
+  if (blob.size === 0) {
+    console.warn("[motion] saveRecording: blob is empty — MediaRecorder produced no data (ICE may not have connected in time)");
+    return;
+  }
   const filename = `${safe(w.cameraName)}-${isoTag(startIso)}.webm`;
 
   const invoke = (window as unknown as {
@@ -153,6 +170,7 @@ async function saveRecording(w: Watcher, blob: Blob, startIso: string) {
 }
 
 function stopRecording(w: Watcher) {
+  console.debug("[motion] stopRecording:", w.cameraName, "| recorder state:", w.recorder?.state ?? "null");
   if (w.recorder && w.recorder.state !== "inactive") {
     try { w.recorder.stop(); } catch { /* ignore */ }
   }
@@ -164,6 +182,7 @@ async function startRecording(w: Watcher) {
   if (w.starting) return; // openWhep already in-flight — don't open a second connection
   if (w.recorder && w.recorder.state !== "inactive") return; // already recording
 
+  console.debug("[motion] startRecording: opening WHEP for", w.cameraName);
   w.starting = true;
   const result = await openWhep(w.cameraId);
   w.starting = false;
@@ -171,6 +190,7 @@ async function startRecording(w: Watcher) {
   // If the tail timer already fired while we were connecting (motion was brief
   // and WHEP was slow), abort — don't start a recording that will never stop.
   if (!result || w.destroyed || w.tailTimer === null) {
+    console.warn("[motion] startRecording: aborting —", !result ? "WHEP returned null" : w.destroyed ? "watcher destroyed" : "tail timer already fired");
     result?.pc.close();
     return;
   }
@@ -179,7 +199,10 @@ async function startRecording(w: Watcher) {
   const { stream } = result;
 
   const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === "live");
-  if (videoTracks.length === 0) { result.pc.close(); w.pc = null; return; }
+  if (videoTracks.length === 0) {
+    console.warn("[motion] startRecording: no live video tracks after WHEP");
+    result.pc.close(); w.pc = null; return;
+  }
 
   const hasAudio = stream.getAudioTracks().some((t) => t.readyState === "live");
   const mimeType = pickMime(hasAudio);
@@ -209,23 +232,43 @@ async function startRecording(w: Watcher) {
     void saveRecording(w, blob, iso);
   };
 
+  console.debug("[motion] MediaRecorder starting, mime:", mimeType, "camera:", w.cameraName);
   recorder.start(200);
 }
 
 function onMotion(w: Watcher) {
-  if (!w.starting && (!w.recorder || w.recorder.state === "inactive")) {
-    void startRecording(w);
-  }
-  if (w.tailTimer) clearTimeout(w.tailTimer);
-  w.tailTimer = setTimeout(() => {
-    w.tailTimer = null;
-    stopRecording(w);
-  }, TAIL_MS);
+  const globalRecordingOn = w.recordingEnabledRef.current;
+  console.debug("[motion] detected on", w.cameraName, "| globalRecording:", globalRecordingOn, "| recorder state:", w.recorder?.state ?? "null", "| starting:", w.starting);
 
-  // Post motion event to gateway so it appears in the sidebar and triggers
-  // WS notifications. Fire-and-forget — recording is not blocked by this.
+  if (globalRecordingOn) {
+    // Continuous recording is already running for this camera via the global
+    // toggle — don't start another WHEP recording. Just post the event so
+    // the snapshot appears on the timeline.
+  } else {
+    // Motion-triggered recording: start WHEP if not already recording.
+    if (!w.starting && (!w.recorder || w.recorder.state === "inactive")) {
+      void startRecording(w);
+    }
+    if (w.tailTimer) clearTimeout(w.tailTimer);
+    w.tailTimer = setTimeout(() => {
+      w.tailTimer = null;
+      stopRecording(w);
+    }, TAIL_MS);
+  }
+
+  // Post motion event to gateway (throttled to 1 per 10s) so it appears on
+  // the timeline and triggers WS notifications. Capture a snapshot from the
+  // canvas for the thumbnail.
   if (!w._eventThrottle || Date.now() - w._eventThrottle > 10_000) {
     w._eventThrottle = Date.now();
+
+    // Try to get a base64 snapshot from the current canvas frame
+    let snapshotDataUrl: string | null = null;
+    try {
+      snapshotDataUrl = w.canvas.toDataURL("image/jpeg", 0.7);
+      if (snapshotDataUrl === "data:,") snapshotDataUrl = null;
+    } catch { /* ignore */ }
+
     void fetch(`${API_URL}/api/v1/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
@@ -235,6 +278,7 @@ function onMotion(w: Watcher) {
         severity: "medium",
         intensity: 60,
         metadata: { source: "local_frame_diff" },
+        ...(snapshotDataUrl ? { snapshotUrl: snapshotDataUrl } : {}),
       }),
     }).catch(() => { /* non-critical */ });
   }
@@ -279,6 +323,7 @@ function createWatcher(
   cam: Camera,
   recordingsPathRef: { current: string | null },
   saveModeRef: { current: string },
+  recordingEnabledRef: { current: boolean },
 ): Watcher | null {
   const canvas = document.createElement("canvas");
   canvas.width = SAMPLE_W;
@@ -302,6 +347,7 @@ function createWatcher(
     tailTimer: null,
     recordingsPathRef,
     saveModeRef,
+    recordingEnabledRef,
     _eventThrottle: 0,
     destroyed: false,
   };
@@ -321,11 +367,15 @@ function destroyWatcher(w: Watcher) {
 
 export function BackgroundMotionWatcher({ cameras }: { readonly cameras: readonly Camera[] }) {
   const { saveMode, recordingsPath } = useStorageSettings();
+  const { recordingEnabled } = useMonitoringStore();
   const watchersRef = useRef<Map<string, Watcher>>(new Map());
   const saveModeRef = useRef(saveMode);
   const recordingsPathRef = useRef(recordingsPath);
+  const recordingEnabledRef = useRef(recordingEnabled);
   saveModeRef.current = saveMode;
   recordingsPathRef.current = recordingsPath;
+  // Keep ref in sync so running watchers pick up changes without remounting
+  recordingEnabledRef.current = recordingEnabled;
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -344,7 +394,7 @@ export function BackgroundMotionWatcher({ cameras }: { readonly cameras: readonl
     }
     for (const cam of wanted) {
       if (!map.has(cam.id)) {
-        const w = createWatcher(cam, recordingsPathRef, saveModeRef);
+        const w = createWatcher(cam, recordingsPathRef, saveModeRef, recordingEnabledRef);
         if (w) map.set(cam.id, w);
       }
     }
