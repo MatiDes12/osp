@@ -6,11 +6,10 @@
  * Lives in the dashboard layout so it survives page navigation.
  * Completely local — no gateway, no WebSocket, no cloud.
  *
- * Detection: polls go2rtc /api/frame.jpeg every second, canvas frame-diff.
- * Recording: opens a direct WHEP WebRTC connection to go2rtc when motion
- *            is detected, records from the resulting MediaStream (no
- *            captureStream() needed — same path as LiveViewPlayer).
- * Saving:    Tauri save_recording invoke → DB row via gateway.
+ * Motion detection:  polls go2rtc /api/frame.jpeg every second, canvas frame-diff.
+ * Motion recording:  WHEP WebRTC → MediaRecorder, saved on tail timeout.
+ * Scheduled/global:  separate ContRec objects record all cameras continuously
+ *                    while recordingEnabled=true; saved when recording stops.
  */
 
 import { useEffect, useRef } from "react";
@@ -41,20 +40,12 @@ function safe(name: string) { return name.replace(/[^a-zA-Z0-9-_]/g, "_"); }
 function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
   console.debug("[motion] openWhep: connecting to go2rtc for", cameraId);
 
-  // Use the same ICE config as LiveViewPlayer — without STUN the browser only
-  // generates bare host candidates and ICE connectivity checks fail silently.
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
   });
   pc.addTransceiver("video", { direction: "recvonly" });
   pc.addTransceiver("audio", { direction: "recvonly" });
 
-  // ── Set up ALL handlers BEFORE any signaling ──────────────────────────────
-  // ontrack can fire as a microtask during setRemoteDescription processing.
-  // If we set pc.ontrack after awaiting setRemoteDescription (as we did before)
-  // the event fires before the handler is registered and the track is silently
-  // dropped — which is why ICE connected but no video tracks ever arrived.
-  // This mirrors the ordering in LiveViewPlayer.connectWebRTC.
   return new Promise((resolve) => {
     const stream = new MediaStream();
     let resolved = false;
@@ -84,8 +75,6 @@ function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: Me
         if (stream.getVideoTracks().length > 0) {
           done({ pc, stream });
         } else {
-          // Tracks should already be here; give a short grace period in case
-          // the ontrack microtask fires just after the ICE state change.
           setTimeout(() => {
             if (stream.getVideoTracks().length > 0) {
               done({ pc, stream });
@@ -101,7 +90,6 @@ function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: Me
       }
     };
 
-    // ── Signaling (after handlers are wired) ─────────────────────────────────
     void (async () => {
       try {
         const offer = await pc.createOffer();
@@ -133,48 +121,23 @@ function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: Me
   });
 }
 
-// ─── Per-camera watcher state ─────────────────────────────────────────────────
+// ─── Shared save helper ───────────────────────────────────────────────────────
 
-interface Watcher {
-  cameraId: string;
-  cameraName: string;
-  // detection
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  prevPixels: Uint8ClampedArray | null;
-  pollTimer: ReturnType<typeof setInterval> | null;
-  // recording
-  pc: RTCPeerConnection | null;
-  recorder: MediaRecorder | null;
-  starting: boolean; // true while openWhep is in-flight — prevents concurrent starts
-  chunks: Blob[];
-  mimeType: string;
-  startIso: string | null;
-  tailTimer: ReturnType<typeof setTimeout> | null;
-  // settings (kept as refs so saves see current values)
-  recordingsPathRef: { current: string | null };
-  saveModeRef: { current: string };
-  /** When true, global continuous recording is active — skip WHEP recording,
-   *  only post the event/snapshot so it appears on the timeline. */
-  recordingEnabledRef: { current: boolean };
-  _eventThrottle: number; // epoch ms of last posted event — throttle to 1 per 10s
-  destroyed: boolean;
-}
-
-function pickMime(hasAudio: boolean): string {
-  const c = hasAudio
-    ? ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm"]
-    : ["video/webm;codecs=vp8", "video/webm;codecs=vp9", "video/webm"];
-  return c.find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm";
-}
-
-async function saveRecording(w: Watcher, blob: Blob, startIso: string) {
-  console.debug("[motion] saveRecording:", w.cameraName, "blob size:", blob.size);
+async function saveBlob(
+  cameraId: string,
+  cameraName: string,
+  blob: Blob,
+  startIso: string,
+  trigger: "motion" | "scheduled",
+  recordingsPathRef: { current: string | null },
+  saveModeRef: { current: string },
+) {
   if (blob.size === 0) {
-    console.warn("[motion] saveRecording: blob is empty — MediaRecorder produced no data (ICE may not have connected in time)");
+    console.warn(`[motion] saveBlob: empty blob for ${cameraName}`);
     return;
   }
-  const filename = `${safe(w.cameraName)}-${isoTag(startIso)}.webm`;
+  console.debug(`[motion] saveBlob: ${cameraName} size=${blob.size} trigger=${trigger}`);
+  const filename = `${safe(cameraName)}-${isoTag(startIso)}.webm`;
 
   const invoke = (window as unknown as {
     __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> };
@@ -190,14 +153,17 @@ async function saveRecording(w: Watcher, blob: Blob, startIso: string) {
       savedPath = (await invoke("save_recording", {
         filename,
         dataBase64: btoa(bin),
-        customDir: w.recordingsPathRef.current || null,
+        customDir: recordingsPathRef.current || null,
       })) as string;
-    } catch { /* ignore */ }
+      console.debug(`[motion] saveBlob: saved to ${savedPath}`);
+    } catch (err) {
+      console.warn("[motion] saveBlob: Tauri invoke failed", err);
+    }
   }
 
-  if (!savedPath || w.saveModeRef.current === "local_only") return;
+  if (!savedPath || saveModeRef.current === "local_only") return;
   try {
-    await fetch(`${API_URL}/api/v1/cameras/${w.cameraId}/record/local`, {
+    await fetch(`${API_URL}/api/v1/cameras/${cameraId}/record/local`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({
@@ -205,14 +171,44 @@ async function saveRecording(w: Watcher, blob: Blob, startIso: string) {
         endTime: new Date().toISOString(),
         localFilePath: savedPath,
         sizeBytes: blob.size,
-        trigger: "motion",
+        trigger,
       }),
     });
   } catch { /* non-critical */ }
 }
 
+// ─── Motion-triggered watcher ─────────────────────────────────────────────────
+
+interface Watcher {
+  cameraId: string;
+  cameraName: string;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  prevPixels: Uint8ClampedArray | null;
+  pollTimer: ReturnType<typeof setInterval> | null;
+  pc: RTCPeerConnection | null;
+  recorder: MediaRecorder | null;
+  starting: boolean;
+  chunks: Blob[];
+  mimeType: string;
+  startIso: string | null;
+  tailTimer: ReturnType<typeof setTimeout> | null;
+  recordingsPathRef: { current: string | null };
+  saveModeRef: { current: string };
+  recordingEnabledRef: { current: boolean };
+  _eventThrottle: number;
+  destroyed: boolean;
+}
+
+function pickMime(hasAudio: boolean): string {
+  const c = hasAudio
+    ? ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm"]
+    : ["video/webm;codecs=vp8", "video/webm;codecs=vp9", "video/webm"];
+  return c.find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm";
+}
+
 function stopRecording(w: Watcher) {
-  console.debug("[motion] stopRecording:", w.cameraName, "| recorder state:", w.recorder?.state ?? "null");
+  console.debug("[motion] stopRecording:", w.cameraName, "| state:", w.recorder?.state ?? "null");
   if (w.recorder && w.recorder.state !== "inactive") {
     try { w.recorder.stop(); } catch { /* ignore */ }
   }
@@ -221,18 +217,17 @@ function stopRecording(w: Watcher) {
 }
 
 async function startRecording(w: Watcher) {
-  if (w.starting) return; // openWhep already in-flight — don't open a second connection
-  if (w.recorder && w.recorder.state !== "inactive") return; // already recording
+  if (w.starting) return;
+  if (w.recorder && w.recorder.state !== "inactive") return;
 
   console.debug("[motion] startRecording: opening WHEP for", w.cameraName);
   w.starting = true;
   const result = await openWhep(w.cameraId);
   w.starting = false;
 
-  // If the tail timer already fired while we were connecting (motion was brief
-  // and WHEP was slow), abort — don't start a recording that will never stop.
   if (!result || w.destroyed || w.tailTimer === null) {
-    console.warn("[motion] startRecording: aborting —", !result ? "WHEP returned null" : w.destroyed ? "watcher destroyed" : "tail timer already fired");
+    console.warn("[motion] startRecording: aborting —",
+      !result ? "WHEP null" : w.destroyed ? "destroyed" : "tail timer fired");
     result?.pc.close();
     return;
   }
@@ -241,8 +236,8 @@ async function startRecording(w: Watcher) {
   const { stream } = result;
 
   const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === "live");
-  if (videoTracks.length === 0) {
-    console.warn("[motion] startRecording: no live video tracks after WHEP");
+  if (!videoTracks.length) {
+    console.warn("[motion] startRecording: no live video tracks");
     result.pc.close(); w.pc = null; return;
   }
 
@@ -266,12 +261,12 @@ async function startRecording(w: Watcher) {
 
   recorder.ondataavailable = (e) => { if (e.data.size > 0) w.chunks.push(e.data); };
   recorder.onstop = () => {
-    if (w.destroyed) return;
+    // Always save — even if the watcher was destroyed during recording.
     const blob = new Blob(w.chunks, { type: w.mimeType });
     const iso = w.startIso ?? new Date().toISOString();
     w.startIso = null;
     w.chunks = [];
-    void saveRecording(w, blob, iso);
+    void saveBlob(w.cameraId, w.cameraName, blob, iso, "motion", w.recordingsPathRef, w.saveModeRef);
   };
 
   console.debug("[motion] MediaRecorder starting, mime:", mimeType, "camera:", w.cameraName);
@@ -280,14 +275,13 @@ async function startRecording(w: Watcher) {
 
 function onMotion(w: Watcher) {
   const globalRecordingOn = w.recordingEnabledRef.current;
-  console.debug("[motion] detected on", w.cameraName, "| globalRecording:", globalRecordingOn, "| recorder state:", w.recorder?.state ?? "null", "| starting:", w.starting);
+  console.debug("[motion] detected on", w.cameraName,
+    "| globalRec:", globalRecordingOn,
+    "| recorder:", w.recorder?.state ?? "null",
+    "| starting:", w.starting);
 
-  if (globalRecordingOn) {
-    // Continuous recording is already running for this camera via the global
-    // toggle — don't start another WHEP recording. Just post the event so
-    // the snapshot appears on the timeline.
-  } else {
-    // Motion-triggered recording: start WHEP if not already recording.
+  if (!globalRecordingOn) {
+    // Motion-triggered recording — only when global recording is OFF.
     if (!w.starting && (!w.recorder || w.recorder.state === "inactive")) {
       void startRecording(w);
     }
@@ -297,14 +291,12 @@ function onMotion(w: Watcher) {
       stopRecording(w);
     }, TAIL_MS);
   }
+  // When global recording is ON, continuous recorders (ContRec) handle saving.
+  // Still post the motion event so the timeline shows the detection.
 
-  // Post motion event to gateway (throttled to 1 per 10s) so it appears on
-  // the timeline and triggers WS notifications. Capture a snapshot from the
-  // canvas for the thumbnail.
   if (!w._eventThrottle || Date.now() - w._eventThrottle > 10_000) {
     w._eventThrottle = Date.now();
 
-    // Try to get a base64 snapshot from the current canvas frame
     let snapshotDataUrl: string | null = null;
     try {
       snapshotDataUrl = w.canvas.toDataURL("image/jpeg", 0.7);
@@ -327,7 +319,6 @@ function onMotion(w: Watcher) {
 }
 
 async function sampleFrame(w: Watcher) {
-  // Fetch a JPEG snapshot from go2rtc
   let imgBlob: Blob;
   try {
     const res = await fetch(
@@ -338,7 +329,6 @@ async function sampleFrame(w: Watcher) {
     imgBlob = await res.blob();
   } catch { return; }
 
-  // Draw onto canvas and diff vs previous frame
   const bitmap = await createImageBitmap(imgBlob).catch(() => null);
   if (!bitmap) return;
 
@@ -405,29 +395,106 @@ function destroyWatcher(w: Watcher) {
   stopRecording(w);
 }
 
+// ─── Continuous recording (scheduled / global recording ON) ───────────────────
+
+interface ContRec {
+  cameraId: string;
+  cameraName: string;
+  pc: RTCPeerConnection | null;
+  recorder: MediaRecorder | null;
+  starting: boolean;
+  chunks: Blob[];
+  mimeType: string;
+  startIso: string | null;
+  recordingsPathRef: { current: string | null };
+  saveModeRef: { current: string };
+}
+
+async function startContRec(cr: ContRec): Promise<void> {
+  if (cr.starting) return;
+  if (cr.recorder && cr.recorder.state !== "inactive") return;
+
+  console.debug("[contRec] starting WHEP for", cr.cameraName);
+  cr.starting = true;
+  const result = await openWhep(cr.cameraId);
+  cr.starting = false;
+
+  if (!result) {
+    console.warn("[contRec] WHEP returned null for", cr.cameraName);
+    return;
+  }
+
+  cr.pc = result.pc;
+  const { stream } = result;
+
+  const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === "live");
+  if (!videoTracks.length) {
+    console.warn("[contRec] no live video tracks for", cr.cameraName);
+    result.pc.close(); cr.pc = null; return;
+  }
+
+  const hasAudio = stream.getAudioTracks().some((t) => t.readyState === "live");
+  const mimeType = pickMime(hasAudio);
+  cr.mimeType = mimeType;
+
+  const recStream = new MediaStream();
+  for (const t of videoTracks) recStream.addTrack(t);
+  if (hasAudio) stream.getAudioTracks().filter((t) => t.readyState === "live").forEach((t) => recStream.addTrack(t));
+
+  cr.chunks = [];
+  cr.startIso = new Date().toISOString();
+
+  const recorder = new MediaRecorder(recStream, {
+    mimeType,
+    videoBitsPerSecond: 1_500_000,
+    ...(hasAudio ? { audioBitsPerSecond: 64_000 } : {}),
+  });
+  cr.recorder = recorder;
+
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) cr.chunks.push(e.data); };
+  recorder.onstop = () => {
+    const blob = new Blob(cr.chunks, { type: cr.mimeType });
+    const iso = cr.startIso ?? new Date().toISOString();
+    cr.startIso = null;
+    cr.chunks = [];
+    void saveBlob(cr.cameraId, cr.cameraName, blob, iso, "scheduled", cr.recordingsPathRef, cr.saveModeRef);
+  };
+
+  console.debug("[contRec] MediaRecorder starting for", cr.cameraName, "mime:", mimeType);
+  recorder.start(200);
+}
+
+function stopContRec(cr: ContRec) {
+  console.debug("[contRec] stopping", cr.cameraName, "| state:", cr.recorder?.state ?? "null");
+  if (cr.recorder && cr.recorder.state !== "inactive") {
+    try { cr.recorder.stop(); } catch { /* ignore */ }
+  }
+  cr.recorder = null;
+  if (cr.pc) { cr.pc.close(); cr.pc = null; }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function BackgroundMotionWatcher({ cameras }: { readonly cameras: readonly Camera[] }) {
   const { saveMode, recordingsPath } = useStorageSettings();
   const { recordingEnabled } = useMonitoringStore();
+
   const watchersRef = useRef<Map<string, Watcher>>(new Map());
+  const contRecsRef = useRef<Map<string, ContRec>>(new Map());
+
   const saveModeRef = useRef(saveMode);
   const recordingsPathRef = useRef(recordingsPath);
   const recordingEnabledRef = useRef(recordingEnabled);
+
   saveModeRef.current = saveMode;
   recordingsPathRef.current = recordingsPath;
-  // Keep ref in sync so running watchers pick up changes without remounting
   recordingEnabledRef.current = recordingEnabled;
 
+  // ── Motion-detection watchers (recordingMode === "motion" cameras) ──────────
   useEffect(() => {
     if (!isTauri()) return;
 
-    // Don't filter by status — in the desktop app the cloud health-checker
-    // can't reach local go2rtc so cameras stay "connecting" indefinitely.
-    // If a camera has no stream, sampleFrame() fails silently on every poll.
-    const wanted = cameras.filter(
-      (c) => c.config?.recordingMode === "motion",
-    );
+    const wanted = cameras.filter((c) => c.config?.recordingMode === "motion");
     const wantedIds = new Set(wanted.map((c) => c.id));
     const map = watchersRef.current;
 
@@ -442,10 +509,54 @@ export function BackgroundMotionWatcher({ cameras }: { readonly cameras: readonl
     }
   }, [cameras]);
 
+  // ── Continuous recorders (all cameras when global recording is ON) ──────────
+  useEffect(() => {
+    if (!isTauri()) return;
+
+    const cmap = contRecsRef.current;
+
+    if (recordingEnabled) {
+      const wantedIds = new Set(cameras.map((c) => c.id));
+
+      // Remove stale
+      for (const [id, cr] of cmap) {
+        if (!wantedIds.has(id)) { stopContRec(cr); cmap.delete(id); }
+      }
+
+      // Add new
+      for (const cam of cameras) {
+        if (!cmap.has(cam.id)) {
+          const cr: ContRec = {
+            cameraId: cam.id,
+            cameraName: cam.name,
+            pc: null,
+            recorder: null,
+            starting: false,
+            chunks: [],
+            mimeType: "video/webm",
+            startIso: null,
+            recordingsPathRef,
+            saveModeRef,
+          };
+          cmap.set(cam.id, cr);
+          void startContRec(cr);
+        }
+      }
+    } else {
+      // Recording turned off — stop all continuous recordings (onstop will save)
+      for (const cr of cmap.values()) stopContRec(cr);
+      cmap.clear();
+    }
+  }, [recordingEnabled, cameras]);
+
+  // ── Cleanup on unmount ──────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       for (const w of watchersRef.current.values()) destroyWatcher(w);
       watchersRef.current.clear();
+      // Stop continuous recorders — onstop handlers will fire and save
+      for (const cr of contRecsRef.current.values()) stopContRec(cr);
+      contRecsRef.current.clear();
     };
   }, []);
 
