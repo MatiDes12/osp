@@ -39,7 +39,6 @@ import { TimelineScrubber } from "@/components/camera/TimelineScrubber";
 import { HLSPlayer } from "@/components/camera/HLSPlayer";
 import { useRecordings } from "@/hooks/use-recordings";
 import { useEvents } from "@/hooks/use-events";
-import { useEventStream } from "@/hooks/use-event-stream";
 import type {
   Camera as CameraType,
   CameraZone,
@@ -1395,62 +1394,29 @@ export default function CameraDetailPage() {
     } catch {}
   }, []);
 
-  // Motion-triggered recording (desktop / Tauri only).
-  // Subscribe to real-time motion events for this camera. On each event we
-  // start recording (if not already active) and reset a 5-second tail timer.
-  // When the timer fires with no new motion the recording stops.
-  //
-  // This is the only motion-record dispatcher on the client — it goes
-  // through useCameraCapture so the MediaRecorder setup/teardown is shared
-  // with manual recording. In cloud mode, motion auto-record is handled
-  // server-side by MotionRecorderService.
-  const { events: liveMotionEvents } = useEventStream({
-    cameraIds: cameraId ? [cameraId] : [],
-    eventTypes: ["motion"],
-  });
-  const lastMotionEventIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!isTauri()) {
-      console.debug("[motion-rec] skipped: not Tauri");
-      return;
-    }
-    if (camera?.config?.recordingMode !== "motion") {
-      console.debug("[motion-rec] skipped: recordingMode =", camera?.config?.recordingMode);
-      return;
-    }
-
-    const latest = liveMotionEvents[0];
-    if (!latest || latest.id === lastMotionEventIdRef.current) return;
-    lastMotionEventIdRef.current = latest.id;
-
-    console.debug("[motion-rec] motion event received, id =", latest.id, "isRecording =", isRecording, "isMotionRecording =", isMotionRecordingRef.current);
-
+  // Local frame-diff motion handler — fires from LiveViewPlayer's canvas detector.
+  // No cloud, no WebSocket, no tunnel needed. Works offline.
+  const handleLocalMotion = useCallback((_intensity: number) => {
+    if (!isTauri()) return;
+    if (camera?.config?.recordingMode !== "motion") return;
     // Don't interfere with a manual recording already in progress.
-    if (isRecording && !isMotionRecordingRef.current) {
-      console.debug("[motion-rec] skipped: manual recording in progress");
-      return;
-    }
+    if (isRecording && !isMotionRecordingRef.current) return;
 
     if (motionTailTimerRef.current) clearTimeout(motionTailTimerRef.current);
 
     if (!isMotionRecordingRef.current) {
       isMotionRecordingRef.current = true;
-      console.debug("[motion-rec] starting motion recording...");
       void startCaptureRef.current("motion");
-    } else {
-      console.debug("[motion-rec] extending tail (already recording)");
     }
 
     motionTailTimerRef.current = setTimeout(() => {
       motionTailTimerRef.current = null;
       if (isMotionRecordingRef.current) {
-        console.debug("[motion-rec] tail expired, stopping...");
         isMotionRecordingRef.current = false;
         stopCaptureRef.current();
       }
     }, 5_000);
-  }, [liveMotionEvents, camera?.config?.recordingMode, isRecording]);
+  }, [camera?.config?.recordingMode, isRecording]);
 
   // Clean up tail timer on unmount
   useEffect(() => {
@@ -1872,6 +1838,7 @@ export default function CameraDetailPage() {
             cameraName={camera.name}
             className="w-full aspect-video"
             twoWayAudioSupported={camera.capabilities.twoWayAudio}
+            onMotion={isTauri() && camera.config?.recordingMode === "motion" ? handleLocalMotion : undefined}
           />
 
           <ZoneDrawer
