@@ -94,6 +94,8 @@ interface UseTimelineReturn {
 export function useTimeline(
   cameraId: string | undefined,
   date: string | undefined,
+  /** Auto-refresh interval in ms.  Pass 0 to disable.  Default 15 s. */
+  refreshMs = 15_000,
 ): UseTimelineReturn {
   const [timeline, setTimeline] = useState<TimelineResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,6 +127,13 @@ export function useTimeline(
   useEffect(() => {
     fetchTimeline();
   }, [fetchTimeline]);
+
+  // Auto-refresh so new recordings / events show up without a page reload.
+  useEffect(() => {
+    if (!cameraId || !date || refreshMs <= 0) return;
+    const id = setInterval(() => void fetchTimeline(), refreshMs);
+    return () => clearInterval(id);
+  }, [cameraId, date, refreshMs, fetchTimeline]);
 
   return { timeline, loading };
 }
