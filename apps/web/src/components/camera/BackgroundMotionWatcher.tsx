@@ -19,8 +19,7 @@ import { useMonitoringStore } from "@/stores/monitoring";
 import type { Camera } from "@osp/shared";
 
 const GO2RTC = "http://localhost:1984";
-const POLL_MS = 500;           // poll every 500ms for snappier detection
-const WHEP_RECONNECT_MS = 5_000; // retry delay after WHEP failure
+const POLL_MS = 1_000;
 const SAMPLE_W = 160;
 const SAMPLE_H = 90;
 const PIXEL_DIFF_THRESHOLD = 15;
@@ -183,24 +182,17 @@ async function saveBlob(
 interface Watcher {
   cameraId: string;
   cameraName: string;
-  // detection
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   prevPixels: Uint8ClampedArray | null;
   pollTimer: ReturnType<typeof setInterval> | null;
-  // pre-connected WHEP — kept alive between motion events so recording
-  // starts instantly when motion is detected (no connection delay)
   pc: RTCPeerConnection | null;
-  stream: MediaStream | null;
-  connecting: boolean;
-  reconnectTimer: ReturnType<typeof setTimeout> | null;
-  // active recording
   recorder: MediaRecorder | null;
+  starting: boolean;
   chunks: Blob[];
   mimeType: string;
   startIso: string | null;
   tailTimer: ReturnType<typeof setTimeout> | null;
-  // settings refs
   recordingsPathRef: { current: string | null };
   saveModeRef: { current: string };
   recordingEnabledRef: { current: boolean };
@@ -215,74 +207,47 @@ function pickMime(hasAudio: boolean): string {
   return c.find((m) => MediaRecorder.isTypeSupported(m)) ?? "video/webm";
 }
 
-/**
- * Eagerly open and keep a WHEP connection alive.
- * Called once on watcher creation and again after any disconnect.
- * When motion fires, the stream is already here — recorder starts instantly.
- */
-async function connectWhep(w: Watcher): Promise<void> {
-  if (w.connecting || w.destroyed) return;
-  // Already have a live connection
-  if (w.pc && w.pc.iceConnectionState !== "failed" && w.pc.iceConnectionState !== "closed") return;
+function stopRecording(w: Watcher) {
+  console.debug("[motion] stopRecording:", w.cameraName, "| state:", w.recorder?.state ?? "null");
+  if (w.recorder && w.recorder.state !== "inactive") {
+    try { w.recorder.stop(); } catch { /* ignore */ }
+  }
+  w.recorder = null;
+  if (w.pc) { w.pc.close(); w.pc = null; }
+}
 
-  w.connecting = true;
-  console.debug("[motion] connectWhep: connecting for", w.cameraName);
+async function startRecording(w: Watcher) {
+  if (w.starting) return;
+  if (w.recorder && w.recorder.state !== "inactive") return;
 
+  console.debug("[motion] startRecording: opening WHEP for", w.cameraName);
+  w.starting = true;
   const result = await openWhep(w.cameraId);
-  w.connecting = false;
+  w.starting = false;
 
-  if (!result || w.destroyed) {
-    if (!w.destroyed) {
-      console.warn("[motion] connectWhep: failed for", w.cameraName, "— retry in", WHEP_RECONNECT_MS, "ms");
-      w.reconnectTimer = setTimeout(() => { void connectWhep(w); }, WHEP_RECONNECT_MS);
-    }
+  if (!result || w.destroyed || w.tailTimer === null) {
+    console.warn("[motion] startRecording: aborting —",
+      !result ? "WHEP null" : w.destroyed ? "destroyed" : "tail timer fired");
+    result?.pc.close();
     return;
   }
 
   w.pc = result.pc;
-  w.stream = result.stream;
-  console.debug("[motion] connectWhep: ready for", w.cameraName);
+  const { stream } = result;
 
-  // Watch for disconnects and reconnect automatically
-  result.pc.addEventListener("iceconnectionstatechange", () => {
-    const s = result.pc.iceConnectionState;
-    if (s === "failed" || s === "closed") {
-      console.warn("[motion] connectWhep: ICE", s, "for", w.cameraName, "— reconnecting");
-      // Stop recorder if running so onstop saves what we have
-      if (w.recorder && w.recorder.state !== "inactive") {
-        try { w.recorder.stop(); } catch { /* ignore */ }
-      }
-      w.recorder = null;
-      w.pc = null;
-      w.stream = null;
-      if (!w.destroyed) {
-        w.reconnectTimer = setTimeout(() => { void connectWhep(w); }, WHEP_RECONNECT_MS);
-      }
-    }
-  });
-}
-
-/**
- * Start MediaRecorder on the already-connected stream.
- * No WHEP negotiation — this returns instantly.
- */
-function startRecorder(w: Watcher): void {
-  if (!w.stream) return;
-  if (w.recorder && w.recorder.state !== "inactive") return;
-
-  const videoTracks = w.stream.getVideoTracks().filter((t) => t.readyState === "live");
+  const videoTracks = stream.getVideoTracks().filter((t) => t.readyState === "live");
   if (!videoTracks.length) {
-    console.warn("[motion] startRecorder: no live video tracks for", w.cameraName);
-    return;
+    console.warn("[motion] startRecording: no live video tracks");
+    result.pc.close(); w.pc = null; return;
   }
 
-  const hasAudio = w.stream.getAudioTracks().some((t) => t.readyState === "live");
+  const hasAudio = stream.getAudioTracks().some((t) => t.readyState === "live");
   const mimeType = pickMime(hasAudio);
   w.mimeType = mimeType;
 
   const recStream = new MediaStream();
   for (const t of videoTracks) recStream.addTrack(t);
-  if (hasAudio) w.stream.getAudioTracks().filter((t) => t.readyState === "live").forEach((t) => recStream.addTrack(t));
+  if (hasAudio) stream.getAudioTracks().filter((t) => t.readyState === "live").forEach((t) => recStream.addTrack(t));
 
   w.chunks = [];
   w.startIso = new Date().toISOString();
@@ -296,6 +261,7 @@ function startRecorder(w: Watcher): void {
 
   recorder.ondataavailable = (e) => { if (e.data.size > 0) w.chunks.push(e.data); };
   recorder.onstop = () => {
+    // Always save — even if the watcher was destroyed during recording.
     const blob = new Blob(w.chunks, { type: w.mimeType });
     const iso = w.startIso ?? new Date().toISOString();
     w.startIso = null;
@@ -303,47 +269,30 @@ function startRecorder(w: Watcher): void {
     void saveBlob(w.cameraId, w.cameraName, blob, iso, "motion", w.recordingsPathRef, w.saveModeRef);
   };
 
-  console.debug("[motion] startRecorder: recording for", w.cameraName, "mime:", mimeType);
+  console.debug("[motion] MediaRecorder starting, mime:", mimeType, "camera:", w.cameraName);
   recorder.start(200);
-}
-
-/**
- * Stop the recorder (triggers save via onstop) but keep WHEP alive
- * so the next motion event can start recording instantly.
- */
-function stopRecorder(w: Watcher): void {
-  console.debug("[motion] stopRecorder:", w.cameraName, "| state:", w.recorder?.state ?? "null");
-  if (w.recorder && w.recorder.state !== "inactive") {
-    try { w.recorder.stop(); } catch { /* ignore */ }
-  }
-  w.recorder = null;
-  // Intentionally do NOT close w.pc / w.stream — keep WHEP alive for next event
 }
 
 function onMotion(w: Watcher) {
   const globalRecordingOn = w.recordingEnabledRef.current;
-  console.debug("[motion] detected:", w.cameraName,
-    "| whep:", w.pc?.iceConnectionState ?? "null",
-    "| recorder:", w.recorder?.state ?? "null");
+  console.debug("[motion] detected on", w.cameraName,
+    "| globalRec:", globalRecordingOn,
+    "| recorder:", w.recorder?.state ?? "null",
+    "| starting:", w.starting);
 
   if (!globalRecordingOn) {
-    // Reset tail timer on every motion ping
+    // Motion-triggered recording — only when global recording is OFF.
+    if (!w.starting && (!w.recorder || w.recorder.state === "inactive")) {
+      void startRecording(w);
+    }
     if (w.tailTimer) clearTimeout(w.tailTimer);
     w.tailTimer = setTimeout(() => {
       w.tailTimer = null;
-      stopRecorder(w);
+      stopRecording(w);
     }, TAIL_MS);
-
-    if (!w.recorder || w.recorder.state === "inactive") {
-      if (w.stream && w.stream.getVideoTracks().some((t) => t.readyState === "live")) {
-        // WHEP already connected — start immediately, zero delay
-        startRecorder(w);
-      } else if (!w.connecting) {
-        // Not connected yet — connect now; next motion ping will start the recorder
-        void connectWhep(w);
-      }
-    }
   }
+  // When global recording is ON, continuous recorders (ContRec) handle saving.
+  // Still post the motion event so the timeline shows the detection.
 
   if (!w._eventThrottle || Date.now() - w._eventThrottle > 10_000) {
     w._eventThrottle = Date.now();
@@ -422,10 +371,8 @@ function createWatcher(
     prevPixels: null,
     pollTimer: null,
     pc: null,
-    stream: null,
-    connecting: false,
-    reconnectTimer: null,
     recorder: null,
+    starting: false,
     chunks: [],
     mimeType: "video/webm",
     startIso: null,
@@ -437,8 +384,6 @@ function createWatcher(
     destroyed: false,
   };
 
-  // Pre-connect WHEP immediately so the stream is live before motion happens
-  void connectWhep(w);
   w.pollTimer = setInterval(() => { void sampleFrame(w); }, POLL_MS);
   return w;
 }
@@ -447,10 +392,7 @@ function destroyWatcher(w: Watcher) {
   w.destroyed = true;
   if (w.pollTimer) { clearInterval(w.pollTimer); w.pollTimer = null; }
   if (w.tailTimer) { clearTimeout(w.tailTimer); w.tailTimer = null; }
-  if (w.reconnectTimer) { clearTimeout(w.reconnectTimer); w.reconnectTimer = null; }
-  stopRecorder(w);
-  if (w.pc) { w.pc.close(); w.pc = null; }
-  w.stream = null;
+  stopRecording(w);
 }
 
 // ─── Continuous recording (scheduled / global recording ON) ───────────────────
