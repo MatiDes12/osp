@@ -390,14 +390,28 @@ export default function CamerasPage() {
 
       {/* Camera grid */}
       {!loading && !error && (
-        <CameraGrid
-          cameras={filteredCameras}
-          selectable={selectedCameraIds.size > 0}
-          selectedIds={selectedCameraIds}
-          onToggleSelect={handleToggleSelect}
-          cameraTagsMap={cameraTagsMap}
-          activeRecordingCameraIds={activeRecordingCameraIds}
-        />
+        <>
+          {filteredCameras.length === 0 && cameras.length > 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-lg">
+              <p className="text-sm font-medium text-zinc-400 mb-1">
+                No cameras match your filters
+              </p>
+              <p className="text-xs text-zinc-500">
+                Try adjusting your search, location, or tag filters.
+              </p>
+            </div>
+          ) : (
+            <CameraGrid
+              cameras={filteredCameras}
+              selectable={selectedCameraIds.size > 0}
+              selectedIds={selectedCameraIds}
+              onToggleSelect={handleToggleSelect}
+              cameraTagsMap={cameraTagsMap}
+              activeRecordingCameraIds={activeRecordingCameraIds}
+              onAddCamera={cameras.length === 0 ? () => setDialogOpen(true) : undefined}
+            />
+          )}
+        </>
       )}
 
       {/* Bulk action bar */}

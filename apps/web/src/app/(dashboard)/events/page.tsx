@@ -643,6 +643,12 @@ export default function EventsPage() {
     setExportOpen(false);
   }, [filteredEvents]);
 
+  const handleBulkExport = useCallback(() => {
+    const selected = filteredEvents.filter((e) => selectedIds.has(e.id));
+    exportEventsCSV(selected);
+    showToast(`Exported ${selected.length} selected events as CSV`, "success");
+  }, [filteredEvents, selectedIds]);
+
   const isDev =
     process.env.NODE_ENV === "development" ||
     process.env.NEXT_PUBLIC_DEV_MODE === "true";
@@ -999,9 +1005,12 @@ export default function EventsPage() {
               <span className="hidden sm:inline">Acknowledge All</span>
               <span className="sm:hidden">Ack All</span>
             </button>
-            <button className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer">
+            <button
+              onClick={handleBulkExport}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors duration-150 cursor-pointer"
+            >
               <Download className="w-3.5 h-3.5" />
-              Export
+              Export CSV
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -1020,8 +1029,7 @@ export default function EventsPage() {
             className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/10 border-b border-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/15 transition-colors duration-150 cursor-pointer shrink-0"
           >
             <ArrowDown className="w-3 h-3 rotate-180" />
-            {newWsEventCount} new {newWsEventCount === 1 ? "event" : "events"}{" "}
-            -- click to scroll up
+            {newWsEventCount} new {newWsEventCount === 1 ? "event" : "events"} — click to scroll up
           </button>
         )}
 

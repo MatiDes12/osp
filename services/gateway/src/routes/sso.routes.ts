@@ -17,6 +17,7 @@ import { Hono } from "hono";
 import type { Env } from "../app.js";
 import { getSupabase, getAuthSupabase } from "../lib/supabase.js";
 import { ApiError } from "../middleware/error-handler.js";
+import { requireAuth } from "../middleware/auth.js";
 import { createSuccessResponse } from "@osp/shared";
 import { get } from "../lib/config.js";
 import { createLogger } from "../lib/logger.js";
@@ -311,13 +312,10 @@ ssoRoutes.post("/session", async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-//  GET /config — list this tenant's SSO provider configs
+//  GET /config — list this tenant's SSO provider configs (admin/owner only)
 // ---------------------------------------------------------------------------
-ssoRoutes.get("/config", async (c) => {
+ssoRoutes.get("/config", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
-  if (!tenantId)
-    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
-
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("sso_configs")
@@ -332,17 +330,10 @@ ssoRoutes.get("/config", async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-//  PUT /config/:provider — upsert provider config (owner/admin only)
+//  PUT /config/:provider — upsert provider config (admin/owner only)
 // ---------------------------------------------------------------------------
-ssoRoutes.put("/config/:provider", async (c) => {
+ssoRoutes.put("/config/:provider", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
-  const userRole = c.get("userRole");
-  if (!tenantId)
-    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
-  if (!["owner", "admin"].includes(userRole)) {
-    throw new ApiError("AUTH_FORBIDDEN", "Owner or admin role required", 403);
-  }
-
   const provider = c.req.param("provider") as SsoProvider;
   if (!["google", "azure", "github"].includes(provider)) {
     throw new ApiError("AUTH_SSO_INVALID_PROVIDER", "Invalid provider", 400);
@@ -381,17 +372,10 @@ ssoRoutes.put("/config/:provider", async (c) => {
 });
 
 // ---------------------------------------------------------------------------
-//  DELETE /config/:provider — disable / remove provider
+//  DELETE /config/:provider — disable / remove provider (admin/owner only)
 // ---------------------------------------------------------------------------
-ssoRoutes.delete("/config/:provider", async (c) => {
+ssoRoutes.delete("/config/:provider", requireAuth("admin"), async (c) => {
   const tenantId = c.get("tenantId");
-  const userRole = c.get("userRole");
-  if (!tenantId)
-    throw new ApiError("AUTH_REQUIRED", "Authentication required", 401);
-  if (!["owner", "admin"].includes(userRole)) {
-    throw new ApiError("AUTH_FORBIDDEN", "Owner or admin role required", 403);
-  }
-
   const provider = c.req.param("provider");
   const supabase = getSupabase();
 

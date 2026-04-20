@@ -65,7 +65,7 @@ async function resolveGo2rtcStatus(
 ): Promise<ServiceStatus | null> {
   // Tauri desktop or plain HTTP: probe go2rtc sidecar on localhost directly
   if (isTauri() || window.location.protocol !== "https:") {
-    return probeGo2rtc("http://localhost:1984");
+    return probeGo2rtc(process.env.NEXT_PUBLIC_GO2RTC_URL ?? "http://localhost:1984");
   }
   // HTTPS: use gateway proxy endpoint (server-side fetch avoids CORS)
   try {

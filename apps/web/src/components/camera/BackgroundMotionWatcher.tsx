@@ -18,7 +18,13 @@ import { useStorageSettings } from "@/stores/storage-settings";
 import { useMonitoringStore } from "@/stores/monitoring";
 import type { Camera } from "@osp/shared";
 
-const GO2RTC = "http://localhost:1984";
+const GO2RTC = process.env.NEXT_PUBLIC_GO2RTC_URL ?? "http://localhost:1984";
+
+// Debug logging — only emits in development builds, no-op in production.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const dbg: (...a: any[]) => void =
+  process.env.NODE_ENV === "development" ? console.debug.bind(console) : () => {};
+
 const POLL_MS = 1_000;
 const SAMPLE_W = 160;
 const SAMPLE_H = 90;
@@ -38,7 +44,7 @@ function safe(name: string) { return name.replace(/[^a-zA-Z0-9-_]/g, "_"); }
 // ─── WHEP helper ─────────────────────────────────────────────────────────────
 
 function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: MediaStream } | null> {
-  console.debug("[motion] openWhep: connecting to go2rtc for", cameraId);
+  dbg("[motion] openWhep: connecting to go2rtc for", cameraId);
 
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }],
@@ -65,12 +71,12 @@ function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: Me
 
     pc.ontrack = (e) => {
       stream.addTrack(e.track);
-      console.debug("[motion] openWhep: track received:", e.track.kind, e.track.readyState);
+      dbg("[motion] openWhep: track received:", e.track.kind, e.track.readyState);
     };
 
     pc.oniceconnectionstatechange = () => {
       const s = pc.iceConnectionState;
-      console.debug("[motion] openWhep: ICE →", s);
+      dbg("[motion] openWhep: ICE →", s);
       if (s === "connected" || s === "completed") {
         if (stream.getVideoTracks().length > 0) {
           done({ pc, stream });
@@ -112,7 +118,7 @@ function openWhep(cameraId: string): Promise<{ pc: RTCPeerConnection; stream: Me
         catch { answerSdp = text; }
 
         await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
-        console.debug("[motion] openWhep: remote description set, ICE:", pc.iceConnectionState);
+        dbg("[motion] openWhep: remote description set, ICE:", pc.iceConnectionState);
       } catch (err) {
         console.warn("[motion] openWhep: signaling failed", err);
         pc.close(); done(null);
@@ -136,7 +142,7 @@ async function saveBlob(
     console.warn(`[motion] saveBlob: empty blob for ${cameraName}`);
     return;
   }
-  console.debug(`[motion] saveBlob: ${cameraName} size=${blob.size} trigger=${trigger}`);
+  dbg(`[motion] saveBlob: ${cameraName} size=${blob.size} trigger=${trigger}`);
   const filename = `${safe(cameraName)}-${isoTag(startIso)}.webm`;
 
   const invoke = (window as unknown as {
@@ -155,7 +161,7 @@ async function saveBlob(
         dataBase64: btoa(bin),
         customDir: recordingsPathRef.current || null,
       })) as string;
-      console.debug(`[motion] saveBlob: saved to ${savedPath}`);
+      dbg(`[motion] saveBlob: saved to ${savedPath}`);
     } catch (err) {
       console.warn("[motion] saveBlob: Tauri invoke failed", err);
     }
@@ -208,7 +214,7 @@ function pickMime(hasAudio: boolean): string {
 }
 
 function stopRecording(w: Watcher) {
-  console.debug("[motion] stopRecording:", w.cameraName, "| state:", w.recorder?.state ?? "null");
+  dbg("[motion] stopRecording:", w.cameraName, "| state:", w.recorder?.state ?? "null");
   if (w.recorder && w.recorder.state !== "inactive") {
     try { w.recorder.stop(); } catch { /* ignore */ }
   }
@@ -220,7 +226,7 @@ async function startRecording(w: Watcher) {
   if (w.starting) return;
   if (w.recorder && w.recorder.state !== "inactive") return;
 
-  console.debug("[motion] startRecording: opening WHEP for", w.cameraName);
+  dbg("[motion] startRecording: opening WHEP for", w.cameraName);
   w.starting = true;
   const result = await openWhep(w.cameraId);
   w.starting = false;
@@ -269,13 +275,13 @@ async function startRecording(w: Watcher) {
     void saveBlob(w.cameraId, w.cameraName, blob, iso, "motion", w.recordingsPathRef, w.saveModeRef);
   };
 
-  console.debug("[motion] MediaRecorder starting, mime:", mimeType, "camera:", w.cameraName);
+  dbg("[motion] MediaRecorder starting, mime:", mimeType, "camera:", w.cameraName);
   recorder.start(200);
 }
 
 function onMotion(w: Watcher) {
   const globalRecordingOn = w.recordingEnabledRef.current;
-  console.debug("[motion] detected on", w.cameraName,
+  dbg("[motion] detected on", w.cameraName,
     "| globalRec:", globalRecordingOn,
     "| recorder:", w.recorder?.state ?? "null",
     "| starting:", w.starting);
@@ -414,7 +420,7 @@ async function startContRec(cr: ContRec): Promise<void> {
   if (cr.starting) return;
   if (cr.recorder && cr.recorder.state !== "inactive") return;
 
-  console.debug("[contRec] starting WHEP for", cr.cameraName);
+  dbg("[contRec] starting WHEP for", cr.cameraName);
   cr.starting = true;
   const result = await openWhep(cr.cameraId);
   cr.starting = false;
@@ -460,12 +466,12 @@ async function startContRec(cr: ContRec): Promise<void> {
     void saveBlob(cr.cameraId, cr.cameraName, blob, iso, "scheduled", cr.recordingsPathRef, cr.saveModeRef);
   };
 
-  console.debug("[contRec] MediaRecorder starting for", cr.cameraName, "mime:", mimeType);
+  dbg("[contRec] MediaRecorder starting for", cr.cameraName, "mime:", mimeType);
   recorder.start(200);
 }
 
 function stopContRec(cr: ContRec) {
-  console.debug("[contRec] stopping", cr.cameraName, "| state:", cr.recorder?.state ?? "null");
+  dbg("[contRec] stopping", cr.cameraName, "| state:", cr.recorder?.state ?? "null");
   if (cr.recorder && cr.recorder.state !== "inactive") {
     try { cr.recorder.stop(); } catch { /* ignore */ }
   }

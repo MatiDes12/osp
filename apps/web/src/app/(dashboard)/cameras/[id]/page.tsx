@@ -41,6 +41,7 @@ import { useRecordings } from "@/hooks/use-recordings";
 import { useEvents } from "@/hooks/use-events";
 import type {
   Camera as CameraType,
+  CameraConfig,
   CameraZone,
   OSPEvent,
   Recording,
@@ -925,6 +926,12 @@ function SettingsTab({
   const [name, setName] = useState(camera.name);
   const [connectionUri, setConnectionUri] = useState(camera.connectionUri);
   const [showUri, setShowUri] = useState(false);
+  const [recordingMode, setRecordingMode] = useState<CameraConfig["recordingMode"]>(
+    camera.config.recordingMode,
+  );
+  const [motionSensitivity, setMotionSensitivity] = useState(
+    camera.config.motionSensitivity,
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -984,6 +991,12 @@ function SettingsTab({
       if (name.trim() !== camera.name) body.name = name.trim();
       if (connectionUri.trim() !== camera.connectionUri)
         body.connectionUri = connectionUri.trim();
+      if (
+        recordingMode !== camera.config.recordingMode ||
+        motionSensitivity !== camera.config.motionSensitivity
+      ) {
+        body.config = { recordingMode, motionSensitivity };
+      }
       if (Object.keys(body).length === 0) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -1103,6 +1116,56 @@ function SettingsTab({
             RTSP, ONVIF, or camera-specific protocol URL
           </p>
         </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs text-zinc-400">Recording Mode</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(["off", "motion", "continuous"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setRecordingMode(mode)}
+                className={`px-3 py-2 rounded-md text-xs font-medium capitalize transition-colors cursor-pointer border ${
+                  recordingMode === mode
+                    ? mode === "off"
+                      ? "bg-zinc-700 border-zinc-500 text-zinc-100"
+                      : mode === "motion"
+                        ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                        : "bg-red-500/15 border-red-500/40 text-red-300"
+                    : "bg-zinc-800/50 border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-zinc-600">
+            {recordingMode === "off" && "No automatic recording for this camera."}
+            {recordingMode === "motion" && "Starts recording when motion is detected; stops after 8.5s of no motion."}
+            {recordingMode === "continuous" && "Records continuously when global recording is enabled."}
+          </p>
+        </div>
+
+        {recordingMode === "motion" && (
+          <div className="space-y-2">
+            <label className="text-xs text-zinc-400 flex items-center justify-between">
+              Motion Sensitivity
+              <span className="text-zinc-300 font-medium tabular-nums">{motionSensitivity}%</span>
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={motionSensitivity}
+              onChange={(e) => setMotionSensitivity(Number(e.target.value))}
+              className="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-amber-400"
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>Low</span>
+              <span>High</span>
+            </div>
+          </div>
+        )}
 
         {saveError && <p className="text-xs text-red-400">{saveError}</p>}
         <button

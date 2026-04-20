@@ -31,12 +31,17 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 
 const PATH_LABELS: Record<string, string> = {
   "/cameras": "Cameras",
+  "/monitor": "Live Monitor",
   "/events": "Events & Alerts",
   "/recordings": "Recordings",
   "/rules": "Rules",
+  "/analytics": "Analytics",
+  "/extensions": "Extensions",
   "/settings": "Settings",
   "/health": "System Health",
   "/locations": "Locations",
+  "/download": "Desktop App",
+  "/admin": "Admin",
 };
 
 const MAX_NOTIF_DISPLAY = 5;
